@@ -27,17 +27,25 @@ export interface EstoqueInicial {
   id: string; unidade: Unidade; produto_id: string; mes: number; ano: number
   qtd_carteiras: number; created_at: string; updated_at: string; produto?: Produto
 }
+export interface CompraItem {
+  id: string; compra_id: string; produto_id: string; qtd_carteiras: number; valor: number
+  produto?: Produto
+}
 export interface Compra {
-  id: string; unidade: Unidade; produto_id: string; fornecedor_id: string | null
-  data_compra: string; numero_nf: string | null; qtd_carteiras: number; valor_total: number
+  id: string; unidade: Unidade; fornecedor_id: string | null
+  data_compra: string; numero_nf: string | null; valor_total: number; valor_st?: number
   observacoes: string | null; ativo: boolean; created_at: string
-  produto?: Produto; fornecedor?: Fornecedor
+  fornecedor?: Fornecedor; itens?: CompraItem[]
+}
+export interface VendaItem {
+  id: string; venda_id: string; produto_id: string; qtd_carteiras: number; valor: number
+  produto?: Produto
 }
 export interface Venda {
-  id: string; unidade: Unidade; produto_id: string; cliente_id: string | null
-  data_venda: string; numero_nf: string | null; qtd_carteiras: number; valor_total: number
+  id: string; unidade: Unidade; cliente_id: string | null
+  data_venda: string; numero_nf: string | null; valor_total: number; valor_st?: number
   observacoes: string | null; ativo: boolean; created_at: string
-  produto?: Produto; cliente?: Cliente
+  cliente?: Cliente; itens?: VendaItem[]
 }
 export interface Despesa {
   id: string; unidade: Unidade; categoria_id: string | null; fornecedor_id: string | null
