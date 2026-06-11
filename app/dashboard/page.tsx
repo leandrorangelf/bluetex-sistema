@@ -38,8 +38,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!profile) return
-    if (profile.role === 'admin') carregarTodas()
-    else if (unidadeAtiva) carregarUnidade(unidadeAtiva).then(d => { setDados({ [unidadeAtiva]: d }); setLoading(false) })
+    if (profile.role === 'admin') {
+      carregarTodas()
+    } else if (unidadeAtiva) {
+      carregarUnidade(unidadeAtiva).then(d => {
+        setDados({ [unidadeAtiva]: d })
+        carregarParcelas(unidadeAtiva)
+        carregarEstoque(unidadeAtiva)
+        setLoading(false)
+      })
+    }
   }, [profile, unidadeAtiva])
 
   async function carregarTodas() {
@@ -112,13 +120,11 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (!profile) return
-    const u = isAdmin ? (abaAtiva === 'consolidado' ? null : abaAtiva as string) : unidadeAtiva
-    if (u !== undefined) {
-      carregarParcelas(u)
-      carregarEstoque(u)
-    }
-  }, [abaAtiva, profile, unidadeAtiva])
+    if (!profile || !isAdmin) return
+    const u = abaAtiva === 'consolidado' ? null : abaAtiva as string
+    carregarParcelas(u)
+    carregarEstoque(u)
+  }, [abaAtiva, profile])
 
   const dadosAtivos = isAdmin ? (abaAtiva === 'consolidado' ? consolidado() : (dados[abaAtiva] ?? EMPTY)) : (unidadeAtiva ? (dados[unidadeAtiva] ?? EMPTY) : EMPTY)
   const resultado = dadosAtivos.aReceber - dadosAtivos.aPagar
