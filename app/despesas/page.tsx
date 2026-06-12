@@ -53,6 +53,7 @@ export default function DespesasPage() {
 
   async function save() {
     if (!form.descricao.trim()) return setErr('Descrição é obrigatória.')
+    if (parcelas.length === 0) return setErr('Adicione pelo menos uma parcela para registrar o vencimento.')
     const unidade = unidadeAtiva
     if (!unidade) return setErr('Sem unidade ativa.')
     setSaving(true)
