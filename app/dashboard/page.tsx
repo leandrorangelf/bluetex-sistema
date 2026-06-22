@@ -116,7 +116,7 @@ export default function DashboardPage() {
   }
 
   async function carregarEstoque(unidade: string | null) {
-    const [produtosRes, estoqueInicialRes, comprasRes, vendasRes] = await Promise.all([
+    const [produtosRes, estoqueInicialRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
       sb.from('btx_produtos')
         .select('id,nome,carteiras_por_caixa')
         .eq('ativo', true)
@@ -149,6 +149,15 @@ export default function DashboardPage() {
         if (unidade) q = q.eq('unidade', unidade)
         return q
       })(),
+
+      (() => {
+        let q = sb.from('btx_ajustes_estoque')
+          .select('unidade,produto_id,qtd_carteiras,mes,ano')
+          .eq('ativo', true)
+
+        if (unidade) q = q.eq('unidade', unidade)
+        return q
+      })(),
     ])
 
     const produtos = produtosRes.data ?? []
@@ -159,7 +168,7 @@ export default function DashboardPage() {
       return `${unidadeMov}::${produtoId}`
     }
 
-    // Marco zero: pega o último estoque inicial cadastrado por unidade/produto.
+    // Marco zero: usa o último estoque inicial cadastrado por unidade/produto.
     ;(estoqueInicialRes.data ?? []).forEach((e: { unidade: string; produto_id: string; qtd_carteiras: number; mes: number; ano: number }) => {
       const k = key(e.unidade, e.produto_id)
 
@@ -169,7 +178,7 @@ export default function DashboardPage() {
       }
     })
 
-    // Entradas reais após começar a usar o sistema.
+    // Compras somam estoque.
     ;(comprasRes.data ?? []).forEach((compra: { unidade: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
       ;(compra.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
         const k = key(compra.unidade, i.produto_id)
@@ -177,12 +186,18 @@ export default function DashboardPage() {
       })
     })
 
-    // Saídas reais após começar a usar o sistema.
+    // Vendas baixam estoque.
     ;(vendasRes.data ?? []).forEach((venda: { unidade: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
       ;(venda.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
         const k = key(venda.unidade, i.produto_id)
         estoqueMap[k] = (estoqueMap[k] ?? 0) - Number(i.qtd_carteiras)
       })
+    })
+
+    // Ajustes físicos corrigem o saldo atual sem alterar compras/vendas antigas.
+    ;(ajustesRes.data ?? []).forEach((a: { unidade: string; produto_id: string; qtd_carteiras: number }) => {
+      const k = key(a.unidade, a.produto_id)
+      estoqueMap[k] = (estoqueMap[k] ?? 0) + Number(a.qtd_carteiras)
     })
 
     setEstoque(produtos.map(p => {
@@ -193,7 +208,7 @@ export default function DashboardPage() {
       return {
         produto: p.nome,
         qtd,
-        caixas: Math.floor(qtd / p.carteiras_por_caixa),
+        caixas: qtd / p.carteiras_por_caixa,
         carteiras_por_caixa: p.carteiras_por_caixa
       }
     }))
@@ -331,7 +346,7 @@ export default function DashboardPage() {
                         <tr key={i}>
                           <td style={{ fontSize: 12 }}>{e.produto}</td>
                           <td className="mono">{e.qtd.toLocaleString('pt-BR')}</td>
-                          <td className="mono" style={{ color: e.caixas < 0 ? 'var(--red)' : 'var(--text)' }}>{e.caixas}</td>
+                          <td className="mono" style={{ color: e.caixas < 0 ? 'var(--red)' : 'var(--text)' }}>{e.caixas.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
                         </tr>
                       ))}
                     </tbody>
