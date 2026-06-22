@@ -28,8 +28,11 @@ export default function CaixaPage() {
   async function loadData() {
     if (!unidade) { setLoading(false); return }
     setLoading(true)
-    const mesStart = `${ano}-${String(mes).padStart(2,'0')}-01`
-    const mesEnd = `${ano}-${String(mes).padStart(2,'0')}-31`
+
+    const mesStr = String(mes).padStart(2, '0')
+    const ultimoDia = new Date(ano, mes, 0).getDate()
+    const mesStart = `${ano}-${mesStr}-01`
+    const mesEnd = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`
 
     const [{ data: cx }, { data: pp }, { data: pr }] = await Promise.all([
       sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).eq('mes', mes).eq('ano', ano).maybeSingle(),
@@ -41,8 +44,8 @@ export default function CaixaPage() {
 
     const si = cx?.saldo_inicial ?? 0
     setSaldoInicial(si); setSaldoEdit(si)
-    setPago((pp ?? []).reduce((a: number, r: { valor: number }) => a + r.valor, 0))
-    setRecebido((pr ?? []).reduce((a: number, r: { valor: number }) => a + r.valor, 0))
+    setPago((pp ?? []).reduce((a: number, r: { valor: number }) => a + Number(r.valor), 0))
+    setRecebido((pr ?? []).reduce((a: number, r: { valor: number }) => a + Number(r.valor), 0))
     setLoading(false)
   }
 
