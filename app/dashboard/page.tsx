@@ -55,7 +55,6 @@ export default function DashboardPage() {
     const results: Record<string, DashData> = {}
     for (const u of UNIDADES) results[u] = await carregarUnidade(u)
     setDados(results)
-    // Carrega parcelas e estoque consolidado
     await carregarParcelas(null)
     await carregarEstoque(null)
     setLoading(false)
@@ -66,20 +65,46 @@ export default function DashboardPage() {
     const ultimoDia = new Date(ano, mes, 0).getDate()
     const dataInicio = `${ano}-${mesStr}-01`
     const dataFim = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`
-    const [caixaRes, vendasRes, comprasRes, despesasRes, parcelasRes] = await Promise.all([
-      sb.from('btx_caixa_mensal').select('saldo_inicial').eq('unidade', unidade).eq('mes', mes).eq('ano', ano).maybeSingle(),
-      sb.from('btx_vendas').select('valor_total').eq('unidade', unidade).eq('ativo', true).gte('data_venda', dataInicio).lte('data_venda', dataFim),
-      sb.from('btx_compras').select('valor_total').eq('unidade', unidade).eq('ativo', true).gte('data_compra', dataInicio).lte('data_compra', dataFim),
-      sb.from('btx_despesas').select('valor_total').eq('unidade', unidade).eq('ativo', true).gte('data_despesa', dataInicio).lte('data_despesa', dataFim),
-      sb.from('btx_parcelas').select('valor,status,vencimento,tipo').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
+
+    const [caixaRes, parcelasPagasRes, parcelasRes] = await Promise.all([
+      sb.from('btx_caixa_mensal')
+        .select('saldo_inicial')
+        .eq('unidade', unidade)
+        .eq('mes', mes)
+        .eq('ano', ano)
+        .maybeSingle(),
+
+      sb.from('btx_parcelas')
+        .select('valor,tipo,status,vencimento,data_pagamento')
+        .eq('unidade', unidade)
+        .eq('ativo', true)
+        .eq('status', 'pago')
+        .gte('data_pagamento', dataInicio)
+        .lte('data_pagamento', dataFim),
+
+      sb.from('btx_parcelas')
+        .select('valor,status,vencimento,tipo')
+        .eq('unidade', unidade)
+        .eq('ativo', true)
+        .neq('status', 'cancelado'),
     ])
+
     const saldoInicial = caixaRes.data?.saldo_inicial ?? 0
-    const entradas = (vendasRes.data ?? []).reduce((s, v) => s + Number(v.valor_total), 0)
-    const saidas = (comprasRes.data ?? []).reduce((s, v) => s + Number(v.valor_total), 0) + (despesasRes.data ?? []).reduce((s, v) => s + Number(v.valor_total), 0)
+    const parcelasPagas = parcelasPagasRes.data ?? []
+
+    const entradas = parcelasPagas
+      .filter(p => p.tipo === 'receber')
+      .reduce((s, p) => s + Number(p.valor), 0)
+
+    const saidas = parcelasPagas
+      .filter(p => p.tipo === 'pagar')
+      .reduce((s, p) => s + Number(p.valor), 0)
+
     const parc = parcelasRes.data ?? []
     const aReceber = parc.filter(p => p.tipo === 'receber' && p.status === 'pendente').reduce((s, p) => s + Number(p.valor), 0)
     const aPagar = parc.filter(p => p.tipo === 'pagar' && p.status === 'pendente').reduce((s, p) => s + Number(p.valor), 0)
     const parcelasVencidas = parc.filter(p => p.status === 'pendente' && p.vencimento < hoje).length
+
     return { caixa: saldoInicial + entradas - saidas, entradas, saidas, aReceber, aPagar, parcelasVencidas }
   }
 
@@ -96,18 +121,63 @@ export default function DashboardPage() {
     const dataInicio = `${ano}-${mesStr}-01`
     const dataFim = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`
 
-    const [produtosRes, estoqueInicialRes, comprasItensRes, vendasItensRes] = await Promise.all([
-      sb.from('btx_produtos').select('id,nome,carteiras_por_caixa').eq('ativo', true).order('nome'),
-      (() => { let q = sb.from('btx_estoque_inicial').select('produto_id,qtd_carteiras').eq('mes', mes).eq('ano', ano); if (unidade) q = q.eq('unidade', unidade); return q })(),
-      (() => { let q = sb.from('btx_compras_itens').select('produto_id,qtd_carteiras,compra:btx_compras(data_compra,unidade)').gte('compra.data_compra', dataInicio).lte('compra.data_compra', dataFim); return q })(),
-      (() => { let q = sb.from('btx_vendas_itens').select('produto_id,qtd_carteiras,venda:btx_vendas(data_venda,unidade)').gte('venda.data_venda', dataInicio).lte('venda.data_venda', dataFim); return q })(),
+    const [produtosRes, estoqueInicialRes, comprasRes, vendasRes] = await Promise.all([
+      sb.from('btx_produtos')
+        .select('id,nome,carteiras_por_caixa')
+        .eq('ativo', true)
+        .order('nome'),
+
+      (() => {
+        let q = sb.from('btx_estoque_inicial')
+          .select('produto_id,qtd_carteiras')
+          .eq('mes', mes)
+          .eq('ano', ano)
+
+        if (unidade) q = q.eq('unidade', unidade)
+        return q
+      })(),
+
+      (() => {
+        let q = sb.from('btx_compras')
+          .select('id,unidade,itens:btx_compras_itens(produto_id,qtd_carteiras)')
+          .eq('ativo', true)
+          .gte('data_compra', dataInicio)
+          .lte('data_compra', dataFim)
+
+        if (unidade) q = q.eq('unidade', unidade)
+        return q
+      })(),
+
+      (() => {
+        let q = sb.from('btx_vendas')
+          .select('id,unidade,itens:btx_vendas_itens(produto_id,qtd_carteiras)')
+          .eq('ativo', true)
+          .gte('data_venda', dataInicio)
+          .lte('data_venda', dataFim)
+
+        if (unidade) q = q.eq('unidade', unidade)
+        return q
+      })(),
     ])
 
     const produtos = produtosRes.data ?? []
     const estoqueMap: Record<string, number> = {}
-    ;(estoqueInicialRes.data ?? []).forEach((e: { produto_id: string; qtd_carteiras: number }) => { estoqueMap[e.produto_id] = (estoqueMap[e.produto_id] ?? 0) + e.qtd_carteiras })
-    ;(comprasItensRes.data ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => { estoqueMap[i.produto_id] = (estoqueMap[i.produto_id] ?? 0) + i.qtd_carteiras })
-    ;(vendasItensRes.data ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => { estoqueMap[i.produto_id] = (estoqueMap[i.produto_id] ?? 0) - i.qtd_carteiras })
+
+    ;(estoqueInicialRes.data ?? []).forEach((e: { produto_id: string; qtd_carteiras: number }) => {
+      estoqueMap[e.produto_id] = (estoqueMap[e.produto_id] ?? 0) + Number(e.qtd_carteiras)
+    })
+
+    ;(comprasRes.data ?? []).forEach((compra: { itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
+      ;(compra.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
+        estoqueMap[i.produto_id] = (estoqueMap[i.produto_id] ?? 0) + Number(i.qtd_carteiras)
+      })
+    })
+
+    ;(vendasRes.data ?? []).forEach((venda: { itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
+      ;(venda.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
+        estoqueMap[i.produto_id] = (estoqueMap[i.produto_id] ?? 0) - Number(i.qtd_carteiras)
+      })
+    })
 
     setEstoque(produtos.map(p => ({ produto: p.nome, qtd: estoqueMap[p.id] ?? 0, caixas: Math.floor((estoqueMap[p.id] ?? 0) / p.carteiras_por_caixa), carteiras_por_caixa: p.carteiras_por_caixa })))
   }
@@ -129,8 +199,6 @@ export default function DashboardPage() {
   const dadosAtivos = isAdmin ? (abaAtiva === 'consolidado' ? consolidado() : (dados[abaAtiva] ?? EMPTY)) : (unidadeAtiva ? (dados[unidadeAtiva] ?? EMPTY) : EMPTY)
   const resultado = dadosAtivos.aReceber - dadosAtivos.aPagar
 
-  // Agrupa parcelas por semana
-  const proximos30 = parcelas.filter(p => p.vencimento >= hoje && p.vencimento <= new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0])
   const vencidas = parcelas.filter(p => p.vencimento < hoje)
   const aPagarList = parcelas.filter(p => p.tipo === 'pagar' && p.status === 'pendente').sort((a, b) => a.vencimento.localeCompare(b.vencimento))
 
@@ -152,22 +220,21 @@ export default function DashboardPage() {
 
       {loading ? <div className="empty-state">Carregando...</div> : (
         <>
-          {/* Stats */}
           <div className="grid-3" style={{ marginBottom: 16 }}>
             <div className="stat-card">
               <div className="stat-card-label">Caixa do Mês</div>
               <div className={`stat-card-value ${dadosAtivos.caixa < 0 ? 'text-red' : 'text-green'}`}>{formatMoeda(dadosAtivos.caixa)}</div>
-              <div className="stat-card-sub">saldo inicial + entradas − saídas</div>
+              <div className="stat-card-sub">saldo inicial + recebidas − pagas</div>
             </div>
             <div className="stat-card">
               <div className="stat-card-label">Entradas</div>
               <div className="stat-card-value text-green">{formatMoeda(dadosAtivos.entradas)}</div>
-              <div className="stat-card-sub">vendas do mês</div>
+              <div className="stat-card-sub">parcelas recebidas no mês</div>
             </div>
             <div className="stat-card">
               <div className="stat-card-label">Saídas</div>
               <div className="stat-card-value text-red">{formatMoeda(dadosAtivos.saidas)}</div>
-              <div className="stat-card-sub">compras + despesas</div>
+              <div className="stat-card-sub">parcelas pagas no mês</div>
             </div>
           </div>
 
@@ -194,7 +261,6 @@ export default function DashboardPage() {
           )}
 
           <div className="grid-2" style={{ gap: 24, marginBottom: 24 }}>
-            {/* Contas a Pagar */}
             <div className="card">
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 16 }}>
                 Contas a Pagar
@@ -231,7 +297,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Estoque Atual */}
             <div className="card">
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 16 }}>
                 Estoque Atual — {getMesAnoLabel(mes, ano)}
@@ -259,7 +324,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Tabela comparativa admin */}
           {isAdmin && abaAtiva === 'consolidado' && (
             <div className="card">
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 16 }}>
