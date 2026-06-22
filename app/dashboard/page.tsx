@@ -118,7 +118,6 @@ export default function DashboardPage() {
   async function carregarEstoque(unidade: string | null) {
     const mesStr = String(mes).padStart(2, '0')
     const ultimoDia = new Date(ano, mes, 0).getDate()
-    const dataInicio = `${ano}-${mesStr}-01`
     const dataFim = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`
 
     const [produtosRes, estoqueInicialRes, comprasRes, vendasRes] = await Promise.all([
@@ -129,9 +128,10 @@ export default function DashboardPage() {
 
       (() => {
         let q = sb.from('btx_estoque_inicial')
-          .select('produto_id,qtd_carteiras')
-          .eq('mes', mes)
-          .eq('ano', ano)
+          .select('unidade,produto_id,qtd_carteiras,mes,ano')
+          .or(`ano.lt.${ano},and(ano.eq.${ano},mes.lte.${mes})`)
+          .order('ano', { ascending: false })
+          .order('mes', { ascending: false })
 
         if (unidade) q = q.eq('unidade', unidade)
         return q
@@ -139,9 +139,8 @@ export default function DashboardPage() {
 
       (() => {
         let q = sb.from('btx_compras')
-          .select('id,unidade,itens:btx_compras_itens(produto_id,qtd_carteiras)')
+          .select('id,unidade,data_compra,itens:btx_compras_itens(produto_id,qtd_carteiras)')
           .eq('ativo', true)
-          .gte('data_compra', dataInicio)
           .lte('data_compra', dataFim)
 
         if (unidade) q = q.eq('unidade', unidade)
@@ -150,9 +149,8 @@ export default function DashboardPage() {
 
       (() => {
         let q = sb.from('btx_vendas')
-          .select('id,unidade,itens:btx_vendas_itens(produto_id,qtd_carteiras)')
+          .select('id,unidade,data_venda,itens:btx_vendas_itens(produto_id,qtd_carteiras)')
           .eq('ativo', true)
-          .gte('data_venda', dataInicio)
           .lte('data_venda', dataFim)
 
         if (unidade) q = q.eq('unidade', unidade)
@@ -162,24 +160,60 @@ export default function DashboardPage() {
 
     const produtos = produtosRes.data ?? []
     const estoqueMap: Record<string, number> = {}
+    const baseMap: Record<string, { ano: number; mes: number; dataInicio: string }> = {}
 
-    ;(estoqueInicialRes.data ?? []).forEach((e: { produto_id: string; qtd_carteiras: number }) => {
-      estoqueMap[e.produto_id] = (estoqueMap[e.produto_id] ?? 0) + Number(e.qtd_carteiras)
+    function key(unidadeMov: string, produtoId: string) {
+      return `${unidadeMov}::${produtoId}`
+    }
+
+    ;(estoqueInicialRes.data ?? []).forEach((e: { unidade: string; produto_id: string; qtd_carteiras: number; mes: number; ano: number }) => {
+      const k = key(e.unidade, e.produto_id)
+
+      if (!baseMap[k]) {
+        const baseMesStr = String(e.mes).padStart(2, '0')
+        baseMap[k] = {
+          ano: e.ano,
+          mes: e.mes,
+          dataInicio: `${e.ano}-${baseMesStr}-01`
+        }
+        estoqueMap[k] = Number(e.qtd_carteiras)
+      }
     })
 
-    ;(comprasRes.data ?? []).forEach((compra: { itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
+    ;(comprasRes.data ?? []).forEach((compra: { unidade: string; data_compra: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
       ;(compra.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
-        estoqueMap[i.produto_id] = (estoqueMap[i.produto_id] ?? 0) + Number(i.qtd_carteiras)
+        const k = key(compra.unidade, i.produto_id)
+        const base = baseMap[k]
+
+        if (!base || compra.data_compra >= base.dataInicio) {
+          estoqueMap[k] = (estoqueMap[k] ?? 0) + Number(i.qtd_carteiras)
+        }
       })
     })
 
-    ;(vendasRes.data ?? []).forEach((venda: { itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
+    ;(vendasRes.data ?? []).forEach((venda: { unidade: string; data_venda: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
       ;(venda.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
-        estoqueMap[i.produto_id] = (estoqueMap[i.produto_id] ?? 0) - Number(i.qtd_carteiras)
+        const k = key(venda.unidade, i.produto_id)
+        const base = baseMap[k]
+
+        if (!base || venda.data_venda >= base.dataInicio) {
+          estoqueMap[k] = (estoqueMap[k] ?? 0) - Number(i.qtd_carteiras)
+        }
       })
     })
 
-    setEstoque(produtos.map(p => ({ produto: p.nome, qtd: estoqueMap[p.id] ?? 0, caixas: Math.floor((estoqueMap[p.id] ?? 0) / p.carteiras_por_caixa), carteiras_por_caixa: p.carteiras_por_caixa })))
+    setEstoque(produtos.map(p => {
+      const qtd = Object.entries(estoqueMap)
+        .filter(([k]) => k.endsWith(`::${p.id}`))
+        .reduce((s, [, v]) => s + v, 0)
+
+      return {
+        produto: p.nome,
+        qtd,
+        caixas: Math.floor(qtd / p.carteiras_por_caixa),
+        carteiras_por_caixa: p.carteiras_por_caixa
+      }
+    }))
   }
 
   function consolidado(): DashData {
