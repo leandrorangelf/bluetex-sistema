@@ -116,10 +116,6 @@ export default function DashboardPage() {
   }
 
   async function carregarEstoque(unidade: string | null) {
-    const mesStr = String(mes).padStart(2, '0')
-    const ultimoDia = new Date(ano, mes, 0).getDate()
-    const dataFim = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`
-
     const [produtosRes, estoqueInicialRes, comprasRes, vendasRes] = await Promise.all([
       sb.from('btx_produtos')
         .select('id,nome,carteiras_por_caixa')
@@ -129,7 +125,6 @@ export default function DashboardPage() {
       (() => {
         let q = sb.from('btx_estoque_inicial')
           .select('unidade,produto_id,qtd_carteiras,mes,ano')
-          .or(`ano.lt.${ano},and(ano.eq.${ano},mes.lte.${mes})`)
           .order('ano', { ascending: false })
           .order('mes', { ascending: false })
 
@@ -139,9 +134,8 @@ export default function DashboardPage() {
 
       (() => {
         let q = sb.from('btx_compras')
-          .select('id,unidade,data_compra,itens:btx_compras_itens(produto_id,qtd_carteiras)')
+          .select('id,unidade,itens:btx_compras_itens(produto_id,qtd_carteiras)')
           .eq('ativo', true)
-          .lte('data_compra', dataFim)
 
         if (unidade) q = q.eq('unidade', unidade)
         return q
@@ -149,9 +143,8 @@ export default function DashboardPage() {
 
       (() => {
         let q = sb.from('btx_vendas')
-          .select('id,unidade,data_venda,itens:btx_vendas_itens(produto_id,qtd_carteiras)')
+          .select('id,unidade,itens:btx_vendas_itens(produto_id,qtd_carteiras)')
           .eq('ativo', true)
-          .lte('data_venda', dataFim)
 
         if (unidade) q = q.eq('unidade', unidade)
         return q
@@ -160,45 +153,35 @@ export default function DashboardPage() {
 
     const produtos = produtosRes.data ?? []
     const estoqueMap: Record<string, number> = {}
-    const baseMap: Record<string, { ano: number; mes: number; dataInicio: string }> = {}
+    const baseAplicada: Record<string, boolean> = {}
 
     function key(unidadeMov: string, produtoId: string) {
       return `${unidadeMov}::${produtoId}`
     }
 
+    // Marco zero: pega o último estoque inicial cadastrado por unidade/produto.
     ;(estoqueInicialRes.data ?? []).forEach((e: { unidade: string; produto_id: string; qtd_carteiras: number; mes: number; ano: number }) => {
       const k = key(e.unidade, e.produto_id)
 
-      if (!baseMap[k]) {
-        const baseMesStr = String(e.mes).padStart(2, '0')
-        baseMap[k] = {
-          ano: e.ano,
-          mes: e.mes,
-          dataInicio: `${e.ano}-${baseMesStr}-01`
-        }
+      if (!baseAplicada[k]) {
         estoqueMap[k] = Number(e.qtd_carteiras)
+        baseAplicada[k] = true
       }
     })
 
-    ;(comprasRes.data ?? []).forEach((compra: { unidade: string; data_compra: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
+    // Entradas reais após começar a usar o sistema.
+    ;(comprasRes.data ?? []).forEach((compra: { unidade: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
       ;(compra.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
         const k = key(compra.unidade, i.produto_id)
-        const base = baseMap[k]
-
-        if (!base || compra.data_compra >= base.dataInicio) {
-          estoqueMap[k] = (estoqueMap[k] ?? 0) + Number(i.qtd_carteiras)
-        }
+        estoqueMap[k] = (estoqueMap[k] ?? 0) + Number(i.qtd_carteiras)
       })
     })
 
-    ;(vendasRes.data ?? []).forEach((venda: { unidade: string; data_venda: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
+    // Saídas reais após começar a usar o sistema.
+    ;(vendasRes.data ?? []).forEach((venda: { unidade: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
       ;(venda.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
         const k = key(venda.unidade, i.produto_id)
-        const base = baseMap[k]
-
-        if (!base || venda.data_venda >= base.dataInicio) {
-          estoqueMap[k] = (estoqueMap[k] ?? 0) - Number(i.qtd_carteiras)
-        }
+        estoqueMap[k] = (estoqueMap[k] ?? 0) - Number(i.qtd_carteiras)
       })
     })
 
@@ -333,7 +316,7 @@ export default function DashboardPage() {
 
             <div className="card">
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 16 }}>
-                Estoque Atual — {getMesAnoLabel(mes, ano)}
+                Estoque Atual
               </div>
               {estoque.length === 0 ? (
                 <div className="empty-state" style={{ padding: '24px 0' }}>Sem dados de estoque</div>
