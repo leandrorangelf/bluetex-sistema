@@ -29,28 +29,37 @@ export default function RelatoriosPage() {
     if (!unidade) return
     setLoading(true)
     const mesStart = `${ano}-${String(mes).padStart(2,'0')}-01`
-    const mesEnd = `${ano}-${String(mes).padStart(2,'0')}-31`
+    const ultimoDia = new Date(ano, mes, 0).getDate()
+    const mesEnd = `${ano}-${String(mes).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
-    const [{ data: prods }, { data: estInit }, { data: compras }, { data: vendas }, { data: ajustes }, { data: despesas }] = await Promise.all([
+    const [{ data: prods }, { data: estInit }, { data: comprasNFs }, { data: vendasNFs }, { data: ajustes }, { data: despesas }] = await Promise.all([
       sb.from('btx_produtos').select('*').eq('ativo', true).order('nome'),
       sb.from('btx_estoque_inicial').select('*').eq('unidade', unidade).eq('mes', mes).eq('ano', ano),
-      sb.from('btx_compras').select('produto_id, qtd_carteiras, valor_total').eq('unidade', unidade).eq('ativo', true).gte('data_compra', mesStart).lte('data_compra', mesEnd),
-      sb.from('btx_vendas').select('produto_id, qtd_carteiras, valor_total').eq('unidade', unidade).eq('ativo', true).gte('data_venda', mesStart).lte('data_venda', mesEnd),
+      sb.from('btx_compras').select('id, valor_total, itens:btx_compras_itens(produto_id, qtd_carteiras)').eq('unidade', unidade).eq('ativo', true).gte('data_compra', mesStart).lte('data_compra', mesEnd),
+      sb.from('btx_vendas').select('id, valor_total, itens:btx_vendas_itens(produto_id, qtd_carteiras)').eq('unidade', unidade).eq('ativo', true).gte('data_venda', mesStart).lte('data_venda', mesEnd),
       sb.from('btx_ajustes_estoque').select('produto_id, qtd_carteiras').eq('unidade', unidade).eq('ativo', true).eq('mes', mes).eq('ano', ano),
       sb.from('btx_despesas').select('valor_total').eq('unidade', unidade).eq('ativo', true).gte('data_despesa', mesStart).lte('data_despesa', mesEnd),
     ])
 
+    type CompraItemRow = { produto_id: string; qtd_carteiras: number }
+    type ComprasNFRow = { id: string; valor_total: number; itens: CompraItemRow[] }
+    type VendaItemRow = { produto_id: string; qtd_carteiras: number }
+    type VendasNFRow = { id: string; valor_total: number; itens: VendaItemRow[] }
+
+    const comprasItens: CompraItemRow[] = (comprasNFs ?? [] as ComprasNFRow[]).flatMap((c: ComprasNFRow) => c.itens ?? [])
+    const vendasItens: VendaItemRow[] = (vendasNFs ?? [] as VendasNFRow[]).flatMap((v: VendasNFRow) => v.itens ?? [])
+
     const rows: EstoqueRow[] = (prods ?? []).map((p: Produto) => {
       const ei = (estInit ?? []).find((e: { produto_id: string }) => e.produto_id === p.id)?.qtd_carteiras ?? 0
-      const comp = (compras ?? []).filter((c: { produto_id: string }) => c.produto_id === p.id).reduce((a: number, c: { qtd_carteiras: number }) => a + c.qtd_carteiras, 0)
-      const vend = (vendas ?? []).filter((v: { produto_id: string }) => v.produto_id === p.id).reduce((a: number, v: { qtd_carteiras: number }) => a + v.qtd_carteiras, 0)
+      const comp = comprasItens.filter(c => c.produto_id === p.id).reduce((a, c) => a + c.qtd_carteiras, 0)
+      const vend = vendasItens.filter(v => v.produto_id === p.id).reduce((a, v) => a + v.qtd_carteiras, 0)
       const aj = (ajustes ?? []).filter((a: { produto_id: string }) => a.produto_id === p.id).reduce((a: number, x: { qtd_carteiras: number }) => a + x.qtd_carteiras, 0)
       return { produto: p, inicial: ei, comprado: comp, vendido: vend, ajuste: aj, final: ei + comp - vend + aj }
     })
 
     setEstoqueRows(rows)
-    setTotalCompras((compras ?? []).reduce((a: number, c: { valor_total: number }) => a + c.valor_total, 0))
-    setTotalVendas((vendas ?? []).reduce((a: number, v: { valor_total: number }) => a + v.valor_total, 0))
+    setTotalCompras((comprasNFs ?? [] as ComprasNFRow[]).reduce((a: number, c: ComprasNFRow) => a + c.valor_total, 0))
+    setTotalVendas((vendasNFs ?? [] as VendasNFRow[]).reduce((a: number, v: VendasNFRow) => a + v.valor_total, 0))
     setTotalDespesas((despesas ?? []).reduce((a: number, d: { valor_total: number }) => a + d.valor_total, 0))
     setLoading(false)
   }

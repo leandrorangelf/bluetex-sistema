@@ -140,11 +140,10 @@ CREATE POLICY "btx_unidade_est" ON btx_estoque_inicial FOR ALL USING (btx_get_my
 CREATE TABLE IF NOT EXISTS btx_compras (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
-  produto_id UUID NOT NULL REFERENCES btx_produtos(id),
   fornecedor_id UUID REFERENCES btx_fornecedores(id),
   data_compra DATE NOT NULL,
   numero_nf TEXT,
-  qtd_carteiras INTEGER NOT NULL DEFAULT 0,
+  valor_st NUMERIC(12,2) NOT NULL DEFAULT 0,
   valor_total NUMERIC(12,2) NOT NULL DEFAULT 0,
   observacoes TEXT,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -155,16 +154,33 @@ CREATE POLICY "btx_admin_all_comp" ON btx_compras FOR ALL USING (btx_get_my_role
 CREATE POLICY "btx_unidade_comp" ON btx_compras FOR ALL USING (btx_get_my_role()='unidade' AND unidade=btx_get_my_unidade());
 
 -- ------------------------------------------------------------
+-- btx_compras_itens
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS btx_compras_itens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  compra_id UUID NOT NULL REFERENCES btx_compras(id) ON DELETE CASCADE,
+  produto_id UUID NOT NULL REFERENCES btx_produtos(id),
+  qtd_carteiras INTEGER NOT NULL DEFAULT 0,
+  valor NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE btx_compras_itens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "btx_admin_all_comp_itens" ON btx_compras_itens FOR ALL USING (btx_get_my_role()='admin');
+CREATE POLICY "btx_unidade_comp_itens" ON btx_compras_itens FOR ALL USING (
+  btx_get_my_role()='unidade' AND
+  EXISTS (SELECT 1 FROM btx_compras c WHERE c.id = compra_id AND c.unidade = btx_get_my_unidade())
+);
+
+-- ------------------------------------------------------------
 -- btx_vendas
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_vendas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
-  produto_id UUID NOT NULL REFERENCES btx_produtos(id),
   cliente_id UUID REFERENCES btx_clientes(id),
   data_venda DATE NOT NULL,
   numero_nf TEXT,
-  qtd_carteiras INTEGER NOT NULL DEFAULT 0,
+  valor_st NUMERIC(12,2) NOT NULL DEFAULT 0,
   valor_total NUMERIC(12,2) NOT NULL DEFAULT 0,
   observacoes TEXT,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -173,6 +189,24 @@ CREATE TABLE IF NOT EXISTS btx_vendas (
 ALTER TABLE btx_vendas ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "btx_admin_all_vend" ON btx_vendas FOR ALL USING (btx_get_my_role()='admin');
 CREATE POLICY "btx_unidade_vend" ON btx_vendas FOR ALL USING (btx_get_my_role()='unidade' AND unidade=btx_get_my_unidade());
+
+-- ------------------------------------------------------------
+-- btx_vendas_itens
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS btx_vendas_itens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  venda_id UUID NOT NULL REFERENCES btx_vendas(id) ON DELETE CASCADE,
+  produto_id UUID NOT NULL REFERENCES btx_produtos(id),
+  qtd_carteiras INTEGER NOT NULL DEFAULT 0,
+  valor NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE btx_vendas_itens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "btx_admin_all_vend_itens" ON btx_vendas_itens FOR ALL USING (btx_get_my_role()='admin');
+CREATE POLICY "btx_unidade_vend_itens" ON btx_vendas_itens FOR ALL USING (
+  btx_get_my_role()='unidade' AND
+  EXISTS (SELECT 1 FROM btx_vendas v WHERE v.id = venda_id AND v.unidade = btx_get_my_unidade())
+);
 
 -- ------------------------------------------------------------
 -- btx_despesas
