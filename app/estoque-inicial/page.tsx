@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { getMesAnoLabel, carteirasParaCaixas, mesAtual, anoAtual } from '@/lib/utils'
+import { getMesAnoLabel, converterParaUnidadeMaior, mesAtual, anoAtual } from '@/lib/utils'
 import type { Produto, Unidade } from '@/types'
 import { UNIDADES } from '@/types'
 
-type EstMap = Record<string, number> // produto_id -> qtd_carteiras
+type EstMap = Record<string, number> // produto_id -> qtd_carteiras (unidade base)
 
 export default function EstoqueInicialPage() {
   const { profile, unidadeAtiva } = useAuth()
@@ -18,6 +18,7 @@ export default function EstoqueInicialPage() {
   const [estMap, setEstMap] = useState<EstMap>({})
   const [editMap, setEditMap] = useState<EstMap>({})
   const [editMode, setEditMode] = useState(false)
+  const [modoUnidade, setModoUnidade] = useState<'base' | 'maior'>('base')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const sb = createClient()
@@ -87,6 +88,13 @@ export default function EstoqueInicialPage() {
             {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         )}
+        {editMode && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="form-label" style={{ margin: 0 }}>Lançar em:</span>
+            <button className={`btn btn-sm ${modoUnidade === 'base' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoUnidade('base')}>Unidade base</button>
+            <button className={`btn btn-sm ${modoUnidade === 'maior' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoUnidade('maior')}>Unidade maior</button>
+          </div>
+        )}
       </div>
 
       {!unidade ? (
@@ -96,24 +104,30 @@ export default function EstoqueInicialPage() {
       ) : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Produto</th><th>Carteiras/cx</th><th>Carteiras</th><th>Caixas equiv.</th></tr></thead>
+            <thead><tr><th>Produto</th><th>Conversão</th><th>Qtd</th><th>Equivalente</th></tr></thead>
             <tbody>
               {produtos.map(p => {
-                const qtd = editMode ? (editMap[p.id] ?? 0) : (estMap[p.id] ?? 0)
+                const qtdBase = editMode ? (editMap[p.id] ?? 0) : (estMap[p.id] ?? 0)
+                const valorInput = modoUnidade === 'maior' ? qtdBase / p.fator_conversao : qtdBase
+                const equivalente = modoUnidade === 'maior' ? qtdBase.toString() : converterParaUnidadeMaior(qtdBase, p.fator_conversao)
                 return (
                   <tr key={p.id}>
                     <td style={{ fontWeight: 500 }}>{p.nome}</td>
-                    <td className="mono">{p.carteiras_por_caixa}</td>
+                    <td className="mono" style={{ fontSize: 11 }}>{p.unidade_base} → {p.unidade_maior} (×{p.fator_conversao})</td>
                     <td>
                       {editMode ? (
                         <input className="form-input" type="number" min={0} style={{ width: 100 }}
-                          value={editMap[p.id] ?? 0}
-                          onChange={e => setEditMap(m => ({...m, [p.id]: Number(e.target.value)}))} />
+                          value={valorInput || 0}
+                          onChange={e => {
+                            const v = Number(e.target.value)
+                            const base = modoUnidade === 'maior' ? Math.round(v * p.fator_conversao) : v
+                            setEditMap(m => ({...m, [p.id]: base}))
+                          }} />
                       ) : (
-                        <span className="mono">{qtd}</span>
+                        <span className="mono">{valorInput}</span>
                       )}
                     </td>
-                    <td className="mono">{carteirasParaCaixas(qtd, p.carteiras_por_caixa)}</td>
+                    <td className="mono">{equivalente}</td>
                   </tr>
                 )
               })}
