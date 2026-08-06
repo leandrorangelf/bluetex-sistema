@@ -18,7 +18,7 @@ interface Parcela {
   id: string; vencimento: string; valor: number; tipo: string; status: string; origem: string; unidade: string
 }
 interface EstoqueItem {
-  produto: string; qtd: number; caixas: number; carteiras_por_caixa: number
+  produto: string; qtd: number; caixas: number; unidade_base: string; unidade_maior: string
 }
 
 const EMPTY: DashData = { caixa: 0, entradas: 0, saidas: 0, aReceber: 0, aPagar: 0, parcelasVencidas: 0 }
@@ -118,7 +118,7 @@ export default function DashboardPage() {
   async function carregarEstoque(unidade: string | null) {
     const [produtosRes, estoqueInicialRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
       sb.from('btx_produtos')
-        .select('id,nome,carteiras_por_caixa')
+        .select('id,nome,unidade_base,unidade_maior,fator_conversao')
         .eq('ativo', true)
         .order('nome'),
 
@@ -208,8 +208,9 @@ export default function DashboardPage() {
       return {
         produto: p.nome,
         qtd,
-        caixas: qtd / p.carteiras_por_caixa,
-        carteiras_por_caixa: p.carteiras_por_caixa
+        caixas: qtd / p.fator_conversao,
+        unidade_base: p.unidade_base,
+        unidade_maior: p.unidade_maior
       }
     }))
   }
@@ -339,14 +340,14 @@ export default function DashboardPage() {
                 <div className="table-wrap">
                   <table>
                     <thead>
-                      <tr><th>Produto</th><th>Carteiras</th><th>Caixas</th></tr>
+                      <tr><th>Produto</th><th>Qtd</th><th>Equivalente</th></tr>
                     </thead>
                     <tbody>
                       {estoque.map((e, i) => (
                         <tr key={i}>
                           <td style={{ fontSize: 12 }}>{e.produto}</td>
-                          <td className="mono">{e.qtd.toLocaleString('pt-BR')}</td>
-                          <td className="mono" style={{ color: e.caixas < 0 ? 'var(--red)' : 'var(--text)' }}>{e.caixas.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
+                          <td className="mono">{e.qtd.toLocaleString('pt-BR')} {e.unidade_base}</td>
+                          <td className="mono" style={{ color: e.caixas < 0 ? 'var(--red)' : 'var(--text)' }}>{e.caixas.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {e.unidade_maior}</td>
                         </tr>
                       ))}
                     </tbody>
