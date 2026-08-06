@@ -20,7 +20,7 @@ const NAV = [
   { section: 'Financeiro' },
   { href: '/parcelas-pagar', label: 'Parcelas a Pagar' },
   { href: '/parcelas-receber', label: 'Parcelas a Receber' },
-  { href: '/caixa', label: 'Caixa Mensal' },
+  { href: '/caixa', label: 'Painel Financeiro' },
   { section: 'Análise' },
   { href: '/relatorios', label: 'Relatórios' },
 ]
