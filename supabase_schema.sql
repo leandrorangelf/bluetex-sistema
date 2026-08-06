@@ -61,7 +61,9 @@ CREATE TRIGGER btx_on_auth_user_created AFTER INSERT ON auth.users
 CREATE TABLE IF NOT EXISTS btx_produtos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   nome TEXT NOT NULL,
-  carteiras_por_caixa INTEGER NOT NULL DEFAULT 480,
+  unidade_base TEXT NOT NULL DEFAULT 'Carteira',
+  unidade_maior TEXT NOT NULL DEFAULT 'Caixa',
+  fator_conversao INTEGER NOT NULL DEFAULT 480,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -69,9 +71,9 @@ ALTER TABLE btx_produtos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "btx_all_read_produtos" ON btx_produtos FOR SELECT USING (ativo=TRUE);
 CREATE POLICY "btx_admin_all_produtos" ON btx_produtos FOR ALL USING (btx_get_my_role()='admin');
 
-INSERT INTO btx_produtos(nome, carteiras_por_caixa) VALUES
-  ('GUDANG RED',480),('GUDANG GREEN',480),
-  ('GUDANG TWIN TEN',500),('CRETEC MENTA',500),('CRETEC CEREJA',500)
+INSERT INTO btx_produtos(nome, unidade_base, unidade_maior, fator_conversao) VALUES
+  ('GUDANG RED','Carteira','Caixa',480),('GUDANG GREEN','Carteira','Caixa',480),
+  ('GUDANG TWIN TEN','Carteira','Caixa',500),('CRETEC MENTA','Carteira','Caixa',500),('CRETEC CEREJA','Carteira','Caixa',500)
 ON CONFLICT DO NOTHING;
 
 -- ------------------------------------------------------------
