@@ -9,9 +9,13 @@ export const UNIDADES: Unidade[] = ['NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLU
 export interface Profile {
   id: string; nome: string; role: Role; unidade: Unidade | null; ativo: boolean; created_at: string
 }
+export interface UnidadeMedida {
+  id: string; nome: string; ativo: boolean; created_at: string
+}
 export interface Produto {
-  id: string; nome: string; unidade_base: string; unidade_maior: string; fator_conversao: number
+  id: string; nome: string; unidade_base_id: string; unidade_maior_id: string; fator_conversao: number
   ativo: boolean; created_at: string
+  unidade_base?: UnidadeMedida; unidade_maior?: UnidadeMedida
 }
 export interface Fornecedor {
   id: string; unidade: Unidade; nome: string; cnpj: string | null; telefone: string | null
