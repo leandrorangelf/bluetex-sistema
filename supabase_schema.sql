@@ -56,13 +56,29 @@ CREATE TRIGGER btx_on_auth_user_created AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION btx_handle_new_user();
 
 -- ------------------------------------------------------------
+-- btx_unidades_medida
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS btx_unidades_medida (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nome TEXT NOT NULL UNIQUE,
+  ativo BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE btx_unidades_medida ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "btx_all_read_unidades_medida" ON btx_unidades_medida FOR SELECT USING (ativo=TRUE);
+CREATE POLICY "btx_admin_all_unidades_medida" ON btx_unidades_medida FOR ALL USING (btx_get_my_role()='admin');
+
+INSERT INTO btx_unidades_medida(nome) VALUES ('Carteira'),('Caixa'),('Unidade'),('Display')
+ON CONFLICT DO NOTHING;
+
+-- ------------------------------------------------------------
 -- btx_produtos
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_produtos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   nome TEXT NOT NULL,
-  unidade_base TEXT NOT NULL DEFAULT 'Carteira',
-  unidade_maior TEXT NOT NULL DEFAULT 'Caixa',
+  unidade_base_id UUID NOT NULL REFERENCES btx_unidades_medida(id),
+  unidade_maior_id UUID NOT NULL REFERENCES btx_unidades_medida(id),
   fator_conversao INTEGER NOT NULL DEFAULT 480,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -71,9 +87,12 @@ ALTER TABLE btx_produtos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "btx_all_read_produtos" ON btx_produtos FOR SELECT USING (ativo=TRUE);
 CREATE POLICY "btx_admin_all_produtos" ON btx_produtos FOR ALL USING (btx_get_my_role()='admin');
 
-INSERT INTO btx_produtos(nome, unidade_base, unidade_maior, fator_conversao) VALUES
-  ('GUDANG RED','Carteira','Caixa',480),('GUDANG GREEN','Carteira','Caixa',480),
-  ('GUDANG TWIN TEN','Carteira','Caixa',500),('CRETEC MENTA','Carteira','Caixa',500),('CRETEC CEREJA','Carteira','Caixa',500)
+INSERT INTO btx_produtos(nome, unidade_base_id, unidade_maior_id, fator_conversao) VALUES
+  ('GUDANG RED',(SELECT id FROM btx_unidades_medida WHERE nome='Carteira'),(SELECT id FROM btx_unidades_medida WHERE nome='Caixa'),480),
+  ('GUDANG GREEN',(SELECT id FROM btx_unidades_medida WHERE nome='Carteira'),(SELECT id FROM btx_unidades_medida WHERE nome='Caixa'),480),
+  ('GUDANG TWIN TEN',(SELECT id FROM btx_unidades_medida WHERE nome='Carteira'),(SELECT id FROM btx_unidades_medida WHERE nome='Caixa'),500),
+  ('CRETEC MENTA',(SELECT id FROM btx_unidades_medida WHERE nome='Carteira'),(SELECT id FROM btx_unidades_medida WHERE nome='Caixa'),500),
+  ('CRETEC CEREJA',(SELECT id FROM btx_unidades_medida WHERE nome='Carteira'),(SELECT id FROM btx_unidades_medida WHERE nome='Caixa'),500)
 ON CONFLICT DO NOTHING;
 
 -- ------------------------------------------------------------
