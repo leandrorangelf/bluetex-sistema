@@ -33,7 +33,7 @@ export default function RelatoriosPage() {
     const mesEnd = `${ano}-${String(mes).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
 
     const [{ data: prods }, { data: estInit }, { data: comprasNFs }, { data: vendasNFs }, { data: ajustes }, { data: despesas }] = await Promise.all([
-      sb.from('btx_produtos').select('*').eq('ativo', true).order('nome'),
+      sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome'),
       sb.from('btx_estoque_inicial').select('*').eq('unidade', unidade).eq('mes', mes).eq('ano', ano),
       sb.from('btx_compras').select('id, valor_total, itens:btx_compras_itens(produto_id, qtd_carteiras)').eq('unidade', unidade).eq('ativo', true).gte('data_compra', mesStart).lte('data_compra', mesEnd),
       sb.from('btx_vendas').select('id, valor_total, itens:btx_vendas_itens(produto_id, qtd_carteiras)').eq('unidade', unidade).eq('ativo', true).gte('data_venda', mesStart).lte('data_venda', mesEnd),
@@ -135,7 +135,7 @@ export default function RelatoriosPage() {
                 {estoqueRows.map(r => (
                   <tr key={r.produto.id}>
                     <td style={{ fontWeight: 500 }}>{r.produto.nome}</td>
-                    <td className="mono" style={{ fontSize: 11 }}>{r.produto.unidade_base} → {r.produto.unidade_maior} (×{r.produto.fator_conversao})</td>
+                    <td className="mono" style={{ fontSize: 11 }}>{r.produto.unidade_base?.nome} → {r.produto.unidade_maior?.nome} (×{r.produto.fator_conversao})</td>
                     <td className="mono">{r.inicial}</td>
                     <td className="mono text-green">{r.comprado}</td>
                     <td className="mono text-red">{r.vendido}</td>
