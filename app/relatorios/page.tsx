@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { formatMoeda, getMesAnoLabel, carteirasParaCaixas, mesAtual, anoAtual } from '@/lib/utils'
+import { formatMoeda, getMesAnoLabel, converterParaUnidadeMaior, mesAtual, anoAtual } from '@/lib/utils'
 import type { Produto, Unidade } from '@/types'
 import { UNIDADES } from '@/types'
 
@@ -122,26 +122,26 @@ export default function RelatoriosPage() {
               <thead>
                 <tr>
                   <th>Produto</th>
-                  <th>Cx/cart</th>
-                  <th>Inicial (cart)</th>
-                  <th>Comprado (cart)</th>
-                  <th>Vendido (cart)</th>
-                  <th>Ajuste (cart)</th>
-                  <th>Final (cart)</th>
-                  <th>Final (cx)</th>
+                  <th>Conversão</th>
+                  <th>Inicial</th>
+                  <th>Comprado</th>
+                  <th>Vendido</th>
+                  <th>Ajuste</th>
+                  <th>Final</th>
+                  <th>Final (equiv.)</th>
                 </tr>
               </thead>
               <tbody>
                 {estoqueRows.map(r => (
                   <tr key={r.produto.id}>
                     <td style={{ fontWeight: 500 }}>{r.produto.nome}</td>
-                    <td className="mono">{r.produto.carteiras_por_caixa}</td>
+                    <td className="mono" style={{ fontSize: 11 }}>{r.produto.unidade_base} → {r.produto.unidade_maior} (×{r.produto.fator_conversao})</td>
                     <td className="mono">{r.inicial}</td>
                     <td className="mono text-green">{r.comprado}</td>
                     <td className="mono text-red">{r.vendido}</td>
                     <td className="mono">{r.ajuste > 0 ? `+${r.ajuste}` : r.ajuste}</td>
                     <td className="mono" style={{ fontWeight: 700 }}>{r.final}</td>
-                    <td className="mono" style={{ fontWeight: 700 }}>{carteirasParaCaixas(r.final, r.produto.carteiras_por_caixa)}</td>
+                    <td className="mono" style={{ fontWeight: 700 }}>{converterParaUnidadeMaior(r.final, r.produto.fator_conversao)}</td>
                   </tr>
                 ))}
               </tbody>
