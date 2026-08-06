@@ -1,138 +1,212 @@
 'use client'
 export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { formatMoeda, getMesAnoLabel, mesAtual, anoAtual } from '@/lib/utils'
-import type { Unidade } from '@/types'
+import { anoAtual, getMesAnoLabel, hoje, mesAtual } from '@/lib/utils'
+import { calcularPainelFinanceiro, type ParcelaFinanceira } from '@/lib/financeiro'
+import ResumoFinanceiro from '@/components/financeiro/ResumoFinanceiro'
+import ListaMovimentacoes from '@/components/financeiro/ListaMovimentacoes'
+import CalendarioFinanceiro from '@/components/financeiro/CalendarioFinanceiro'
+import Modal from '@/components/Modal'
+import type { CaixaMensal, Parcela, Unidade } from '@/types'
 import { UNIDADES } from '@/types'
+
+type PainelCalculado = ReturnType<typeof calcularPainelFinanceiro>
+type RelacaoNome = { nome: string } | { nome: string }[] | null
+interface CompraOrigem { id: string; numero_nf: string | null; fornecedor: RelacaoNome }
+interface VendaOrigem { id: string; numero_nf: string | null; cliente: RelacaoNome }
+interface DespesaOrigem { id: string; descricao: string; fornecedor: RelacaoNome }
+
+function nomeRelacao(relacao: RelacaoNome) {
+  return Array.isArray(relacao) ? relacao[0]?.nome : relacao?.nome
+}
+
+function chaveCompetencia(ano: number, mes: number) {
+  return `${ano}-${String(mes).padStart(2, '0')}-01`
+}
+
+function enriquecerParcelas(parcelas: Parcela[], compras: CompraOrigem[], vendas: VendaOrigem[], despesas: DespesaOrigem[]): ParcelaFinanceira[] {
+  const comprasPorId = new Map(compras.map(item => [item.id, item]))
+  const vendasPorId = new Map(vendas.map(item => [item.id, item]))
+  const despesasPorId = new Map(despesas.map(item => [item.id, item]))
+
+  return parcelas.map(parcela => {
+    let descricao = parcela.observacoes || parcela.numero_boleto || `Parcela ${parcela.numero_parcela}`
+    if (parcela.origem === 'compra' && parcela.origem_id) {
+      const compra = comprasPorId.get(parcela.origem_id)
+      descricao = (compra && nomeRelacao(compra.fornecedor)) || (compra?.numero_nf ? `Compra NF ${compra.numero_nf}` : 'Compra')
+    }
+    if (parcela.origem === 'venda' && parcela.origem_id) {
+      const venda = vendasPorId.get(parcela.origem_id)
+      descricao = (venda && nomeRelacao(venda.cliente)) || (venda?.numero_nf ? `Venda NF ${venda.numero_nf}` : 'Venda')
+    }
+    if (parcela.origem === 'despesa' && parcela.origem_id) {
+      const despesa = despesasPorId.get(parcela.origem_id)
+      descricao = despesa?.descricao || (despesa && nomeRelacao(despesa.fornecedor)) || 'Despesa'
+    }
+    return { ...parcela, valor: Number(parcela.valor), descricao }
+  })
+}
 
 export default function CaixaPage() {
   const { profile, unidadeAtiva } = useAuth()
   const [mes, setMes] = useState(mesAtual())
   const [ano, setAno] = useState(anoAtual())
   const [unidade, setUnidade] = useState<Unidade | ''>(unidadeAtiva ?? '')
-  const [saldoInicial, setSaldoInicial] = useState(0)
-  const [saldoEdit, setSaldoEdit] = useState(0)
-  const [editMode, setEditMode] = useState(false)
-  const [recebido, setRecebido] = useState(0)
-  const [pago, setPago] = useState(0)
+  const [painel, setPainel] = useState<PainelCalculado | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [baseConfigurada, setBaseConfigurada] = useState(false)
+  const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null)
+  const [mobileTab, setMobileTab] = useState<'pagar' | 'receber'>('pagar')
+  const [saldoModal, setSaldoModal] = useState(false)
+  const [saldoEdit, setSaldoEdit] = useState(0)
   const [saving, setSaving] = useState(false)
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
 
   useEffect(() => { if (unidadeAtiva) setUnidade(unidadeAtiva) }, [unidadeAtiva])
-  useEffect(() => { loadData() }, [mes, ano, unidade])
+  useEffect(() => { setDiaSelecionado(null); loadData() }, [mes, ano, unidade])
 
   async function loadData() {
-    if (!unidade) { setLoading(false); return }
+    if (!unidade) {
+      setPainel(null); setError(''); setLoading(false)
+      return
+    }
     setLoading(true)
-
-    const mesStr = String(mes).padStart(2, '0')
-    const ultimoDia = new Date(ano, mes, 0).getDate()
-    const mesStart = `${ano}-${mesStr}-01`
-    const mesEnd = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`
-
-    const [{ data: cx }, { data: pp }, { data: pr }] = await Promise.all([
-      sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).eq('mes', mes).eq('ano', ano).maybeSingle(),
-      sb.from('btx_parcelas').select('valor').eq('unidade', unidade).eq('tipo','pagar').eq('status','pago').eq('ativo',true)
-        .gte('data_pagamento', mesStart).lte('data_pagamento', mesEnd),
-      sb.from('btx_parcelas').select('valor').eq('unidade', unidade).eq('tipo','receber').eq('status','pago').eq('ativo',true)
-        .gte('data_pagamento', mesStart).lte('data_pagamento', mesEnd),
+    setError('')
+    const competenciaSelecionada = chaveCompetencia(ano, mes)
+    const [basesResult, parcelasResult] = await Promise.all([
+      sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
+      sb.from('btx_parcelas').select('*').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
     ])
+    if (basesResult.error || parcelasResult.error) {
+      setPainel(null)
+      setError('Não foi possível carregar os dados financeiros. Tente novamente.')
+      setLoading(false)
+      return
+    }
 
-    const si = cx?.saldo_inicial ?? 0
-    setSaldoInicial(si); setSaldoEdit(si)
-    setPago((pp ?? []).reduce((a: number, r: { valor: number }) => a + Number(r.valor), 0))
-    setRecebido((pr ?? []).reduce((a: number, r: { valor: number }) => a + Number(r.valor), 0))
+    const bases = (basesResult.data ?? []) as CaixaMensal[]
+    const base = bases.find(item => chaveCompetencia(item.ano, item.mes) <= competenciaSelecionada)
+    const competenciaBase = base ? chaveCompetencia(base.ano, base.mes) : competenciaSelecionada
+    const parcelas = (parcelasResult.data ?? []) as Parcela[]
+    const ids = (origem: Parcela['origem']) => [...new Set(parcelas.filter(p => p.origem === origem && p.origem_id).map(p => p.origem_id as string))]
+    const compraIds = ids('compra')
+    const vendaIds = ids('venda')
+    const despesaIds = ids('despesa')
+    const [comprasResult, vendasResult, despesasResult] = await Promise.all([
+      compraIds.length ? sb.from('btx_compras').select('id,numero_nf,fornecedor:btx_fornecedores(nome)').in('id', compraIds) : Promise.resolve({ data: [] }),
+      vendaIds.length ? sb.from('btx_vendas').select('id,numero_nf,cliente:btx_clientes(nome)').in('id', vendaIds) : Promise.resolve({ data: [] }),
+      despesaIds.length ? sb.from('btx_despesas').select('id,descricao,fornecedor:btx_fornecedores(nome)').in('id', despesaIds) : Promise.resolve({ data: [] }),
+    ])
+    const parcelasEnriquecidas = enriquecerParcelas(
+      parcelas,
+      (comprasResult.data ?? []) as unknown as CompraOrigem[],
+      (vendasResult.data ?? []) as unknown as VendaOrigem[],
+      (despesasResult.data ?? []) as unknown as DespesaOrigem[],
+    )
+    const calculado = calcularPainelFinanceiro({
+      ano, mes, hoje: hoje(), saldoBase: Number(base?.saldo_inicial ?? 0), competenciaBase, parcelas: parcelasEnriquecidas,
+    })
+    setBaseConfigurada(Boolean(base))
+    setSaldoEdit(calculado.resumo.saldoInicial)
+    setPainel(calculado)
     setLoading(false)
   }
 
-  function navMes(dir: number) {
-    let m = mes + dir, a = ano
-    if (m < 1) { m = 12; a-- }
-    if (m > 12) { m = 1; a++ }
-    setMes(m); setAno(a)
+  function navMes(direcao: number) {
+    let novoMes = mes + direcao
+    let novoAno = ano
+    if (novoMes < 1) { novoMes = 12; novoAno-- }
+    if (novoMes > 12) { novoMes = 1; novoAno++ }
+    setMes(novoMes); setAno(novoAno)
   }
 
-  async function salvar() {
+  function abrirSaldoBase() {
+    setSaldoEdit(painel?.resumo.saldoInicial ?? 0)
+    setSaldoModal(true)
+  }
+
+  async function salvarSaldoBase() {
     if (!unidade) return
     setSaving(true)
-    await sb.from('btx_caixa_mensal').upsert(
+    const { error: saveError } = await sb.from('btx_caixa_mensal').upsert(
       { unidade, mes, ano, saldo_inicial: saldoEdit, updated_at: new Date().toISOString() },
-      { onConflict: 'unidade,mes,ano' }
+      { onConflict: 'unidade,mes,ano' },
     )
-    setSaldoInicial(saldoEdit)
-    setSaving(false); setEditMode(false); loadData()
+    setSaving(false)
+    if (saveError) {
+      setError('Não foi possível salvar o saldo-base. Tente novamente.')
+      return
+    }
+    setSaldoModal(false)
+    loadData()
   }
-
-  const saldoFinal = saldoInicial + recebido - pago
 
   return (
     <div>
-      <div className="page-header">
-        <div><h1 className="page-title">Caixa Mensal</h1><div className="page-subtitle">Fluxo de caixa por mês e unidade</div></div>
+      <div className="page-header finance-page-header">
+        <div>
+          <h1 className="page-title">Painel Financeiro</h1>
+          <div className="page-subtitle">Fluxo realizado e projetado{unidade ? ` · ${unidade}` : ''}</div>
+        </div>
+        {isAdmin && unidade && <button className="btn btn-secondary" onClick={abrirSaldoBase}>Ajustar saldo-base</button>}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => navMes(-1)}>← Anterior</button>
-        <span style={{ fontWeight: 600, fontSize: 15, minWidth: 160, textAlign: 'center' }}>{getMesAnoLabel(mes, ano)}</span>
-        <button className="btn btn-secondary btn-sm" onClick={() => navMes(1)}>Próximo →</button>
+      <div className="finance-toolbar">
+        <div className="finance-month-nav" aria-label="Navegação mensal">
+          <button className="btn btn-secondary btn-sm" onClick={() => navMes(-1)} aria-label="Mês anterior">←</button>
+          <strong>{getMesAnoLabel(mes, ano)}</strong>
+          <button className="btn btn-secondary btn-sm" onClick={() => navMes(1)} aria-label="Próximo mês">→</button>
+        </div>
         {isAdmin && (
-          <select className="form-select" style={{ width: 220 }} value={unidade} onChange={e => setUnidade(e.target.value as Unidade)}>
+          <select className="form-select finance-unit-select" value={unidade} onChange={event => setUnidade(event.target.value as Unidade)} aria-label="Unidade">
             <option value="">Selecione a unidade...</option>
-            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+            {UNIDADES.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
         )}
       </div>
 
       {!unidade ? (
-        <div className="empty-state">Selecione uma unidade para visualizar o caixa.</div>
+        <div className="empty-state">Selecione uma unidade para visualizar o painel financeiro.</div>
       ) : loading ? (
-        <div className="text-muted">Carregando...</div>
-      ) : (
-        <div style={{ maxWidth: 480 }}>
-          <div className="card">
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 20, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>
-              {unidade} · {getMesAnoLabel(mes, ano)}
+        <div className="finance-loading" aria-live="polite">Carregando dados financeiros...</div>
+      ) : error ? (
+        <div className="alert alert-red finance-error" role="alert"><span>{error}</span><button className="btn btn-secondary btn-sm" onClick={loadData}>Tentar novamente</button></div>
+      ) : painel ? (
+        <>
+          {!baseConfigurada && (
+            <div className="alert alert-amber finance-base-alert">
+              <span>Nenhum saldo-base cadastrado. O cálculo deste mês começa em zero.</span>
+              {isAdmin && <button className="btn btn-secondary btn-sm" onClick={abrirSaldoBase}>Configurar saldo-base</button>}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 14 }}>Saldo inicial</span>
-                {editMode ? (
-                  <input className="form-input" type="number" step="0.01" value={saldoEdit} onChange={e => setSaldoEdit(Number(e.target.value))} style={{ width: 140, textAlign: 'right' }} />
-                ) : (
-                  <span className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{formatMoeda(saldoInicial)}</span>
-                )}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                <span style={{ fontSize: 14, color: 'var(--green)' }}>+ Parcelas recebidas no mês</span>
-                <span className="mono text-green" style={{ fontWeight: 600 }}>{formatMoeda(recebido)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 14, color: 'var(--red)' }}>− Parcelas pagas no mês</span>
-                <span className="mono text-red" style={{ fontWeight: 600 }}>{formatMoeda(pago)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
-                <span style={{ fontSize: 16, fontWeight: 700 }}>Saldo final</span>
-                <span className="mono" style={{ fontSize: 20, fontWeight: 700, color: saldoFinal >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatMoeda(saldoFinal)}</span>
-              </div>
-            </div>
-            <hr className="divider" />
-            <div style={{ display: 'flex', gap: 8 }}>
-              {!editMode ? (
-                <button className="btn btn-secondary" onClick={() => setEditMode(true)}>Editar saldo inicial</button>
-              ) : (
-                <>
-                  <button className="btn btn-secondary" onClick={() => { setEditMode(false); setSaldoEdit(saldoInicial) }}>Cancelar</button>
-                  <button className="btn btn-primary" onClick={salvar} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
-                </>
-              )}
-            </div>
+          )}
+          <ResumoFinanceiro resumo={painel.resumo} />
+          <div className="finance-mobile-tabs" role="tablist" aria-label="Tipo de movimentação">
+            <button className={mobileTab === 'pagar' ? 'active' : ''} onClick={() => setMobileTab('pagar')} role="tab" aria-selected={mobileTab === 'pagar'}>A pagar</button>
+            <button className={mobileTab === 'receber' ? 'active' : ''} onClick={() => setMobileTab('receber')} role="tab" aria-selected={mobileTab === 'receber'}>A receber</button>
           </div>
+          <div className="finance-layout">
+            <ListaMovimentacoes tipo="pagar" movimentacoes={painel.movimentacoesMes} diaSelecionado={diaSelecionado} mobileActive={mobileTab === 'pagar'} />
+            <CalendarioFinanceiro ano={ano} mes={mes} dias={painel.dias} hoje={hoje()} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />
+            <ListaMovimentacoes tipo="receber" movimentacoes={painel.movimentacoesMes} diaSelecionado={diaSelecionado} mobileActive={mobileTab === 'receber'} />
+          </div>
+        </>
+      ) : null}
+
+      <Modal open={saldoModal} onClose={() => setSaldoModal(false)} title={`Saldo-base · ${getMesAnoLabel(mes, ano)}`} size="sm" footer={<>
+        <button className="btn btn-secondary" onClick={() => setSaldoModal(false)}>Cancelar</button>
+        <button className="btn btn-primary" onClick={salvarSaldoBase} disabled={saving}>{saving ? 'Salvando...' : 'Salvar saldo-base'}</button>
+      </>}>
+        <div className="alert alert-amber">Este valor passa a ser o saldo no início do mês selecionado e recalcula os meses seguintes.</div>
+        <div className="form-group">
+          <label className="form-label">Saldo no início do mês (R$)</label>
+          <input className="form-input mono" type="number" step="0.01" value={saldoEdit} onChange={event => setSaldoEdit(Number(event.target.value))} />
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
