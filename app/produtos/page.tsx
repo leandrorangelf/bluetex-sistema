@@ -7,7 +7,7 @@ import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Produto } from '@/types'
 
-const EMPTY = { nome: '', carteiras_por_caixa: 480 }
+const EMPTY = { nome: '', unidade_base: 'Carteira', unidade_maior: 'Caixa', fator_conversao: 480 }
 
 export default function ProdutosPage() {
   const { profile } = useAuth()
@@ -32,15 +32,20 @@ export default function ProdutosPage() {
   }
 
   function openNew() { setForm(EMPTY); setEditId(null); setErr(''); setModal(true) }
-  function openEdit(r: Produto) { setForm({ nome: r.nome, carteiras_por_caixa: r.carteiras_por_caixa }); setEditId(r.id); setErr(''); setModal(true) }
+  function openEdit(r: Produto) {
+    setForm({ nome: r.nome, unidade_base: r.unidade_base, unidade_maior: r.unidade_maior, fator_conversao: r.fator_conversao })
+    setEditId(r.id); setErr(''); setModal(true)
+  }
 
   async function save() {
     if (!form.nome.trim()) return setErr('Nome é obrigatório.')
+    if (!form.unidade_base.trim() || !form.unidade_maior.trim()) return setErr('Informe as duas unidades.')
     setSaving(true)
+    const payload = { nome: form.nome, unidade_base: form.unidade_base, unidade_maior: form.unidade_maior, fator_conversao: form.fator_conversao }
     if (editId) {
-      await sb.from('btx_produtos').update({ nome: form.nome, carteiras_por_caixa: form.carteiras_por_caixa }).eq('id', editId)
+      await sb.from('btx_produtos').update(payload).eq('id', editId)
     } else {
-      await sb.from('btx_produtos').insert({ nome: form.nome, carteiras_por_caixa: form.carteiras_por_caixa })
+      await sb.from('btx_produtos').insert(payload)
     }
     setSaving(false); setModal(false); load()
   }
@@ -60,16 +65,18 @@ export default function ProdutosPage() {
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Produto</th><th>Carteiras/cx</th>{isAdmin && <th>Ações</th>}</tr></thead>
+          <thead><tr><th>Produto</th><th>Unid. base</th><th>Unid. maior</th><th>Fator</th>{isAdmin && <th>Ações</th>}</tr></thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={3} className="empty-state">Carregando...</td></tr>
+              <tr><td colSpan={5} className="empty-state">Carregando...</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={3} className="empty-state">Nenhum produto cadastrado.</td></tr>
+              <tr><td colSpan={5} className="empty-state">Nenhum produto cadastrado.</td></tr>
             ) : rows.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 500 }}>{r.nome}</td>
-                <td className="mono">{r.carteiras_por_caixa}</td>
+                <td>{r.unidade_base}</td>
+                <td>{r.unidade_maior}</td>
+                <td className="mono">{r.fator_conversao}</td>
                 {isAdmin && (
                   <td style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
@@ -94,8 +101,16 @@ export default function ProdutosPage() {
           <input className="form-input" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} />
         </div>
         <div className="form-group">
-          <label className="form-label">Carteiras por caixa</label>
-          <input className="form-input" type="number" min={1} value={form.carteiras_por_caixa} onChange={e => setForm(f => ({...f, carteiras_por_caixa: Number(e.target.value)}))} />
+          <label className="form-label">Unidade base (ex: Carteira, Unidade)</label>
+          <input className="form-input" value={form.unidade_base} onChange={e => setForm(f => ({...f, unidade_base: e.target.value}))} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Unidade maior (ex: Caixa, Display)</label>
+          <input className="form-input" value={form.unidade_maior} onChange={e => setForm(f => ({...f, unidade_maior: e.target.value}))} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Fator de conversão (quantas unid. base numa unid. maior)</label>
+          <input className="form-input" type="number" min={1} value={form.fator_conversao} onChange={e => setForm(f => ({...f, fator_conversao: Number(e.target.value)}))} />
         </div>
       </Modal>
 
