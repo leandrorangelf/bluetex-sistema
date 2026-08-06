@@ -32,7 +32,7 @@ export default function EstoqueInicialPage() {
 
   async function loadData() {
     setLoading(true)
-    const { data: prods } = await sb.from('btx_produtos').select('*').eq('ativo', true).order('nome')
+    const { data: prods } = await sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome')
     setProdutos(prods ?? [])
     if (!unidade) { setLoading(false); return }
     const { data: est } = await sb.from('btx_estoque_inicial').select('*')
@@ -113,7 +113,7 @@ export default function EstoqueInicialPage() {
                 return (
                   <tr key={p.id}>
                     <td style={{ fontWeight: 500 }}>{p.nome}</td>
-                    <td className="mono" style={{ fontSize: 11 }}>{p.unidade_base} → {p.unidade_maior} (×{p.fator_conversao})</td>
+                    <td className="mono" style={{ fontSize: 11 }}>{p.unidade_base?.nome} → {p.unidade_maior?.nome} (×{p.fator_conversao})</td>
                     <td>
                       {editMode ? (
                         <input className="form-input" type="number" min={0} style={{ width: 100 }}
