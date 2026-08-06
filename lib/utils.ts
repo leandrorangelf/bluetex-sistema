@@ -8,9 +8,9 @@ export function formatData(d: string | null): string {
   return `${day}/${m}/${y}`
 }
 
-export function carteirasParaCaixas(carteiras: number, carteiras_por_caixa: number): string {
-  const caixas = carteiras / carteiras_por_caixa
-  return caixas % 1 === 0 ? caixas.toString() : caixas.toFixed(2)
+export function converterParaUnidadeMaior(qtdBase: number, fatorConversao: number): string {
+  const qtd = qtdBase / fatorConversao
+  return qtd % 1 === 0 ? qtd.toString() : qtd.toFixed(2)
 }
 
 export function getMesLabel(mes: number): string {
