@@ -10,7 +10,8 @@ export interface Profile {
   id: string; nome: string; role: Role; unidade: Unidade | null; ativo: boolean; created_at: string
 }
 export interface Produto {
-  id: string; nome: string; carteiras_por_caixa: number; ativo: boolean; created_at: string
+  id: string; nome: string; unidade_base: string; unidade_maior: string; fator_conversao: number
+  ativo: boolean; created_at: string
 }
 export interface Fornecedor {
   id: string; unidade: Unidade; nome: string; cnpj: string | null; telefone: string | null
