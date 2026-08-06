@@ -41,9 +41,9 @@ export default function ComprasPage() {
     setLoading(true)
     const u = unidadeAtiva
     const [{ data: d }, { data: f }, { data: p }] = await Promise.all([
-      (() => { let q = sb.from('btx_compras').select('*, fornecedor:btx_fornecedores(id,nome), itens:btx_compras_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,unidade_base,unidade_maior,fator_conversao))').eq('ativo', true).order('data_compra', { ascending: false }); if (u) q = q.eq('unidade', u); return q })(),
+      (() => { let q = sb.from('btx_compras').select('*, fornecedor:btx_fornecedores(id,nome), itens:btx_compras_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)))').eq('ativo', true).order('data_compra', { ascending: false }); if (u) q = q.eq('unidade', u); return q })(),
       (() => { let q = sb.from('btx_fornecedores').select('*').eq('ativo', true).order('nome'); if (u) q = q.eq('unidade', u); return q })(),
-      sb.from('btx_produtos').select('*').eq('ativo', true).order('nome'),
+      sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome'),
     ])
     setRows(d ?? []); setFornecedores(f ?? []); setProdutos(p ?? [])
     setLoading(false)
@@ -115,7 +115,7 @@ export default function ComprasPage() {
                 <td className="mono">{formatData(r.data_compra)}</td>
                 <td className="mono">{r.numero_nf ?? '—'}</td>
                 <td>{(r.fornecedor as unknown as { nome: string })?.nome ?? '—'}</td>
-                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: string }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base ?? ''}</div>)}</td>
+                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: { nome: string } }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base?.nome ?? ''}</div>)}</td>
                 <td className="mono">{formatMoeda((r as unknown as { valor_st?: number }).valor_st ?? 0)}</td>
                 <td className="mono">{formatMoeda(r.valor_total)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
@@ -180,8 +180,8 @@ export default function ComprasPage() {
               <div className="form-group" style={{ margin: 0 }}>
                 {idx === 0 && <label className="form-label">Unidade</label>}
                 <select className="form-select" value={it.unidade} onChange={e => updateItem(idx, 'unidade', e.target.value)}>
-                  <option value="base">{produtoSel?.unidade_base ?? 'Unid. base'}</option>
-                  <option value="maior">{produtoSel?.unidade_maior ?? 'Unid. maior'}</option>
+                  <option value="base">{produtoSel?.unidade_base?.nome ?? 'Unid. base'}</option>
+                  <option value="maior">{produtoSel?.unidade_maior?.nome ?? 'Unid. maior'}</option>
                 </select>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
