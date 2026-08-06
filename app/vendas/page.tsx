@@ -9,9 +9,15 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import ParcelasEditor, { type ParcelaForm } from '@/components/ParcelasEditor'
 import type { Venda, Cliente, Produto } from '@/types'
 
-interface ItemForm { produto_id: string; qtd_carteiras: number; valor: number }
-const EMPTY_ITEM: ItemForm = { produto_id: '', qtd_carteiras: 0, valor: 0 }
+interface ItemForm { produto_id: string; qtdInput: number; unidade: 'base' | 'maior'; valor: number }
+const EMPTY_ITEM: ItemForm = { produto_id: '', qtdInput: 0, unidade: 'base', valor: 0 }
 const EMPTY = { cliente_id: '', data_venda: hoje(), numero_nf: '', valor_st: 0, observacoes: '' }
+
+function qtdParaBase(item: ItemForm, produtos: Produto[]): number {
+  const p = produtos.find(pr => pr.id === item.produto_id)
+  const fator = p?.fator_conversao ?? 1
+  return item.unidade === 'maior' ? Math.round(item.qtdInput * fator) : item.qtdInput
+}
 
 export default function VendasPage() {
   const { unidadeAtiva } = useAuth()
@@ -35,7 +41,7 @@ export default function VendasPage() {
     setLoading(true)
     const u = unidadeAtiva
     const [{ data: d }, { data: c }, { data: p }] = await Promise.all([
-      (() => { let q = sb.from('btx_vendas').select('*, cliente:btx_clientes(id,nome), itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome))').eq('ativo', true).order('data_venda', { ascending: false }); if (u) q = q.eq('unidade', u); return q })(),
+      (() => { let q = sb.from('btx_vendas').select('*, cliente:btx_clientes(id,nome), itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,unidade_base,unidade_maior,fator_conversao))').eq('ativo', true).order('data_venda', { ascending: false }); if (u) q = q.eq('unidade', u); return q })(),
       (() => { let q = sb.from('btx_clientes').select('*').eq('ativo', true).order('nome'); if (u) q = q.eq('unidade', u); return q })(),
       sb.from('btx_produtos').select('*').eq('ativo', true).order('nome'),
     ])
@@ -57,7 +63,7 @@ export default function VendasPage() {
   async function openEdit(r: Venda) {
     setForm({ cliente_id: r.cliente_id ?? '', data_venda: r.data_venda, numero_nf: r.numero_nf ?? '', valor_st: r.valor_st ?? 0, observacoes: r.observacoes ?? '' })
     const { data: its } = await sb.from('btx_vendas_itens').select('*').eq('venda_id', r.id)
-    setItens(its && its.length > 0 ? its.map((i: { produto_id: string; qtd_carteiras: number; valor: number }) => ({ produto_id: i.produto_id, qtd_carteiras: i.qtd_carteiras, valor: i.valor })) : [{ ...EMPTY_ITEM }])
+    setItens(its && its.length > 0 ? its.map((i: { produto_id: string; qtd_carteiras: number; valor: number }) => ({ produto_id: i.produto_id, qtdInput: i.qtd_carteiras, unidade: 'base' as const, valor: i.valor })) : [{ ...EMPTY_ITEM }])
     const { data: parcs } = await sb.from('btx_parcelas').select('*').eq('origem_id', r.id).eq('ativo', true).order('numero_parcela')
     setParcelas((parcs ?? []).map((p: { numero_parcela: number; vencimento: string; valor: number; numero_boleto: string | null; observacoes: string | null }) => ({ numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor, numero_boleto: p.numero_boleto ?? '', observacoes: p.observacoes ?? '' })))
     setEditId(r.id); setErr(''); setModal(true)
@@ -79,7 +85,7 @@ export default function VendasPage() {
       id = data?.id
     }
     if (id) {
-      await sb.from('btx_vendas_itens').insert(itens.filter(i => i.produto_id).map(i => ({ venda_id: id, produto_id: i.produto_id, qtd_carteiras: i.qtd_carteiras, valor: i.valor })))
+      await sb.from('btx_vendas_itens').insert(itens.filter(i => i.produto_id).map(i => ({ venda_id: id, produto_id: i.produto_id, qtd_carteiras: qtdParaBase(i, produtos), valor: i.valor })))
       if (parcelas.length > 0) await sb.from('btx_parcelas').insert(parcelas.map(p => ({ unidade, tipo: 'receber', origem: 'venda', origem_id: id, numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor, numero_boleto: p.numero_boleto || null, observacoes: p.observacoes || null })))
     }
     setSaving(false); setModal(false); load()
@@ -109,7 +115,7 @@ export default function VendasPage() {
                 <td className="mono">{formatData(r.data_venda)}</td>
                 <td className="mono">{r.numero_nf ?? '—'}</td>
                 <td>{(r.cliente as unknown as { nome: string })?.nome ?? '—'}</td>
-                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} cart.</div>)}</td>
+                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: string }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base ?? ''}</div>)}</td>
                 <td className="mono">{formatMoeda(r.valor_st ?? 0)}</td>
                 <td className="mono">{formatMoeda(r.valor_total)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
@@ -156,26 +162,36 @@ export default function VendasPage() {
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Produtos da NF</div>
           <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Adicionar produto</button>
         </div>
-        {itens.map((it, idx) => (
-          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-            <div className="form-group" style={{ margin: 0 }}>
-              {idx === 0 && <label className="form-label">Produto</label>}
-              <select className="form-select" value={it.produto_id} onChange={e => updateItem(idx, 'produto_id', e.target.value)}>
-                <option value="">Selecione...</option>
-                {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-              </select>
+        {itens.map((it, idx) => {
+          const produtoSel = produtos.find(p => p.id === it.produto_id)
+          return (
+            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                {idx === 0 && <label className="form-label">Produto</label>}
+                <select className="form-select" value={it.produto_id} onChange={e => updateItem(idx, 'produto_id', e.target.value)}>
+                  <option value="">Selecione...</option>
+                  {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                {idx === 0 && <label className="form-label">Quantidade</label>}
+                <input className="form-input" type="number" min={0} value={it.qtdInput || ''} placeholder="0" onChange={e => updateItem(idx, 'qtdInput', parseInt(e.target.value) || 0)} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                {idx === 0 && <label className="form-label">Unidade</label>}
+                <select className="form-select" value={it.unidade} onChange={e => updateItem(idx, 'unidade', e.target.value)}>
+                  <option value="base">{produtoSel?.unidade_base ?? 'Unid. base'}</option>
+                  <option value="maior">{produtoSel?.unidade_maior ?? 'Unid. maior'}</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                {idx === 0 && <label className="form-label">Valor (R$)</label>}
+                <input className="form-input" type="number" step="0.01" min={0} value={it.valor || ''} placeholder="0,00" onChange={e => updateItem(idx, 'valor', parseFloat(e.target.value) || 0)} />
+              </div>
+              <button className="btn btn-danger btn-sm" style={{ marginBottom: 0 }} onClick={() => removeItem(idx)} disabled={itens.length === 1}>✕</button>
             </div>
-            <div className="form-group" style={{ margin: 0 }}>
-              {idx === 0 && <label className="form-label">Carteiras</label>}
-              <input className="form-input" type="number" min={0} value={it.qtd_carteiras || ''} placeholder="0" onChange={e => updateItem(idx, 'qtd_carteiras', parseInt(e.target.value) || 0)} />
-            </div>
-            <div className="form-group" style={{ margin: 0 }}>
-              {idx === 0 && <label className="form-label">Valor (R$)</label>}
-              <input className="form-input" type="number" step="0.01" min={0} value={it.valor || ''} placeholder="0,00" onChange={e => updateItem(idx, 'valor', parseFloat(e.target.value) || 0)} />
-            </div>
-            <button className="btn btn-danger btn-sm" style={{ marginBottom: 0 }} onClick={() => removeItem(idx)} disabled={itens.length === 1}>✕</button>
-          </div>
-        ))}
+          )
+        })}
         <div style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
           Produtos: {formatMoeda(totalProdutos)} + ST: {formatMoeda(Number(form.valor_st))}
         </div>
