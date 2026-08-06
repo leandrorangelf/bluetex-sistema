@@ -118,7 +118,7 @@ export default function DashboardPage() {
   async function carregarEstoque(unidade: string | null) {
     const [produtosRes, estoqueInicialRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
       sb.from('btx_produtos')
-        .select('id,nome,unidade_base,unidade_maior,fator_conversao')
+        .select('id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)')
         .eq('ativo', true)
         .order('nome'),
 
@@ -160,7 +160,7 @@ export default function DashboardPage() {
       })(),
     ])
 
-    const produtos = produtosRes.data ?? []
+    const produtos = (produtosRes.data ?? []) as unknown as { id: string; nome: string; fator_conversao: number; unidade_base: { nome: string }; unidade_maior: { nome: string } }[]
     const estoqueMap: Record<string, number> = {}
     const baseAplicada: Record<string, boolean> = {}
 
@@ -209,8 +209,8 @@ export default function DashboardPage() {
         produto: p.nome,
         qtd,
         caixas: qtd / p.fator_conversao,
-        unidade_base: p.unidade_base,
-        unidade_maior: p.unidade_maior
+        unidade_base: p.unidade_base?.nome ?? '',
+        unidade_maior: p.unidade_maior?.nome ?? ''
       }
     }))
   }
