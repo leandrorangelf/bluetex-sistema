@@ -5,13 +5,14 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import type { Produto } from '@/types'
+import type { Produto, UnidadeMedida } from '@/types'
 
-const EMPTY = { nome: '', unidade_base: 'Carteira', unidade_maior: 'Caixa', fator_conversao: 480 }
+const EMPTY = { nome: '', unidade_base_id: '', unidade_maior_id: '', fator_conversao: 480 }
 
 export default function ProdutosPage() {
   const { profile } = useAuth()
   const [rows, setRows] = useState<Produto[]>([])
+  const [unidades, setUnidades] = useState<UnidadeMedida[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -26,22 +27,26 @@ export default function ProdutosPage() {
 
   async function load() {
     setLoading(true)
-    const { data } = await sb.from('btx_produtos').select('*').eq('ativo', true).order('nome')
-    setRows(data ?? [])
+    const [{ data: p }, { data: u }] = await Promise.all([
+      sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(id,nome), unidade_maior:btx_unidades_medida!unidade_maior_id(id,nome)').eq('ativo', true).order('nome'),
+      sb.from('btx_unidades_medida').select('*').eq('ativo', true).order('nome'),
+    ])
+    setRows(p ?? [])
+    setUnidades(u ?? [])
     setLoading(false)
   }
 
   function openNew() { setForm(EMPTY); setEditId(null); setErr(''); setModal(true) }
   function openEdit(r: Produto) {
-    setForm({ nome: r.nome, unidade_base: r.unidade_base, unidade_maior: r.unidade_maior, fator_conversao: r.fator_conversao })
+    setForm({ nome: r.nome, unidade_base_id: r.unidade_base_id, unidade_maior_id: r.unidade_maior_id, fator_conversao: r.fator_conversao })
     setEditId(r.id); setErr(''); setModal(true)
   }
 
   async function save() {
     if (!form.nome.trim()) return setErr('Nome é obrigatório.')
-    if (!form.unidade_base.trim() || !form.unidade_maior.trim()) return setErr('Informe as duas unidades.')
+    if (!form.unidade_base_id || !form.unidade_maior_id) return setErr('Escolha as duas unidades.')
     setSaving(true)
-    const payload = { nome: form.nome, unidade_base: form.unidade_base, unidade_maior: form.unidade_maior, fator_conversao: form.fator_conversao }
+    const payload = { nome: form.nome, unidade_base_id: form.unidade_base_id, unidade_maior_id: form.unidade_maior_id, fator_conversao: form.fator_conversao }
     if (editId) {
       await sb.from('btx_produtos').update(payload).eq('id', editId)
     } else {
@@ -74,8 +79,8 @@ export default function ProdutosPage() {
             ) : rows.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 500 }}>{r.nome}</td>
-                <td>{r.unidade_base}</td>
-                <td>{r.unidade_maior}</td>
+                <td>{r.unidade_base?.nome}</td>
+                <td>{r.unidade_maior?.nome}</td>
                 <td className="mono">{r.fator_conversao}</td>
                 {isAdmin && (
                   <td style={{ display: 'flex', gap: 6 }}>
@@ -101,12 +106,18 @@ export default function ProdutosPage() {
           <input className="form-input" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} />
         </div>
         <div className="form-group">
-          <label className="form-label">Unidade base (ex: Carteira, Unidade)</label>
-          <input className="form-input" value={form.unidade_base} onChange={e => setForm(f => ({...f, unidade_base: e.target.value}))} />
+          <label className="form-label">Unidade base</label>
+          <select className="form-select" value={form.unidade_base_id} onChange={e => setForm(f => ({...f, unidade_base_id: e.target.value}))}>
+            <option value="">Selecione...</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Unidade maior (ex: Caixa, Display)</label>
-          <input className="form-input" value={form.unidade_maior} onChange={e => setForm(f => ({...f, unidade_maior: e.target.value}))} />
+          <label className="form-label">Unidade maior</label>
+          <select className="form-select" value={form.unidade_maior_id} onChange={e => setForm(f => ({...f, unidade_maior_id: e.target.value}))}>
+            <option value="">Selecione...</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
         </div>
         <div className="form-group">
           <label className="form-label">Fator de conversão (quantas unid. base numa unid. maior)</label>
