@@ -327,7 +327,7 @@ CREATE TABLE IF NOT EXISTS btx_auditoria_estoque (
 );
 CREATE INDEX IF NOT EXISTS btx_auditoria_estoque_unidade_data_idx ON btx_auditoria_estoque(unidade, created_at DESC);
 ALTER TABLE btx_auditoria_estoque ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "btx_admin_read_auditoria_estoque" ON btx_auditoria_estoque FOR SELECT USING (btx_get_my_role()='admin');
+CREATE POLICY "btx_admin_read_auditoria_estoque" ON btx_auditoria_estoque FOR SELECT TO authenticated USING ((select btx_get_my_role())='admin');
 REVOKE INSERT, UPDATE, DELETE ON btx_auditoria_estoque FROM authenticated;
 
 CREATE OR REPLACE FUNCTION btx_auditar_estoque()
@@ -354,7 +354,10 @@ BEGIN
     CASE WHEN TG_OP IN ('UPDATE','DELETE') THEN to_jsonb(OLD) END,
     CASE WHEN TG_OP IN ('INSERT','UPDATE') THEN to_jsonb(NEW) END
   );
-  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 

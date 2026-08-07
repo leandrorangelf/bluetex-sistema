@@ -14,6 +14,7 @@ const NAV = [
   { href: '/categorias', label: 'Categorias' },
   { section: 'Operações' },
   { href: '/estoque-inicial', label: 'Estoque Inicial' },
+  { href: '/estoque-atual', label: 'Estoque Atual' },
   { href: '/compras', label: 'Compras' },
   { href: '/vendas', label: 'Vendas / NFs' },
   { href: '/despesas', label: 'Despesas' },

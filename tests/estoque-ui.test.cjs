@@ -21,10 +21,12 @@ test('migração cria log protegido e função de auditoria', () => {
   assert.match(sql, /dados_novos JSONB/i)
   assert.match(sql, /usuario_id UUID/i)
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/i)
-  assert.match(sql, /btx_get_my_role\(\)='admin'/i)
+  assert.match(sql, /FOR SELECT TO authenticated/i)
+  assert.match(sql, /select btx_get_my_role\(\)/i)
   assert.match(sql, /CREATE OR REPLACE FUNCTION btx_auditar_estoque\(\)/i)
   assert.match(sql, /SECURITY DEFINER/i)
   assert.match(sql, /SET search_path = public/i)
+  assert.match(sql, /IF TG_OP = 'DELETE' THEN\s+RETURN OLD/i)
 })
 
 test('migração audita todas as tabelas que alteram saldo', () => {
@@ -70,4 +72,38 @@ test('histórico administrativo exibe autor e diferenças', () => {
   assert.match(auditoria, /dados_novos/)
   assert.match(auditoria, /Usuário/)
   assert.match(auditoria, /Data e hora/)
+})
+
+test('rota Estoque Atual integra fontes, cálculo e ajuste manual', () => {
+  const pagina = read('app/estoque-atual/page.tsx')
+  const layout = read('app/estoque-atual/layout.tsx')
+
+  assert.match(layout, /AppLayout/)
+  assert.match(pagina, /btx_estoque_inicial/)
+  assert.match(pagina, /btx_compras/)
+  assert.match(pagina, /btx_vendas/)
+  assert.match(pagina, /btx_ajustes_estoque/)
+  assert.match(pagina, /calcularEstoque/)
+  assert.match(pagina, /Novo ajuste/)
+  assert.match(pagina, /tipo: ajusteForm.tipo/)
+  assert.match(pagina, /motivo: ajusteForm.motivo/)
+})
+
+test('página protege histórico por perfil administrativo', () => {
+  const pagina = read('app/estoque-atual/page.tsx')
+
+  assert.match(pagina, /profile\?\.role === 'admin'/)
+  assert.match(pagina, /btx_auditoria_estoque/)
+  assert.match(pagina, /Histórico de alterações/)
+  assert.match(pagina, /HistoricoAuditoriaEstoque/)
+})
+
+test('menu e estilos incluem Estoque Atual', () => {
+  const sidebar = read('components/Sidebar.tsx')
+  const css = read('app/globals.css')
+
+  assert.match(sidebar, /href: '\/estoque-atual', label: 'Estoque Atual'/)
+  assert.match(css, /\.stock-summary-grid/)
+  assert.match(css, /\.stock-tabs/)
+  assert.match(css, /@media \(max-width: 900px\)/)
 })

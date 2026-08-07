@@ -389,3 +389,65 @@ tbody tr:hover { background: var(--purple-light); }
   .finance-calendar-footer { align-items: flex-start; flex-wrap: wrap; }
   .finance-calendar-footer strong { margin-left: 0; }
 }
+
+/* Estoque atual */
+.stock-page { display: grid; gap: 20px; }
+.stock-page-header { margin-bottom: 0; }
+.stock-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.stock-month-nav { display: grid; grid-template-columns: 36px minmax(160px, 1fr) 36px; align-items: center; gap: 8px; }
+.stock-month-nav strong { text-align: center; font-size: 14px; }
+.stock-product-filter { width: min(320px, 100%); }
+.stock-unit-filter { width: 220px; margin-left: auto; }
+.stock-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.stock-summary-card { position: relative; overflow: hidden; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.stock-summary-card::before { position: absolute; inset: 0 auto 0 0; width: 4px; content: ''; background: var(--text-muted); }
+.stock-summary-card span { display: block; color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.stock-summary-card strong { display: block; margin-top: 8px; color: var(--text); font: 700 25px var(--mono); }
+.stock-summary-card small { color: var(--text-muted); font-size: 10px; }
+.stock-summary-in::before { background: #16845b; }
+.stock-summary-out::before, .stock-summary-negative::before { background: var(--red); }
+.stock-summary-balance::before { background: #3158a6; }
+.stock-summary-negative strong { color: var(--red); }
+.stock-panel { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.stock-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.stock-panel-heading h2 { margin: 3px 0 0; color: var(--text); font-size: 16px; }
+.stock-eyebrow { color: var(--text-muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.stock-panel-count { padding: 5px 9px; border-radius: 999px; background: var(--bg); color: var(--text-muted); font: 600 10px var(--mono); }
+.stock-balance-table th, .stock-movement-table th, .stock-audit-table th { white-space: nowrap; }
+.stock-balance-table td, .stock-movement-table td, .stock-audit-table td { vertical-align: middle; }
+.stock-unit-caption { display: block; margin-top: 3px; color: var(--text-muted); font-size: 10px; }
+.stock-positive { color: #14714f; }
+.stock-negative { color: var(--red) !important; }
+.stock-current { font-weight: 800; }
+.stock-origin, .stock-audit-operation { display: inline-flex; padding: 4px 7px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .03em; white-space: nowrap; }
+.stock-origin-compra { background: #e5f6ef; color: #14714f; }
+.stock-origin-venda { background: #fce8e8; color: #a42626; }
+.stock-origin-ajuste { background: #ece9fb; color: #55429a; }
+.stock-row-actions { display: flex; gap: 5px; }
+.stock-tabs { display: inline-flex; justify-self: start; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); }
+.stock-tabs button { padding: 8px 13px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); font: 700 11px var(--sans); cursor: pointer; }
+.stock-tabs button.active { background: var(--surface); color: var(--navy); box-shadow: 0 1px 5px rgba(26,26,46,.12); }
+.operation-insert { background: #e5f6ef; color: #14714f; }
+.operation-update { background: #fff3d6; color: #8a6116; }
+.operation-delete { background: #fce8e8; color: #a42626; }
+.stock-audit-data { min-width: 250px; max-width: 430px; color: var(--text-muted); font-size: 10px; line-height: 1.5; }
+.stock-loading { padding: 42px; text-align: center; color: var(--text-muted); }
+.stock-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+@media (max-width: 900px) {
+  .stock-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stock-unit-filter { margin-left: 0; }
+  .stock-panel .table-wrap { border: 0; border-radius: 0; }
+}
+
+@media (max-width: 560px) {
+  .stock-page-header { align-items: stretch; flex-direction: column; }
+  .stock-toolbar { align-items: stretch; flex-direction: column; }
+  .stock-month-nav { grid-template-columns: 36px 1fr 36px; }
+  .stock-product-filter, .stock-unit-filter { width: 100%; }
+  .stock-summary-grid { grid-template-columns: 1fr; }
+  .stock-summary-card { padding: 14px 16px; }
+  .stock-summary-card strong { font-size: 21px; }
+  .stock-panel-heading { align-items: flex-start; padding: 14px; }
+  .stock-tabs { display: grid; grid-template-columns: 1fr 1fr; justify-self: stretch; }
+}
