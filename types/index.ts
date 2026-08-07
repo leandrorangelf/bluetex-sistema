@@ -3,6 +3,7 @@ export type Role = 'admin' | 'unidade'
 export type TipoParcela = 'pagar' | 'receber'
 export type OrigemParcela = 'compra' | 'venda' | 'despesa' | 'manual'
 export type StatusParcela = 'pendente' | 'pago' | 'cancelado'
+export type TipoAjusteEstoque = 'entrada' | 'saida'
 
 export const UNIDADES: Unidade[] = ['NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM']
 
@@ -70,6 +71,15 @@ export interface CaixaMensal {
 }
 export interface AjusteEstoque {
   id: string; unidade: Unidade; produto_id: string; mes: number; ano: number
-  qtd_carteiras: number; motivo: string | null; ativo: boolean; created_at: string
+  data_ajuste: string; tipo: TipoAjusteEstoque; qtd_carteiras: number
+  motivo: string | null; ativo: boolean; created_at: string
   produto?: Produto
+}
+export interface AuditoriaEstoque {
+  id: string; tabela: string; operacao: 'INSERT' | 'UPDATE' | 'DELETE'
+  registro_id: string | null; unidade: Unidade | null; usuario_id: string | null
+  dados_anteriores: Record<string, unknown> | null
+  dados_novos: Record<string, unknown> | null
+  created_at: string
+  usuario?: Pick<Profile, 'nome'> | null
 }

@@ -298,7 +298,9 @@ CREATE TABLE IF NOT EXISTS btx_ajustes_estoque (
   produto_id UUID NOT NULL REFERENCES btx_produtos(id),
   mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
   ano INTEGER NOT NULL,
-  qtd_carteiras INTEGER NOT NULL DEFAULT 0,
+  data_ajuste DATE NOT NULL DEFAULT CURRENT_DATE,
+  tipo TEXT NOT NULL DEFAULT 'entrada' CHECK (tipo IN ('entrada','saida')),
+  qtd_carteiras INTEGER NOT NULL CHECK (qtd_carteiras > 0),
   motivo TEXT,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -306,6 +308,62 @@ CREATE TABLE IF NOT EXISTS btx_ajustes_estoque (
 ALTER TABLE btx_ajustes_estoque ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "btx_admin_all_aj" ON btx_ajustes_estoque FOR ALL USING (btx_get_my_role()='admin');
 CREATE POLICY "btx_unidade_aj" ON btx_ajustes_estoque FOR ALL USING (btx_get_my_role()='unidade' AND unidade=btx_get_my_unidade());
+
+CREATE INDEX IF NOT EXISTS btx_ajustes_estoque_unidade_data_idx ON btx_ajustes_estoque(unidade, data_ajuste) WHERE ativo = TRUE;
+
+-- ------------------------------------------------------------
+-- btx_auditoria_estoque
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS btx_auditoria_estoque (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tabela TEXT NOT NULL,
+  operacao TEXT NOT NULL CHECK (operacao IN ('INSERT','UPDATE','DELETE')),
+  registro_id UUID,
+  unidade TEXT,
+  usuario_id UUID REFERENCES auth.users(id),
+  dados_anteriores JSONB,
+  dados_novos JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS btx_auditoria_estoque_unidade_data_idx ON btx_auditoria_estoque(unidade, created_at DESC);
+ALTER TABLE btx_auditoria_estoque ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "btx_admin_read_auditoria_estoque" ON btx_auditoria_estoque FOR SELECT USING (btx_get_my_role()='admin');
+REVOKE INSERT, UPDATE, DELETE ON btx_auditoria_estoque FROM authenticated;
+
+CREATE OR REPLACE FUNCTION btx_auditar_estoque()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  registro JSONB;
+  unidade_registro TEXT;
+  id_registro UUID;
+  parent_id UUID;
+BEGIN
+  registro := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END;
+  id_registro := NULLIF(registro->>'id', '')::UUID;
+  unidade_registro := registro->>'unidade';
+  IF unidade_registro IS NULL AND TG_TABLE_NAME = 'btx_compras_itens' THEN
+    parent_id := NULLIF(registro->>'compra_id', '')::UUID;
+    SELECT unidade INTO unidade_registro FROM btx_compras WHERE id = parent_id;
+  ELSIF unidade_registro IS NULL AND TG_TABLE_NAME = 'btx_vendas_itens' THEN
+    parent_id := NULLIF(registro->>'venda_id', '')::UUID;
+    SELECT unidade INTO unidade_registro FROM btx_vendas WHERE id = parent_id;
+  END IF;
+  INSERT INTO btx_auditoria_estoque(tabela, operacao, registro_id, unidade, usuario_id, dados_anteriores, dados_novos)
+  VALUES (
+    TG_TABLE_NAME, TG_OP, id_registro, unidade_registro, auth.uid(),
+    CASE WHEN TG_OP IN ('UPDATE','DELETE') THEN to_jsonb(OLD) END,
+    CASE WHEN TG_OP IN ('INSERT','UPDATE') THEN to_jsonb(NEW) END
+  );
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$;
+
+CREATE TRIGGER btx_auditoria_estoque_inicial AFTER INSERT OR UPDATE OR DELETE ON btx_estoque_inicial FOR EACH ROW EXECUTE FUNCTION btx_auditar_estoque();
+CREATE TRIGGER btx_auditoria_compras AFTER INSERT OR UPDATE OR DELETE ON btx_compras FOR EACH ROW EXECUTE FUNCTION btx_auditar_estoque();
+CREATE TRIGGER btx_auditoria_compras_itens AFTER INSERT OR UPDATE OR DELETE ON btx_compras_itens FOR EACH ROW EXECUTE FUNCTION btx_auditar_estoque();
+CREATE TRIGGER btx_auditoria_vendas AFTER INSERT OR UPDATE OR DELETE ON btx_vendas FOR EACH ROW EXECUTE FUNCTION btx_auditar_estoque();
+CREATE TRIGGER btx_auditoria_vendas_itens AFTER INSERT OR UPDATE OR DELETE ON btx_vendas_itens FOR EACH ROW EXECUTE FUNCTION btx_auditar_estoque();
+CREATE TRIGGER btx_auditoria_ajustes_estoque AFTER INSERT OR UPDATE OR DELETE ON btx_ajustes_estoque FOR EACH ROW EXECUTE FUNCTION btx_auditar_estoque();
 
 -- ============================================================
 -- FIM DO SCHEMA
