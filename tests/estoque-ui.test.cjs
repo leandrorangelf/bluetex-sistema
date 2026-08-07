@@ -47,3 +47,27 @@ test('schema consolidado inclui auditoria para instalações novas', () => {
   assert.match(schema, /CREATE TABLE IF NOT EXISTS btx_auditoria_estoque/i)
   assert.match(schema, /data_ajuste DATE NOT NULL/i)
 })
+
+test('componentes mostram resumo, saldos e relatório progressivo', () => {
+  const resumo = read('components/estoque/ResumoEstoque.tsx')
+  const saldos = read('components/estoque/TabelaSaldosEstoque.tsx')
+  const movimentos = read('components/estoque/RelatorioMovimentosEstoque.tsx')
+
+  assert.match(resumo, /Entradas do mês/)
+  assert.match(resumo, /Saídas do mês/)
+  assert.match(saldos, /Saldo inicial/)
+  assert.match(saldos, /Ajustes/)
+  assert.match(saldos, /saldoAtual < 0/)
+  assert.match(movimentos, /Saldo após/)
+  assert.match(movimentos, /Nenhuma movimentação/)
+})
+
+test('histórico administrativo exibe autor e diferenças', () => {
+  const auditoria = read('components/estoque/HistoricoAuditoriaEstoque.tsx')
+
+  assert.match(auditoria, /Histórico de alterações/)
+  assert.match(auditoria, /dados_anteriores/)
+  assert.match(auditoria, /dados_novos/)
+  assert.match(auditoria, /Usuário/)
+  assert.match(auditoria, /Data e hora/)
+})
