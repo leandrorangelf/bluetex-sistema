@@ -9,12 +9,12 @@ const produtos: ProdutoEstoque[] = [
 
 const aberturas: AberturaEstoque[] = [
   { id: 'a-antiga', produtoId: 'p1', ano: 2026, mes: 1, quantidade: 80 },
-  { id: 'a-atual', produtoId: 'p1', ano: 2026, mes: 2, quantidade: 100 },
+  { id: 'a-mensal-ignorada', produtoId: 'p1', ano: 2026, mes: 2, quantidade: 100 },
   { id: 'a-p2', produtoId: 'p2', ano: 2026, mes: 2, quantidade: 50 },
 ]
 
 const movimentos: MovimentoEstoque[] = [
-  { id: 'antes-base', produtoId: 'p1', data: '2026-01-20', tipo: 'entrada', origem: 'compra', quantidade: 999 },
+  { id: 'antes-base', produtoId: 'p1', data: '2025-12-20', tipo: 'entrada', origem: 'compra', quantidade: 999 },
   { id: 'compra-fev', produtoId: 'p1', data: '2026-02-10', tipo: 'entrada', origem: 'compra', quantidade: 30, documento: 'NF 10' },
   { id: 'venda-fev', produtoId: 'p1', data: '2026-02-12', tipo: 'saida', origem: 'venda', quantidade: 20 },
   { id: 'compra-mar', produtoId: 'p1', data: '2026-03-02', tipo: 'entrada', origem: 'compra', quantidade: 15 },
@@ -25,12 +25,12 @@ const movimentos: MovimentoEstoque[] = [
   { id: 'futuro', produtoId: 'p1', data: '2026-04-01', tipo: 'entrada', origem: 'compra', quantidade: 1000 },
 ]
 
-test('usa a abertura mais recente e ignora movimentos anteriores a ela', () => {
+test('usa uma única abertura inicial e ignora bases mensais posteriores', () => {
   const painel = calcularEstoque({ ano: 2026, mes: 3, produtos, aberturas, movimentos })
   const produto = painel.saldos.find(item => item.produtoId === 'p1')!
 
-  assert.equal(produto.saldoInicioMes, 110)
-  assert.equal(produto.saldoAtual, 112)
+  assert.equal(produto.saldoInicioMes, 90)
+  assert.equal(produto.saldoAtual, 92)
 })
 
 test('separa compras, vendas e ajustes do mês', () => {
@@ -50,10 +50,10 @@ test('calcula saldo progressivo no relatório cronológico', () => {
   const relatorio = painel.movimentos.filter(item => item.produtoId === 'p1')
 
   assert.deepEqual(relatorio.map(item => [item.id, item.saldoApos]), [
-    ['compra-mar', 125],
-    ['ajuste-saida', 120],
-    ['ajuste-entrada', 122],
-    ['venda-mar', 112],
+    ['compra-mar', 105],
+    ['ajuste-saida', 100],
+    ['ajuste-entrada', 102],
+    ['venda-mar', 92],
   ])
 })
 
@@ -64,7 +64,7 @@ test('filtra produto e totaliza somente entradas e saídas do mês', () => {
   assert.equal(painel.resumo.produtos, 1)
   assert.equal(painel.resumo.entradas, 17)
   assert.equal(painel.resumo.saidas, 15)
-  assert.equal(painel.resumo.saldoAtual, 112)
+  assert.equal(painel.resumo.saldoAtual, 92)
 })
 
 test('mantém produtos sem movimento no relatório de saldos', () => {
@@ -88,5 +88,5 @@ test('desempata movimentos do mesmo dia por identificador', () => {
   })
 
   assert.deepEqual(painel.movimentos.map(item => item.id), ['a', 'b'])
-  assert.deepEqual(painel.movimentos.map(item => item.saldoApos), [105, 103])
+  assert.deepEqual(painel.movimentos.map(item => item.saldoApos), [85, 83])
 })

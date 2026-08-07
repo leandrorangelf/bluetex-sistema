@@ -100,8 +100,8 @@ export function calcularEstoque({
 
   for (const produto of produtosFiltrados) {
     const abertura = aberturas
-      .filter(item => item.produtoId === produto.id && dataCompetencia(item.ano, item.mes) <= inicioMes)
-      .sort((a, b) => dataCompetencia(b.ano, b.mes).localeCompare(dataCompetencia(a.ano, a.mes)))[0]
+      .filter(item => item.produtoId === produto.id)
+      .sort((a, b) => dataCompetencia(a.ano, a.mes).localeCompare(dataCompetencia(b.ano, b.mes)))[0]
     const dataAbertura = abertura ? dataCompetencia(abertura.ano, abertura.mes) : ''
     const movimentosProduto = movimentos
       .filter(item => item.produtoId === produto.id && (!dataAbertura || item.data >= dataAbertura) && item.data <= fimMes)
