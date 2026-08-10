@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual } from '@/lib/utils'
-import { calcularPainelFinanceiro, calcularStatusPagamento, chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela as PagamentoCalculo, type MovimentacaoFinanceira } from '@/lib/financeiro'
+import { calcularPainelFinanceiro, calcularSaldoRealizado, calcularStatusPagamento, chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela as PagamentoCalculo, type MovimentacaoFinanceira } from '@/lib/financeiro'
 import ResumoFinanceiro from '@/components/financeiro/ResumoFinanceiro'
 import ListaMovimentacoes from '@/components/financeiro/ListaMovimentacoes'
 import CalendarioFinanceiro from '@/components/financeiro/CalendarioFinanceiro'
@@ -60,7 +60,8 @@ export default function CaixaPage() {
   const [mobileTab, setMobileTab] = useState<'pagar' | 'receber'>('pagar')
   const [saldoModal, setSaldoModal] = useState(false)
   const [saldoEdit, setSaldoEdit] = useState(0)
-  const [painelHoje, setPainelHoje] = useState<PainelCalculado | null>(null)
+  const [saldoBanco, setSaldoBanco] = useState(0)
+  const [realizadoMesAtual, setRealizadoMesAtual] = useState(0)
   const [saving, setSaving] = useState(false)
   const [pagamentoModal, setPagamentoModal] = useState<{ parcelaId: string; saldoRestante: number; edicao?: { id: string; valor: number; data: string; observacoes: string } } | null>(null)
   const [pagamentoSaving, setPagamentoSaving] = useState(false)
@@ -122,10 +123,14 @@ export default function CaixaPage() {
     const competenciaHoje = chaveCompetencia(anoAtual(), mesAtual())
     const baseHoje = bases.find(item => chaveCompetencia(item.ano, item.mes) <= competenciaHoje)
     const competenciaBaseHoje = baseHoje ? chaveCompetencia(baseHoje.ano, baseHoje.mes) : competenciaHoje
-    const calculadoHoje = calcularPainelFinanceiro({
-      ano: anoAtual(), mes: mesAtual(), hoje: hoje(), saldoBase: Number(baseHoje?.saldo_inicial ?? 0), competenciaBase: competenciaBaseHoje, parcelas: parcelasEnriquecidas, pagamentos,
+    const realizadoTotal = calcularSaldoRealizado({
+      hoje: hoje(), competenciaInicio: competenciaBaseHoje, parcelas: parcelasEnriquecidas, pagamentos,
     })
-    setPainelHoje(calculadoHoje)
+    const realizadoEsteMes = calcularSaldoRealizado({
+      hoje: hoje(), competenciaInicio: competenciaHoje, parcelas: parcelasEnriquecidas, pagamentos,
+    })
+    setSaldoBanco(Number(baseHoje?.saldo_inicial ?? 0) + realizadoTotal)
+    setRealizadoMesAtual(realizadoEsteMes)
 
     setBaseConfigurada(Boolean(base))
     setSaldoEdit(calculado.resumo.saldoInicial)
@@ -141,22 +146,15 @@ export default function CaixaPage() {
     setMes(novoMes); setAno(novoAno)
   }
 
-  function saldoDeHoje() {
-    if (!painelHoje) return 0
-    const diaHoje = Number(hoje().split('-')[2])
-    return painelHoje.dias[diaHoje - 1]?.saldoFinal ?? painelHoje.resumo.saldoFinal
-  }
-
   function abrirSaldoBase() {
-    setSaldoEdit(saldoDeHoje())
+    setSaldoEdit(saldoBanco)
     setSaldoModal(true)
   }
 
   async function salvarSaldoBase() {
-    if (!unidade || !painelHoje) return
+    if (!unidade) return
     setSaving(true)
-    const somaAteHoje = saldoDeHoje() - painelHoje.resumo.saldoInicial
-    const novoSaldoInicial = saldoEdit - somaAteHoje
+    const novoSaldoInicial = saldoEdit - realizadoMesAtual
     const { error: saveError } = await sb.from('btx_caixa_mensal').upsert(
       { unidade, mes: mesAtual(), ano: anoAtual(), saldo_inicial: novoSaldoInicial, updated_at: new Date().toISOString() },
       { onConflict: 'unidade,mes,ano' },
@@ -259,7 +257,7 @@ export default function CaixaPage() {
               {isAdmin && <button className="btn btn-secondary btn-sm" onClick={abrirSaldoBase}>Configurar saldo-base</button>}
             </div>
           )}
-          <ResumoFinanceiro resumo={painel.resumo} saldoBanco={saldoDeHoje()} isAdmin={isAdmin} onAjustarSaldo={abrirSaldoBase} />
+          <ResumoFinanceiro resumo={painel.resumo} saldoBanco={saldoBanco} isAdmin={isAdmin} onAjustarSaldo={abrirSaldoBase} />
           <div className="finance-mobile-tabs" role="tablist" aria-label="Tipo de movimentação">
             <button className={mobileTab === 'pagar' ? 'active' : ''} onClick={() => setMobileTab('pagar')} role="tab" aria-selected={mobileTab === 'pagar'}>A pagar</button>
             <button className={mobileTab === 'receber' ? 'active' : ''} onClick={() => setMobileTab('receber')} role="tab" aria-selected={mobileTab === 'receber'}>A receber</button>
@@ -294,7 +292,7 @@ export default function CaixaPage() {
         <button className="btn btn-secondary" onClick={() => setSaldoModal(false)}>Cancelar</button>
         <button className="btn btn-primary" onClick={salvarSaldoBase} disabled={saving}>{saving ? 'Salvando...' : 'Salvar saldo de hoje'}</button>
       </>}>
-        <div className="alert alert-amber">Este valor passa a ser o saldo de hoje ({getMesAnoLabel(mesAtual(), anoAtual())}). Os lançamentos futuros continuam somando e subtraindo a partir daqui.</div>
+        <div className="alert alert-amber">Este valor passa a ser o saldo real de hoje ({getMesAnoLabel(mesAtual(), anoAtual())}). Contas ainda não pagas ou recebidas não entram nessa conta — só o que já se confirmou. Novos pagamentos continuam somando e subtraindo a partir daqui.</div>
         <div className="form-group">
           <label className="form-label">Saldo em banco agora (R$)</label>
           <input className="form-input mono" type="number" step="0.01" value={saldoEdit} onChange={event => setSaldoEdit(Number(event.target.value))} />

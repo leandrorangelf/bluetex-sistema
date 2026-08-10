@@ -155,6 +155,24 @@ export function calcularStatusPagamento(
   return { status: 'parcial', dataPagamento }
 }
 
+export function calcularSaldoRealizado(input: {
+  hoje: string
+  competenciaInicio: string
+  parcelas: ParcelaFinanceira[]
+  pagamentos?: PagamentoParcela[]
+}): number {
+  const pagamentosPorParcela = new Map<string, PagamentoParcela[]>()
+  for (const item of input.pagamentos ?? []) {
+    const lista = pagamentosPorParcela.get(item.parcela_id) ?? []
+    lista.push(item)
+    pagamentosPorParcela.set(item.parcela_id, lista)
+  }
+
+  return normalizarMovimentacoes(input.parcelas, input.hoje, pagamentosPorParcela)
+    .filter(movimento => movimento.status === 'pago' && movimento.data >= input.competenciaInicio && movimento.data <= input.hoje)
+    .reduce((saldo, movimento) => saldo + movimento.entradas - movimento.saidas, 0)
+}
+
 export function calcularPainelFinanceiro(input: CalculoFinanceiroInput): {
   movimentacoesMes: MovimentacaoFinanceira[]
   dias: DiaFinanceiro[]

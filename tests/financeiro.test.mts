@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   calcularPainelFinanceiro,
+  calcularSaldoRealizado,
   calcularStatusPagamento,
   normalizarMovimentacoes,
   type ParcelaFinanceira,
@@ -251,4 +252,41 @@ test('calcularStatusPagamento: soma igual ou maior que o total fica pago', () =>
     pagamento({ id: 'pg2', valor: 400, data_pagamento: '2026-08-20' }),
   ])
   assert.deepEqual(resultado, { status: 'pago', dataPagamento: '2026-08-20' })
+})
+
+test('calcularSaldoRealizado ignora parcela pendente mesmo vencida', () => {
+  const resultado = calcularSaldoRealizado({
+    hoje: '2026-08-12',
+    competenciaInicio: '2026-08-01',
+    parcelas: [parcela({ vencimento: '2026-08-05', valor: 1000, status: 'pendente' })],
+  })
+  assert.equal(resultado, 0)
+})
+
+test('calcularSaldoRealizado conta parcela paga dentro do intervalo', () => {
+  const resultado = calcularSaldoRealizado({
+    hoje: '2026-08-12',
+    competenciaInicio: '2026-08-01',
+    parcelas: [parcela({ status: 'pago', data_pagamento: '2026-08-05', valor: 1000 })],
+  })
+  assert.equal(resultado, -1000)
+})
+
+test('calcularSaldoRealizado conta só a fatia paga de uma parcela parcial', () => {
+  const resultado = calcularSaldoRealizado({
+    hoje: '2026-08-12',
+    competenciaInicio: '2026-08-01',
+    parcelas: [parcela({ valor: 1000, vencimento: '2026-08-20' })],
+    pagamentos: [pagamento({ valor: 600, data_pagamento: '2026-08-05' })],
+  })
+  assert.equal(resultado, -600)
+})
+
+test('calcularSaldoRealizado ignora movimento fora do intervalo', () => {
+  const resultado = calcularSaldoRealizado({
+    hoje: '2026-08-12',
+    competenciaInicio: '2026-08-10',
+    parcelas: [parcela({ status: 'pago', data_pagamento: '2026-08-05', valor: 1000 })],
+  })
+  assert.equal(resultado, 0)
 })
