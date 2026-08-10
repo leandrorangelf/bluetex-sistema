@@ -33,3 +33,19 @@ test('painel possui layout responsivo e menu atualizado', () => {
   assert.match(css, /@media \(max-width: 900px\)/)
   assert.match(sidebar, /href: '\/caixa', label: 'Painel Financeiro'/)
 })
+
+test('migração cria pagamentos parciais e libera status parcial', () => {
+  const sql = read('supabase_migration_pagamento_parcial.sql')
+  assert.match(sql, /CHECK \(status IN \('pendente','pago','parcial','cancelado'\)\)/)
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS btx_pagamentos_parcela/)
+  assert.match(sql, /parcela_id UUID NOT NULL REFERENCES btx_parcelas\(id\) ON DELETE CASCADE/)
+  assert.match(sql, /valor NUMERIC\(12,2\) NOT NULL CHECK \(valor > 0\)/)
+  assert.match(sql, /ENABLE ROW LEVEL SECURITY/)
+  assert.match(sql, /btx_admin_all_pagto_parc/)
+})
+
+test('schema consolidado inclui pagamentos parciais para instalações novas', () => {
+  const schema = read('supabase_schema.sql')
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS btx_pagamentos_parcela/)
+  assert.match(schema, /status TEXT NOT NULL DEFAULT 'pendente' CHECK \(status IN \('pendente','pago','parcial','cancelado'\)\)/)
+})

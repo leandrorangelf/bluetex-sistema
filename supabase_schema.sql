@@ -261,7 +261,7 @@ CREATE TABLE IF NOT EXISTS btx_parcelas (
   numero_parcela INTEGER NOT NULL DEFAULT 1,
   vencimento DATE NOT NULL,
   valor NUMERIC(12,2) NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','pago','cancelado')),
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','pago','parcial','cancelado')),
   numero_boleto TEXT,
   data_pagamento DATE,
   observacoes TEXT,
@@ -287,6 +287,22 @@ CREATE TABLE IF NOT EXISTS btx_caixa_mensal (
 );
 ALTER TABLE btx_caixa_mensal ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "btx_admin_all_caixa" ON btx_caixa_mensal FOR ALL USING (btx_get_my_role()='admin');
+
+-- ------------------------------------------------------------
+-- btx_pagamentos_parcela
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS btx_pagamentos_parcela (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  parcela_id UUID NOT NULL REFERENCES btx_parcelas(id) ON DELETE CASCADE,
+  valor NUMERIC(12,2) NOT NULL CHECK (valor > 0),
+  data_pagamento DATE NOT NULL,
+  observacoes TEXT,
+  criado_por UUID REFERENCES btx_profiles(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS btx_pagamentos_parcela_parcela_idx ON btx_pagamentos_parcela(parcela_id);
+ALTER TABLE btx_pagamentos_parcela ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "btx_admin_all_pagto_parc" ON btx_pagamentos_parcela FOR ALL USING ((select btx_get_my_role())='admin');
 CREATE POLICY "btx_unidade_caixa" ON btx_caixa_mensal FOR ALL USING (btx_get_my_role()='unidade' AND unidade=btx_get_my_unidade());
 
 -- ------------------------------------------------------------
