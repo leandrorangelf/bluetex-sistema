@@ -5,11 +5,12 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual } from '@/lib/utils'
-import { calcularPainelFinanceiro, type ParcelaFinanceira } from '@/lib/financeiro'
+import { calcularPainelFinanceiro, calcularStatusPagamento, type ParcelaFinanceira, type PagamentoParcela as PagamentoCalculo, type MovimentacaoFinanceira } from '@/lib/financeiro'
 import ResumoFinanceiro from '@/components/financeiro/ResumoFinanceiro'
 import ListaMovimentacoes from '@/components/financeiro/ListaMovimentacoes'
 import CalendarioFinanceiro from '@/components/financeiro/CalendarioFinanceiro'
 import Modal from '@/components/Modal'
+import PagamentoModal from '@/components/financeiro/PagamentoModal'
 import type { CaixaMensal, Parcela, Unidade } from '@/types'
 import { UNIDADES } from '@/types'
 
@@ -64,6 +65,8 @@ export default function CaixaPage() {
   const [saldoModal, setSaldoModal] = useState(false)
   const [saldoEdit, setSaldoEdit] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [pagamentoModal, setPagamentoModal] = useState<{ parcelaId: string; saldoRestante: number; edicao?: { id: string; valor: number; data: string; observacoes: string } } | null>(null)
+  const [pagamentoSaving, setPagamentoSaving] = useState(false)
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
 
@@ -93,6 +96,13 @@ export default function CaixaPage() {
     const base = bases.find(item => chaveCompetencia(item.ano, item.mes) <= competenciaSelecionada)
     const competenciaBase = base ? chaveCompetencia(base.ano, base.mes) : competenciaSelecionada
     const parcelas = (parcelasResult.data ?? []) as Parcela[]
+    const parcelaIds = parcelas.map(item => item.id)
+    const pagamentosResult = parcelaIds.length
+      ? await sb.from('btx_pagamentos_parcela').select('*').in('parcela_id', parcelaIds)
+      : { data: [] as PagamentoCalculo[] }
+    const pagamentos: PagamentoCalculo[] = (pagamentosResult.data ?? []).map((item: { id: string; parcela_id: string; valor: number; data_pagamento: string }) => ({
+      id: item.id, parcela_id: item.parcela_id, valor: Number(item.valor), data_pagamento: item.data_pagamento,
+    }))
     const ids = (origem: Parcela['origem']) => [...new Set(parcelas.filter(p => p.origem === origem && p.origem_id).map(p => p.origem_id as string))]
     const compraIds = ids('compra')
     const vendaIds = ids('venda')
@@ -109,7 +119,7 @@ export default function CaixaPage() {
       (despesasResult.data ?? []) as unknown as DespesaOrigem[],
     )
     const calculado = calcularPainelFinanceiro({
-      ano, mes, hoje: hoje(), saldoBase: Number(base?.saldo_inicial ?? 0), competenciaBase, parcelas: parcelasEnriquecidas,
+      ano, mes, hoje: hoje(), saldoBase: Number(base?.saldo_inicial ?? 0), competenciaBase, parcelas: parcelasEnriquecidas, pagamentos,
     })
     setBaseConfigurada(Boolean(base))
     setSaldoEdit(calculado.resumo.saldoInicial)
@@ -143,6 +153,58 @@ export default function CaixaPage() {
       return
     }
     setSaldoModal(false)
+    loadData()
+  }
+
+  async function sincronizarStatusParcela(parcelaId: string, valorTotal: number) {
+    const { data } = await sb.from('btx_pagamentos_parcela').select('*').eq('parcela_id', parcelaId)
+    const pagamentos: PagamentoCalculo[] = (data ?? []).map((item: { id: string; parcela_id: string; valor: number; data_pagamento: string }) => ({
+      id: item.id, parcela_id: item.parcela_id, valor: Number(item.valor), data_pagamento: item.data_pagamento,
+    }))
+    const { status, dataPagamento } = calcularStatusPagamento(valorTotal, pagamentos)
+    await sb.from('btx_parcelas').update({ status, data_pagamento: dataPagamento }).eq('id', parcelaId)
+  }
+
+  function abrirRegistrarPagamento(parcelaId: string, saldoRestante: number) {
+    setPagamentoModal({ parcelaId, saldoRestante })
+  }
+
+  function abrirEditarPagamento(movimento: MovimentacaoFinanceira) {
+    setPagamentoModal({
+      parcelaId: movimento.parcela_id,
+      saldoRestante: movimento.valor_total,
+      edicao: { id: movimento.id, valor: movimento.valor, data: movimento.data, observacoes: movimento.observacoes ?? '' },
+    })
+  }
+
+  async function salvarPagamento(dados: { valor: number; data: string; observacoes: string }) {
+    if (!pagamentoModal) return
+    setPagamentoSaving(true)
+    const parcela = painel?.movimentacoesMes.find(item => item.parcela_id === pagamentoModal.parcelaId)
+    const valorTotal = parcela?.valor_total ?? pagamentoModal.saldoRestante
+    const { error: saveError } = pagamentoModal.edicao
+      ? await sb.from('btx_pagamentos_parcela').update({
+          valor: dados.valor, data_pagamento: dados.data, observacoes: dados.observacoes || null,
+        }).eq('id', pagamentoModal.edicao.id)
+      : await sb.from('btx_pagamentos_parcela').insert({
+          parcela_id: pagamentoModal.parcelaId, valor: dados.valor, data_pagamento: dados.data, observacoes: dados.observacoes || null,
+        })
+    if (saveError) {
+      setPagamentoSaving(false)
+      setError('Não foi possível registrar o pagamento.')
+      return
+    }
+    await sincronizarStatusParcela(pagamentoModal.parcelaId, valorTotal)
+    setPagamentoSaving(false)
+    setPagamentoModal(null)
+    loadData()
+  }
+
+  async function excluirPagamento(movimento: MovimentacaoFinanceira) {
+    setSaving(true)
+    await sb.from('btx_pagamentos_parcela').delete().eq('id', movimento.id)
+    await sincronizarStatusParcela(movimento.parcela_id, movimento.valor_total)
+    setSaving(false)
     loadData()
   }
 
@@ -189,9 +251,27 @@ export default function CaixaPage() {
             <button className={mobileTab === 'receber' ? 'active' : ''} onClick={() => setMobileTab('receber')} role="tab" aria-selected={mobileTab === 'receber'}>A receber</button>
           </div>
           <div className="finance-layout">
-            <ListaMovimentacoes tipo="pagar" movimentacoes={painel.movimentacoesMes} diaSelecionado={diaSelecionado} mobileActive={mobileTab === 'pagar'} />
+            <ListaMovimentacoes
+              tipo="pagar"
+              movimentacoes={painel.movimentacoesMes}
+              diaSelecionado={diaSelecionado}
+              mobileActive={mobileTab === 'pagar'}
+              isAdmin={isAdmin}
+              onRegistrarPagamento={abrirRegistrarPagamento}
+              onEditarPagamento={abrirEditarPagamento}
+              onExcluirPagamento={excluirPagamento}
+            />
             <CalendarioFinanceiro ano={ano} mes={mes} dias={painel.dias} hoje={hoje()} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />
-            <ListaMovimentacoes tipo="receber" movimentacoes={painel.movimentacoesMes} diaSelecionado={diaSelecionado} mobileActive={mobileTab === 'receber'} />
+            <ListaMovimentacoes
+              tipo="receber"
+              movimentacoes={painel.movimentacoesMes}
+              diaSelecionado={diaSelecionado}
+              mobileActive={mobileTab === 'receber'}
+              isAdmin={isAdmin}
+              onRegistrarPagamento={abrirRegistrarPagamento}
+              onEditarPagamento={abrirEditarPagamento}
+              onExcluirPagamento={excluirPagamento}
+            />
           </div>
         </>
       ) : null}
@@ -206,6 +286,15 @@ export default function CaixaPage() {
           <input className="form-input mono" type="number" step="0.01" value={saldoEdit} onChange={event => setSaldoEdit(Number(event.target.value))} />
         </div>
       </Modal>
+
+      <PagamentoModal
+        open={!!pagamentoModal}
+        onClose={() => setPagamentoModal(null)}
+        onSalvar={salvarPagamento}
+        saldoRestante={pagamentoModal?.saldoRestante ?? 0}
+        saving={pagamentoSaving}
+        valorInicial={pagamentoModal?.edicao ? { valor: pagamentoModal.edicao.valor, data: pagamentoModal.edicao.data, observacoes: pagamentoModal.edicao.observacoes } : undefined}
+      />
     </div>
   )
 }

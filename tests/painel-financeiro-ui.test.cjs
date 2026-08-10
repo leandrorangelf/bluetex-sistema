@@ -77,3 +77,11 @@ test('lista de movimentações agrupa por parcela e permite registrar pagamento'
   assert.match(lista, /onEditarPagamento/)
   assert.match(lista, /onExcluirPagamento/)
 })
+
+test('rota caixa carrega e sincroniza pagamentos parciais', () => {
+  const pagina = read('app/caixa/page.tsx')
+  assert.match(pagina, /btx_pagamentos_parcela/)
+  assert.match(pagina, /calcularStatusPagamento/)
+  assert.match(pagina, /PagamentoModal/)
+  assert.match(pagina, /sincronizarStatusParcela/)
+})
