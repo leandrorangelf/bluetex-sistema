@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual } from '@/lib/utils'
-import { calcularPainelFinanceiro, calcularStatusPagamento, type ParcelaFinanceira, type PagamentoParcela as PagamentoCalculo, type MovimentacaoFinanceira } from '@/lib/financeiro'
+import { calcularPainelFinanceiro, calcularStatusPagamento, chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela as PagamentoCalculo, type MovimentacaoFinanceira } from '@/lib/financeiro'
 import ResumoFinanceiro from '@/components/financeiro/ResumoFinanceiro'
 import ListaMovimentacoes from '@/components/financeiro/ListaMovimentacoes'
 import CalendarioFinanceiro from '@/components/financeiro/CalendarioFinanceiro'
@@ -22,10 +22,6 @@ interface DespesaOrigem { id: string; descricao: string; fornecedor: RelacaoNome
 
 function nomeRelacao(relacao: RelacaoNome) {
   return Array.isArray(relacao) ? relacao[0]?.nome : relacao?.nome
-}
-
-function chaveCompetencia(ano: number, mes: number) {
-  return `${ano}-${String(mes).padStart(2, '0')}-01`
 }
 
 function enriquecerParcelas(parcelas: Parcela[], compras: CompraOrigem[], vendas: VendaOrigem[], despesas: DespesaOrigem[]): ParcelaFinanceira[] {

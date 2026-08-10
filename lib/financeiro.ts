@@ -1,6 +1,10 @@
 export type TipoMovimento = 'pagar' | 'receber'
 export type StatusMovimento = 'pendente' | 'pago' | 'parcial' | 'cancelado'
 
+export function chaveCompetencia(ano: number, mes: number): string {
+  return `${ano}-${String(mes).padStart(2, '0')}-01`
+}
+
 export interface ParcelaFinanceira {
   id: string
   tipo: TipoMovimento

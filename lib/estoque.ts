@@ -1,5 +1,12 @@
+import type { AjusteEstoque, Produto } from '@/types'
+
 export type TipoMovimentoEstoque = 'entrada' | 'saida'
 export type OrigemMovimentoEstoque = 'compra' | 'venda' | 'ajuste'
+
+export interface AberturaEstoqueDb { id: string; produto_id: string; mes: number; ano: number; qtd_carteiras: number }
+export interface ItemMovimentoEstoqueDb { id: string; produto_id: string; qtd_carteiras: number }
+export interface CompraEstoqueDb { id: string; data_compra: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[] }
+export interface VendaEstoqueDb { id: string; data_venda: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[] }
 
 export interface ProdutoEstoque {
   id: string
@@ -150,4 +157,49 @@ export function calcularEstoque({
     saldos,
     movimentos: relatorio,
   }
+}
+
+export function normalizarProdutosEstoque(produtos: Produto[]): ProdutoEstoque[] {
+  return produtos.map(produto => ({
+    id: produto.id,
+    nome: produto.nome,
+    fatorConversao: Number(produto.fator_conversao) || 1,
+    unidadeBase: produto.unidade_base?.nome,
+    unidadeMaior: produto.unidade_maior?.nome,
+  }))
+}
+
+export function normalizarAberturasEstoque(aberturas: AberturaEstoqueDb[]): AberturaEstoque[] {
+  return aberturas.map(item => ({ id: item.id, produtoId: item.produto_id, ano: item.ano, mes: item.mes, quantidade: Number(item.qtd_carteiras) }))
+}
+
+export function normalizarMovimentosEstoque(compras: CompraEstoqueDb[], vendas: VendaEstoqueDb[], ajustes: AjusteEstoque[]): MovimentoEstoque[] {
+  const entradas = compras.flatMap(compra => (compra.itens ?? []).map(item => ({
+    id: item.id,
+    produtoId: item.produto_id,
+    data: compra.data_compra,
+    tipo: 'entrada' as const,
+    origem: 'compra' as const,
+    quantidade: Number(item.qtd_carteiras),
+    documento: compra.numero_nf ? `NF ${compra.numero_nf}` : 'Compra sem NF',
+  })))
+  const saidas = vendas.flatMap(venda => (venda.itens ?? []).map(item => ({
+    id: item.id,
+    produtoId: item.produto_id,
+    data: venda.data_venda,
+    tipo: 'saida' as const,
+    origem: 'venda' as const,
+    quantidade: Number(item.qtd_carteiras),
+    documento: venda.numero_nf ? `NF ${venda.numero_nf}` : 'Venda sem NF',
+  })))
+  const correcoes = ajustes.filter(item => item.ativo).map(item => ({
+    id: item.id,
+    produtoId: item.produto_id,
+    data: item.data_ajuste,
+    tipo: item.tipo,
+    origem: 'ajuste' as const,
+    quantidade: Number(item.qtd_carteiras),
+    descricao: item.motivo || 'Ajuste manual',
+  }))
+  return [...entradas, ...saidas, ...correcoes]
 }

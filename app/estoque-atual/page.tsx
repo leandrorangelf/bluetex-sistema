@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos } from '@/lib/utils'
-import { calcularEstoque, type AberturaEstoque, type MovimentoEstoque, type ProdutoEstoque } from '@/lib/estoque'
+import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
 import RelatorioMovimentosEstoque from '@/components/estoque/RelatorioMovimentosEstoque'
@@ -14,58 +14,9 @@ import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { UNIDADES, type AjusteEstoque, type AuditoriaEstoque, type Produto, type TipoAjusteEstoque, type Unidade } from '@/types'
 
-interface ItemMovimento { id: string; produto_id: string; qtd_carteiras: number }
-interface CompraEstoque { id: string; data_compra: string; numero_nf: string | null; itens: ItemMovimento[] }
-interface VendaEstoque { id: string; data_venda: string; numero_nf: string | null; itens: ItemMovimento[] }
-interface AberturaDb { id: string; produto_id: string; mes: number; ano: number; qtd_carteiras: number }
 interface ProfileNome { id: string; nome: string }
 
 const AJUSTE_VAZIO = { produto_id: '', data_ajuste: hoje(), tipo: 'entrada' as TipoAjusteEstoque, quantidade: 0, motivo: '' }
-
-function normalizarProdutos(produtos: Produto[]): ProdutoEstoque[] {
-  return produtos.map(produto => ({
-    id: produto.id,
-    nome: produto.nome,
-    fatorConversao: Number(produto.fator_conversao) || 1,
-    unidadeBase: produto.unidade_base?.nome,
-    unidadeMaior: produto.unidade_maior?.nome,
-  }))
-}
-
-function normalizarAberturas(aberturas: AberturaDb[]): AberturaEstoque[] {
-  return aberturas.map(item => ({ id: item.id, produtoId: item.produto_id, ano: item.ano, mes: item.mes, quantidade: Number(item.qtd_carteiras) }))
-}
-
-function normalizarMovimentos(compras: CompraEstoque[], vendas: VendaEstoque[], ajustes: AjusteEstoque[]): MovimentoEstoque[] {
-  const entradas = compras.flatMap(compra => (compra.itens ?? []).map(item => ({
-    id: item.id,
-    produtoId: item.produto_id,
-    data: compra.data_compra,
-    tipo: 'entrada' as const,
-    origem: 'compra' as const,
-    quantidade: Number(item.qtd_carteiras),
-    documento: compra.numero_nf ? `NF ${compra.numero_nf}` : 'Compra sem NF',
-  })))
-  const saidas = vendas.flatMap(venda => (venda.itens ?? []).map(item => ({
-    id: item.id,
-    produtoId: item.produto_id,
-    data: venda.data_venda,
-    tipo: 'saida' as const,
-    origem: 'venda' as const,
-    quantidade: Number(item.qtd_carteiras),
-    documento: venda.numero_nf ? `NF ${venda.numero_nf}` : 'Venda sem NF',
-  })))
-  const correcoes = ajustes.filter(item => item.ativo).map(item => ({
-    id: item.id,
-    produtoId: item.produto_id,
-    data: item.data_ajuste,
-    tipo: item.tipo,
-    origem: 'ajuste' as const,
-    quantidade: Number(item.qtd_carteiras),
-    descricao: item.motivo || 'Ajuste manual',
-  }))
-  return [...entradas, ...saidas, ...correcoes]
-}
 
 export default function EstoqueAtualPage() {
   const { profile, unidadeAtiva } = useAuth()
@@ -74,9 +25,9 @@ export default function EstoqueAtualPage() {
   const [unidade, setUnidade] = useState<Unidade | ''>(unidadeAtiva ?? '')
   const [produtoId, setProdutoId] = useState('')
   const [produtos, setProdutos] = useState<Produto[]>([])
-  const [aberturas, setAberturas] = useState<AberturaDb[]>([])
-  const [compras, setCompras] = useState<CompraEstoque[]>([])
-  const [vendas, setVendas] = useState<VendaEstoque[]>([])
+  const [aberturas, setAberturas] = useState<AberturaEstoqueDb[]>([])
+  const [compras, setCompras] = useState<CompraEstoqueDb[]>([])
+  const [vendas, setVendas] = useState<VendaEstoqueDb[]>([])
   const [ajustes, setAjustes] = useState<AjusteEstoque[]>([])
   const [auditoria, setAuditoria] = useState<AuditoriaEstoque[]>([])
   const [nomesUsuarios, setNomesUsuarios] = useState<Record<string, string>>({})
@@ -115,9 +66,9 @@ export default function EstoqueAtualPage() {
       return
     }
     setProdutos(ordenarProdutos((consultas[0].data ?? []) as Produto[]))
-    setAberturas((consultas[1].data ?? []) as AberturaDb[])
-    setCompras((consultas[2].data ?? []) as unknown as CompraEstoque[])
-    setVendas((consultas[3].data ?? []) as unknown as VendaEstoque[])
+    setAberturas((consultas[1].data ?? []) as AberturaEstoqueDb[])
+    setCompras((consultas[2].data ?? []) as unknown as CompraEstoqueDb[])
+    setVendas((consultas[3].data ?? []) as unknown as VendaEstoqueDb[])
     setAjustes((consultas[4].data ?? []) as AjusteEstoque[])
 
     if (isAdmin) {
@@ -144,9 +95,9 @@ export default function EstoqueAtualPage() {
   const painel = useMemo(() => calcularEstoque({
     ano,
     mes,
-    produtos: normalizarProdutos(produtos),
-    aberturas: normalizarAberturas(aberturas),
-    movimentos: normalizarMovimentos(compras, vendas, ajustes),
+    produtos: normalizarProdutosEstoque(produtos),
+    aberturas: normalizarAberturasEstoque(aberturas),
+    movimentos: normalizarMovimentosEstoque(compras, vendas, ajustes),
     produtoId: produtoId || undefined,
   }), [ano, mes, produtoId, produtos, aberturas, compras, vendas, ajustes])
 
