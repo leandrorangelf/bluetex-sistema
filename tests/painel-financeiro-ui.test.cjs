@@ -19,7 +19,7 @@ test('painel financeiro possui os três componentes principais', () => {
 test('rota caixa expõe saldo-base, calendário e recuperação de erro', () => {
   const page = read('app/caixa/page.tsx')
   assert.match(page, /Painel Financeiro/)
-  assert.match(page, /Ajustar saldo-base/)
+  assert.match(page, /abrirSaldoBase/)
   assert.match(page, /Tentar novamente/)
   assert.match(page, /CalendarioFinanceiro/)
   assert.match(page, /ListaMovimentacoes/)
@@ -48,4 +48,16 @@ test('schema consolidado inclui pagamentos parciais para instalações novas', (
   const schema = read('supabase_schema.sql')
   assert.match(schema, /CREATE TABLE IF NOT EXISTS btx_pagamentos_parcela/)
   assert.match(schema, /status TEXT NOT NULL DEFAULT 'pendente' CHECK \(status IN \('pendente','pago','parcial','cancelado'\)\)/)
+})
+
+test('card de saldo em banco tem rótulo e ação de ajuste', () => {
+  const resumo = read('components/financeiro/ResumoFinanceiro.tsx')
+  assert.match(resumo, /Saldo em banco/)
+  assert.match(resumo, /onAjustarSaldo/)
+  assert.doesNotMatch(resumo, /Saldo inicial/)
+})
+
+test('botão de ajuste de saldo-base não fica mais solto no cabeçalho', () => {
+  const pagina = read('app/caixa/page.tsx')
+  assert.match(pagina, /onAjustarSaldo=\{abrirSaldoBase\}/)
 })

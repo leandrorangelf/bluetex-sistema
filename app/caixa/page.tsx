@@ -153,7 +153,6 @@ export default function CaixaPage() {
           <h1 className="page-title">Painel Financeiro</h1>
           <div className="page-subtitle">Fluxo realizado e projetado{unidade ? ` · ${unidade}` : ''}</div>
         </div>
-        {isAdmin && unidade && <button className="btn btn-secondary" onClick={abrirSaldoBase}>Ajustar saldo-base</button>}
       </div>
 
       <div className="finance-toolbar">
@@ -184,7 +183,7 @@ export default function CaixaPage() {
               {isAdmin && <button className="btn btn-secondary btn-sm" onClick={abrirSaldoBase}>Configurar saldo-base</button>}
             </div>
           )}
-          <ResumoFinanceiro resumo={painel.resumo} />
+          <ResumoFinanceiro resumo={painel.resumo} isAdmin={isAdmin} onAjustarSaldo={abrirSaldoBase} />
           <div className="finance-mobile-tabs" role="tablist" aria-label="Tipo de movimentação">
             <button className={mobileTab === 'pagar' ? 'active' : ''} onClick={() => setMobileTab('pagar')} role="tab" aria-selected={mobileTab === 'pagar'}>A pagar</button>
             <button className={mobileTab === 'receber' ? 'active' : ''} onClick={() => setMobileTab('receber')} role="tab" aria-selected={mobileTab === 'receber'}>A receber</button>

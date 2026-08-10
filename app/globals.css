@@ -296,6 +296,17 @@ tbody tr:hover { background: var(--purple-light); }
   display: block; color: var(--text-muted); font-size: 9px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;
 }
+.finance-stat-topline {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px;
+}
+.finance-stat-topline .finance-stat-label { margin-bottom: 0; }
+.finance-stat-adjust {
+  flex-shrink: 0; padding: 2px 7px; border: 1px solid var(--border); border-radius: 5px;
+  background: var(--surface); color: var(--text-mid); font-size: 8px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer;
+}
+.finance-stat-adjust:hover { border-color: var(--purple); color: var(--navy); }
+.finance-stat.final .finance-stat-adjust { border-color: rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.75); }
 .finance-stat-value {
   display: block; overflow: hidden; color: var(--navy); font-family: var(--mono);
   font-size: clamp(14px, 1.35vw, 20px); text-overflow: ellipsis; white-space: nowrap;
