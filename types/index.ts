@@ -2,7 +2,7 @@ export type Unidade = 'NEW BLUETEX MG' | 'NEW BLUETEX SC' | 'NEW BLUETEX AM'
 export type Role = 'admin' | 'unidade'
 export type TipoParcela = 'pagar' | 'receber'
 export type OrigemParcela = 'compra' | 'venda' | 'despesa' | 'manual'
-export type StatusParcela = 'pendente' | 'pago' | 'cancelado'
+export type StatusParcela = 'pendente' | 'pago' | 'parcial' | 'cancelado'
 export type TipoAjusteEstoque = 'entrada' | 'saida'
 
 export const UNIDADES: Unidade[] = ['NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM']
@@ -64,6 +64,10 @@ export interface Parcela {
   numero_parcela: number; vencimento: string; valor: number; status: StatusParcela
   numero_boleto: string | null; data_pagamento: string | null; observacoes: string | null
   ativo: boolean; created_at: string
+}
+export interface PagamentoParcela {
+  id: string; parcela_id: string; valor: number; data_pagamento: string
+  observacoes: string | null; criado_por: string | null; created_at: string
 }
 export interface CaixaMensal {
   id: string; unidade: Unidade; mes: number; ano: number; saldo_inicial: number
