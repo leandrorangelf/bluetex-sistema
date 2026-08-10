@@ -85,7 +85,7 @@ Cobertura mínima em `lib/financeiro.ts` (estende `tests/financeiro.test.mts`):
 
 1. Parcela sem lançamento no log continua se comportando exatamente como hoje (regressão).
 2. Um lançamento parcial gera um movimento na data do lançamento, pelo valor lançado.
-3. Saldo restante de uma parcela parcial aparece como movimento pendente no vencimento original.
+3. Saldo restante de uma parcela parcial aparece como movimento `parcial` no vencimento original.
 4. Soma de lançamentos igual ao valor total muda o status para `pago` e usa a data do último lançamento.
 5. Soma de lançamentos maior ou igual ao valor total sem lançamento exato também fecha como `pago`.
 6. Editar um lançamento recalcula `valor_pago`, `saldo_restante` e o status.
