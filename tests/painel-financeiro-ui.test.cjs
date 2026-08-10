@@ -61,3 +61,10 @@ test('botão de ajuste de saldo-base não fica mais solto no cabeçalho', () => 
   const pagina = read('app/caixa/page.tsx')
   assert.match(pagina, /onAjustarSaldo=\{abrirSaldoBase\}/)
 })
+
+test('modal de pagamento existe e valida contra o saldo restante', () => {
+  const modal = read('components/financeiro/PagamentoModal.tsx')
+  assert.match(modal, /saldoRestante/)
+  assert.match(modal, /onSalvar/)
+  assert.match(modal, /valor <= 0 \|\| valor > saldoRestante/)
+})
