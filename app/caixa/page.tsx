@@ -64,6 +64,7 @@ export default function CaixaPage() {
   const [mobileTab, setMobileTab] = useState<'pagar' | 'receber'>('pagar')
   const [saldoModal, setSaldoModal] = useState(false)
   const [saldoEdit, setSaldoEdit] = useState(0)
+  const [painelHoje, setPainelHoje] = useState<PainelCalculado | null>(null)
   const [saving, setSaving] = useState(false)
   const [pagamentoModal, setPagamentoModal] = useState<{ parcelaId: string; saldoRestante: number; edicao?: { id: string; valor: number; data: string; observacoes: string } } | null>(null)
   const [pagamentoSaving, setPagamentoSaving] = useState(false)
@@ -121,6 +122,15 @@ export default function CaixaPage() {
     const calculado = calcularPainelFinanceiro({
       ano, mes, hoje: hoje(), saldoBase: Number(base?.saldo_inicial ?? 0), competenciaBase, parcelas: parcelasEnriquecidas, pagamentos,
     })
+
+    const competenciaHoje = chaveCompetencia(anoAtual(), mesAtual())
+    const baseHoje = bases.find(item => chaveCompetencia(item.ano, item.mes) <= competenciaHoje)
+    const competenciaBaseHoje = baseHoje ? chaveCompetencia(baseHoje.ano, baseHoje.mes) : competenciaHoje
+    const calculadoHoje = calcularPainelFinanceiro({
+      ano: anoAtual(), mes: mesAtual(), hoje: hoje(), saldoBase: Number(baseHoje?.saldo_inicial ?? 0), competenciaBase: competenciaBaseHoje, parcelas: parcelasEnriquecidas, pagamentos,
+    })
+    setPainelHoje(calculadoHoje)
+
     setBaseConfigurada(Boolean(base))
     setSaldoEdit(calculado.resumo.saldoInicial)
     setPainel(calculado)
@@ -135,21 +145,29 @@ export default function CaixaPage() {
     setMes(novoMes); setAno(novoAno)
   }
 
+  function saldoDeHoje() {
+    if (!painelHoje) return 0
+    const diaHoje = Number(hoje().split('-')[2])
+    return painelHoje.dias[diaHoje - 1]?.saldoFinal ?? painelHoje.resumo.saldoFinal
+  }
+
   function abrirSaldoBase() {
-    setSaldoEdit(painel?.resumo.saldoInicial ?? 0)
+    setSaldoEdit(saldoDeHoje())
     setSaldoModal(true)
   }
 
   async function salvarSaldoBase() {
-    if (!unidade) return
+    if (!unidade || !painelHoje) return
     setSaving(true)
+    const somaAteHoje = saldoDeHoje() - painelHoje.resumo.saldoInicial
+    const novoSaldoInicial = saldoEdit - somaAteHoje
     const { error: saveError } = await sb.from('btx_caixa_mensal').upsert(
-      { unidade, mes, ano, saldo_inicial: saldoEdit, updated_at: new Date().toISOString() },
+      { unidade, mes: mesAtual(), ano: anoAtual(), saldo_inicial: novoSaldoInicial, updated_at: new Date().toISOString() },
       { onConflict: 'unidade,mes,ano' },
     )
     setSaving(false)
     if (saveError) {
-      setError('Não foi possível salvar o saldo-base. Tente novamente.')
+      setError('Não foi possível salvar o saldo em banco. Tente novamente.')
       return
     }
     setSaldoModal(false)
@@ -276,13 +294,13 @@ export default function CaixaPage() {
         </>
       ) : null}
 
-      <Modal open={saldoModal} onClose={() => setSaldoModal(false)} title={`Saldo-base · ${getMesAnoLabel(mes, ano)}`} size="sm" footer={<>
+      <Modal open={saldoModal} onClose={() => setSaldoModal(false)} title="Saldo em banco de hoje" size="sm" footer={<>
         <button className="btn btn-secondary" onClick={() => setSaldoModal(false)}>Cancelar</button>
-        <button className="btn btn-primary" onClick={salvarSaldoBase} disabled={saving}>{saving ? 'Salvando...' : 'Salvar saldo-base'}</button>
+        <button className="btn btn-primary" onClick={salvarSaldoBase} disabled={saving}>{saving ? 'Salvando...' : 'Salvar saldo de hoje'}</button>
       </>}>
-        <div className="alert alert-amber">Este valor passa a ser o saldo no início do mês selecionado e recalcula os meses seguintes.</div>
+        <div className="alert alert-amber">Este valor passa a ser o saldo de hoje ({getMesAnoLabel(mesAtual(), anoAtual())}). Os lançamentos futuros continuam somando e subtraindo a partir daqui.</div>
         <div className="form-group">
-          <label className="form-label">Saldo no início do mês (R$)</label>
+          <label className="form-label">Saldo em banco agora (R$)</label>
           <input className="form-input mono" type="number" step="0.01" value={saldoEdit} onChange={event => setSaldoEdit(Number(event.target.value))} />
         </div>
       </Modal>

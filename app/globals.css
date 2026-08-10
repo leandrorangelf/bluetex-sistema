@@ -285,9 +285,14 @@ tbody tr:hover { background: var(--purple-light); }
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .finance-summary {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px; margin-bottom: 12px;
 }
+.finance-stat-banco {
+  grid-column: span 2;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.finance-stat-banco .finance-stat-value { font-size: clamp(20px, 2.1vw, 30px); }
 .finance-stat {
   min-width: 0; padding: 14px 16px; border: 1px solid var(--border);
   border-radius: 8px; background: var(--surface);

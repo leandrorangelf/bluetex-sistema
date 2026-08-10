@@ -24,7 +24,7 @@ export default function ResumoFinanceiro({ resumo, isAdmin, onAjustarSaldo }: Pr
         const ehSaldoBanco = item.key === 'saldoInicial'
 
         return (
-          <div key={item.key} className={`finance-stat ${tone}`.trim()}>
+          <div key={item.key} className={`finance-stat ${tone}${ehSaldoBanco ? ' finance-stat-banco' : ''}`.trim()}>
             <div className="finance-stat-topline">
               <span className="finance-stat-label">{item.label}</span>
               {ehSaldoBanco && isAdmin && onAjustarSaldo && (
