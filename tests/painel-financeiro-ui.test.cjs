@@ -68,3 +68,12 @@ test('modal de pagamento existe e valida contra o saldo restante', () => {
   assert.match(modal, /onSalvar/)
   assert.match(modal, /valor <= 0 \|\| valor > saldoRestante/)
 })
+
+test('lista de movimentações agrupa por parcela e permite registrar pagamento', () => {
+  const lista = read('components/financeiro/ListaMovimentacoes.tsx')
+  assert.match(lista, /agruparPorParcela/)
+  assert.match(lista, /badge-purple/)
+  assert.match(lista, /Registrar pagamento/)
+  assert.match(lista, /onEditarPagamento/)
+  assert.match(lista, /onExcluirPagamento/)
+})
