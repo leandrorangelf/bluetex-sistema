@@ -504,6 +504,9 @@ tbody tr:hover { background: var(--purple-light); }
 .stock-positive { color: #14714f; }
 .stock-negative { color: var(--red) !important; }
 .stock-current { font-weight: 800; }
+.stock-row-clickable { cursor: pointer; }
+.stock-row-clickable:hover { background: rgba(222,218,210,0.35); }
+.stock-row-selected { background: rgba(94,58,161,0.08); }
 .stock-origin, .stock-audit-operation { display: inline-flex; padding: 4px 7px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .03em; white-space: nowrap; }
 .stock-origin-compra { background: #e5f6ef; color: #14714f; }
 .stock-origin-venda { background: #fce8e8; color: #a42626; }

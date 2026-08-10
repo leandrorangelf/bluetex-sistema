@@ -237,7 +237,7 @@ export default function EstoqueAtualPage() {
         : error && !ajusteModal ? <div className="alert alert-red stock-error"><span>{error}</span><button className="btn btn-secondary btn-sm" onClick={loadData}>Tentar novamente</button></div>
         : <>
           <ResumoEstoque resumo={painel.resumo} />
-          <TabelaSaldosEstoque saldos={painel.saldos} />
+          <TabelaSaldosEstoque saldos={painel.saldos} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
           <div className="stock-tabs" role="tablist">
             <button className={tab === 'movimentos' ? 'active' : ''} onClick={() => setTab('movimentos')} role="tab" aria-selected={tab === 'movimentos'}>Movimentações</button>
             {isAdmin && <button className={tab === 'auditoria' ? 'active' : ''} onClick={() => setTab('auditoria')} role="tab" aria-selected={tab === 'auditoria'}>Histórico de alterações</button>}
