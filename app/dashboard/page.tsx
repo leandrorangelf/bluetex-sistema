@@ -3,8 +3,10 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
-import { formatMoeda, getMesAnoLabel, mesAtual, anoAtual, formatData } from '@/lib/utils'
-import type { Unidade } from '@/types'
+import { formatMoeda, getMesAnoLabel, mesAtual, anoAtual, formatData, ordenarProdutos } from '@/lib/utils'
+import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
+import { calcularPainelFinanceiro, chaveCompetencia, type PagamentoParcela as PagamentoCalculo, type ParcelaFinanceira } from '@/lib/financeiro'
+import type { AjusteEstoque, CaixaMensal, Produto, Unidade } from '@/types'
 
 const UNIDADES: Unidade[] = ['NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM']
 const UNIDADE_SHORT: Record<string, string> = {
@@ -61,156 +63,109 @@ export default function DashboardPage() {
   }
 
   async function carregarUnidade(unidade: string): Promise<DashData> {
-    const mesStr = String(mes).padStart(2, '0')
-    const ultimoDia = new Date(ano, mes, 0).getDate()
-    const dataInicio = `${ano}-${mesStr}-01`
-    const dataFim = `${ano}-${mesStr}-${String(ultimoDia).padStart(2, '0')}`
+    const competenciaSelecionada = chaveCompetencia(ano, mes)
 
-    const [caixaRes, parcelasPagasRes, parcelasRes] = await Promise.all([
-      sb.from('btx_caixa_mensal')
-        .select('saldo_inicial')
-        .eq('unidade', unidade)
-        .eq('mes', mes)
-        .eq('ano', ano)
-        .maybeSingle(),
-
-      sb.from('btx_parcelas')
-        .select('valor,tipo,status,vencimento,data_pagamento')
-        .eq('unidade', unidade)
-        .eq('ativo', true)
-        .eq('status', 'pago')
-        .gte('data_pagamento', dataInicio)
-        .lte('data_pagamento', dataFim),
-
-      sb.from('btx_parcelas')
-        .select('valor,status,vencimento,tipo')
-        .eq('unidade', unidade)
-        .eq('ativo', true)
-        .neq('status', 'cancelado'),
+    const [basesRes, parcelasRes] = await Promise.all([
+      sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
+      sb.from('btx_parcelas').select('*').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
     ])
 
-    const saldoInicial = caixaRes.data?.saldo_inicial ?? 0
-    const parcelasPagas = parcelasPagasRes.data ?? []
+    const bases = (basesRes.data ?? []) as CaixaMensal[]
+    const base = bases.find(item => chaveCompetencia(item.ano, item.mes) <= competenciaSelecionada)
+    const competenciaBase = base ? chaveCompetencia(base.ano, base.mes) : competenciaSelecionada
 
-    const entradas = parcelasPagas
-      .filter(p => p.tipo === 'receber')
-      .reduce((s, p) => s + Number(p.valor), 0)
+    const parcelas = (parcelasRes.data ?? []) as ParcelaFinanceira[]
+    const parcelaIds = parcelas.map(item => item.id)
+    const pagamentosRes = parcelaIds.length
+      ? await sb.from('btx_pagamentos_parcela').select('*').in('parcela_id', parcelaIds)
+      : { data: [] as PagamentoCalculo[] }
+    const pagamentos: PagamentoCalculo[] = (pagamentosRes.data ?? []).map((item: { id: string; parcela_id: string; valor: number; data_pagamento: string }) => ({
+      id: item.id, parcela_id: item.parcela_id, valor: Number(item.valor), data_pagamento: item.data_pagamento,
+    }))
 
-    const saidas = parcelasPagas
-      .filter(p => p.tipo === 'pagar')
-      .reduce((s, p) => s + Number(p.valor), 0)
+    const calculado = calcularPainelFinanceiro({
+      ano, mes, hoje, saldoBase: Number(base?.saldo_inicial ?? 0), competenciaBase, parcelas, pagamentos,
+    })
 
-    const parc = parcelasRes.data ?? []
-    const aReceber = parc.filter(p => p.tipo === 'receber' && p.status === 'pendente').reduce((s, p) => s + Number(p.valor), 0)
-    const aPagar = parc.filter(p => p.tipo === 'pagar' && p.status === 'pendente').reduce((s, p) => s + Number(p.valor), 0)
-    const parcelasVencidas = parc.filter(p => p.status === 'pendente' && p.vencimento < hoje).length
+    const valorPagoPorParcela = new Map<string, number>()
+    for (const item of pagamentos) {
+      valorPagoPorParcela.set(item.parcela_id, (valorPagoPorParcela.get(item.parcela_id) ?? 0) + item.valor)
+    }
+    let aReceber = 0
+    let aPagar = 0
+    let parcelasVencidas = 0
+    for (const parcela of parcelas) {
+      if (parcela.status !== 'pendente' && parcela.status !== 'parcial') continue
+      const restante = Number(parcela.valor) - (valorPagoPorParcela.get(parcela.id) ?? 0)
+      if (parcela.tipo === 'receber') aReceber += restante
+      else aPagar += restante
+      if (parcela.vencimento < hoje) parcelasVencidas++
+    }
 
-    return { caixa: saldoInicial + entradas - saidas, entradas, saidas, aReceber, aPagar, parcelasVencidas }
+    return { caixa: calculado.resumo.saldoFinal, entradas: calculado.resumo.totalEntradas, saidas: calculado.resumo.totalSaidas, aReceber, aPagar, parcelasVencidas }
   }
 
   async function carregarParcelas(unidade: string | null) {
-    let q = sb.from('btx_parcelas').select('id,vencimento,valor,tipo,status,origem,unidade').eq('ativo', true).eq('status', 'pendente').order('vencimento')
+    let q = sb.from('btx_parcelas').select('id,vencimento,valor,tipo,status,origem,unidade').eq('ativo', true).in('status', ['pendente', 'parcial']).order('vencimento')
     if (unidade) q = q.eq('unidade', unidade)
     const { data } = await q
-    setParcelas(data ?? [])
+    const lista = (data ?? []) as Parcela[]
+    const parciais = lista.filter(item => item.status === 'parcial')
+    if (parciais.length) {
+      const { data: pagamentos } = await sb.from('btx_pagamentos_parcela').select('parcela_id,valor').in('parcela_id', parciais.map(item => item.id))
+      const pagoPorParcela = new Map<string, number>()
+      for (const item of (pagamentos ?? []) as { parcela_id: string; valor: number }[]) {
+        pagoPorParcela.set(item.parcela_id, (pagoPorParcela.get(item.parcela_id) ?? 0) + Number(item.valor))
+      }
+      for (const item of lista) {
+        if (item.status === 'parcial') item.valor = Number(item.valor) - (pagoPorParcela.get(item.id) ?? 0)
+      }
+    }
+    setParcelas(lista)
   }
 
-  async function carregarEstoque(unidade: string | null) {
-    const [produtosRes, estoqueInicialRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
-      sb.from('btx_produtos')
-        .select('id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)')
-        .eq('ativo', true)
-        .order('nome'),
-
-      (() => {
-        let q = sb.from('btx_estoque_inicial')
-          .select('unidade,produto_id,qtd_carteiras,mes,ano')
-          .order('ano', { ascending: false })
-          .order('mes', { ascending: false })
-
-        if (unidade) q = q.eq('unidade', unidade)
-        return q
-      })(),
-
-      (() => {
-        let q = sb.from('btx_compras')
-          .select('id,unidade,itens:btx_compras_itens(produto_id,qtd_carteiras)')
-          .eq('ativo', true)
-
-        if (unidade) q = q.eq('unidade', unidade)
-        return q
-      })(),
-
-      (() => {
-        let q = sb.from('btx_vendas')
-          .select('id,unidade,itens:btx_vendas_itens(produto_id,qtd_carteiras)')
-          .eq('ativo', true)
-
-        if (unidade) q = q.eq('unidade', unidade)
-        return q
-      })(),
-
-      (() => {
-        let q = sb.from('btx_ajustes_estoque')
-          .select('unidade,produto_id,qtd_carteiras,mes,ano')
-          .eq('ativo', true)
-
-        if (unidade) q = q.eq('unidade', unidade)
-        return q
-      })(),
+  async function carregarEstoque(unidadeFiltro: string | null) {
+    const [produtosRes, aberturasRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
+      sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true),
+      (() => { let q = sb.from('btx_estoque_inicial').select('id,unidade,produto_id,mes,ano,qtd_carteiras'); if (unidadeFiltro) q = q.eq('unidade', unidadeFiltro); return q })(),
+      (() => { let q = sb.from('btx_compras').select('id,unidade,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('ativo', true); if (unidadeFiltro) q = q.eq('unidade', unidadeFiltro); return q })(),
+      (() => { let q = sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras)').eq('ativo', true); if (unidadeFiltro) q = q.eq('unidade', unidadeFiltro); return q })(),
+      (() => { let q = sb.from('btx_ajustes_estoque').select('*').eq('ativo', true); if (unidadeFiltro) q = q.eq('unidade', unidadeFiltro); return q })(),
     ])
 
-    const produtos = (produtosRes.data ?? []) as unknown as { id: string; nome: string; fator_conversao: number; unidade_base: { nome: string }; unidade_maior: { nome: string } }[]
-    const estoqueMap: Record<string, number> = {}
-    const baseAplicada: Record<string, boolean> = {}
+    const produtos = ordenarProdutos((produtosRes.data ?? []) as Produto[])
+    const produtosNormalizados = normalizarProdutosEstoque(produtos)
+    const unidadesAlvo = unidadeFiltro ? [unidadeFiltro] : UNIDADES
 
-    function key(unidadeMov: string, produtoId: string) {
-      return `${unidadeMov}::${produtoId}`
+    const aberturas = (aberturasRes.data ?? []) as (AberturaEstoqueDb & { unidade: string })[]
+    const compras = (comprasRes.data ?? []) as unknown as (CompraEstoqueDb & { unidade: string })[]
+    const vendas = (vendasRes.data ?? []) as unknown as (VendaEstoqueDb & { unidade: string })[]
+    const ajustes = (ajustesRes.data ?? []) as AjusteEstoque[]
+
+    const totais = new Map<string, { qtd: number; fatorConversao: number; unidadeBase?: string; unidadeMaior?: string }>()
+    for (const u of unidadesAlvo) {
+      const painelUnidade = calcularEstoque({
+        ano, mes,
+        produtos: produtosNormalizados,
+        aberturas: normalizarAberturasEstoque(aberturas.filter(item => item.unidade === u)),
+        movimentos: normalizarMovimentosEstoque(compras.filter(item => item.unidade === u), vendas.filter(item => item.unidade === u), ajustes.filter(item => item.unidade === u)),
+      })
+      for (const saldo of painelUnidade.saldos) {
+        const atual = totais.get(saldo.produtoId) ?? { qtd: 0, fatorConversao: saldo.fatorConversao, unidadeBase: saldo.unidadeBase, unidadeMaior: saldo.unidadeMaior }
+        atual.qtd += saldo.saldoAtual
+        totais.set(saldo.produtoId, atual)
+      }
     }
 
-    // Marco zero: usa o último estoque inicial cadastrado por unidade/produto.
-    ;(estoqueInicialRes.data ?? []).forEach((e: { unidade: string; produto_id: string; qtd_carteiras: number; mes: number; ano: number }) => {
-      const k = key(e.unidade, e.produto_id)
-
-      if (!baseAplicada[k]) {
-        estoqueMap[k] = Number(e.qtd_carteiras)
-        baseAplicada[k] = true
-      }
-    })
-
-    // Compras somam estoque.
-    ;(comprasRes.data ?? []).forEach((compra: { unidade: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
-      ;(compra.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
-        const k = key(compra.unidade, i.produto_id)
-        estoqueMap[k] = (estoqueMap[k] ?? 0) + Number(i.qtd_carteiras)
-      })
-    })
-
-    // Vendas baixam estoque.
-    ;(vendasRes.data ?? []).forEach((venda: { unidade: string; itens?: { produto_id: string; qtd_carteiras: number }[] }) => {
-      ;(venda.itens ?? []).forEach((i: { produto_id: string; qtd_carteiras: number }) => {
-        const k = key(venda.unidade, i.produto_id)
-        estoqueMap[k] = (estoqueMap[k] ?? 0) - Number(i.qtd_carteiras)
-      })
-    })
-
-    // Ajustes físicos corrigem o saldo atual sem alterar compras/vendas antigas.
-    ;(ajustesRes.data ?? []).forEach((a: { unidade: string; produto_id: string; qtd_carteiras: number }) => {
-      const k = key(a.unidade, a.produto_id)
-      estoqueMap[k] = (estoqueMap[k] ?? 0) + Number(a.qtd_carteiras)
-    })
-
-    setEstoque(produtos.map(p => {
-      const qtd = Object.entries(estoqueMap)
-        .filter(([k]) => k.endsWith(`::${p.id}`))
-        .reduce((s, [, v]) => s + v, 0)
-
+    setEstoque(produtosNormalizados.map(produto => {
+      const info = totais.get(produto.id)
+      const qtd = info?.qtd ?? 0
       return {
-        produto: p.nome,
+        produto: produto.nome,
         qtd,
-        caixas: qtd / p.fator_conversao,
-        unidade_base: p.unidade_base?.nome ?? '',
-        unidade_maior: p.unidade_maior?.nome ?? ''
+        caixas: qtd / produto.fatorConversao,
+        unidade_base: info?.unidadeBase ?? produto.unidadeBase ?? '',
+        unidade_maior: info?.unidadeMaior ?? produto.unidadeMaior ?? '',
       }
     }))
   }
@@ -257,17 +212,17 @@ export default function DashboardPage() {
             <div className="stat-card">
               <div className="stat-card-label">Caixa do Mês</div>
               <div className={`stat-card-value ${dadosAtivos.caixa < 0 ? 'text-red' : 'text-green'}`}>{formatMoeda(dadosAtivos.caixa)}</div>
-              <div className="stat-card-sub">saldo inicial + recebidas − pagas</div>
+              <div className="stat-card-sub">saldo em banco + fluxo do mês (igual ao Painel Financeiro)</div>
             </div>
             <div className="stat-card">
               <div className="stat-card-label">Entradas</div>
               <div className="stat-card-value text-green">{formatMoeda(dadosAtivos.entradas)}</div>
-              <div className="stat-card-sub">parcelas recebidas no mês</div>
+              <div className="stat-card-sub">realizadas e previstas no mês</div>
             </div>
             <div className="stat-card">
               <div className="stat-card-label">Saídas</div>
               <div className="stat-card-value text-red">{formatMoeda(dadosAtivos.saidas)}</div>
-              <div className="stat-card-sub">parcelas pagas no mês</div>
+              <div className="stat-card-sub">realizadas e previstas no mês</div>
             </div>
           </div>
 
@@ -275,12 +230,12 @@ export default function DashboardPage() {
             <div className="stat-card">
               <div className="stat-card-label">A Receber</div>
               <div className="stat-card-value" style={{ color: 'var(--purple)' }}>{formatMoeda(dadosAtivos.aReceber)}</div>
-              <div className="stat-card-sub">parcelas pendentes</div>
+              <div className="stat-card-sub">saldo pendente, inclusive parcelas parciais</div>
             </div>
             <div className="stat-card">
               <div className="stat-card-label">A Pagar</div>
               <div className="stat-card-value text-amber">{formatMoeda(dadosAtivos.aPagar)}</div>
-              <div className="stat-card-sub">parcelas pendentes</div>
+              <div className="stat-card-sub">saldo pendente, inclusive parcelas parciais</div>
             </div>
             <div className="stat-card">
               <div className="stat-card-label">Resultado Previsto</div>
