@@ -84,6 +84,7 @@ export default function EstoqueAtualPage() {
   const [ajusteModal, setAjusteModal] = useState(false)
   const [ajusteForm, setAjusteForm] = useState(AJUSTE_VAZIO)
   const [ajusteEditId, setAjusteEditId] = useState<string | null>(null)
+  const [modoAjusteUnidade, setModoAjusteUnidade] = useState<'base' | 'maior'>('maior')
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -161,6 +162,7 @@ export default function EstoqueAtualPage() {
   function abrirNovoAjuste() {
     setAjusteEditId(null)
     setAjusteForm({ ...AJUSTE_VAZIO, produto_id: produtoId })
+    setModoAjusteUnidade('maior')
     setError('')
     setAjusteModal(true)
   }
@@ -170,6 +172,7 @@ export default function EstoqueAtualPage() {
     if (!ajuste) return
     setAjusteEditId(id)
     setAjusteForm({ produto_id: ajuste.produto_id, data_ajuste: ajuste.data_ajuste, tipo: ajuste.tipo, quantidade: ajuste.qtd_carteiras, motivo: ajuste.motivo ?? '' })
+    setModoAjusteUnidade('maior')
     setAjusteModal(true)
   }
 
@@ -247,7 +250,31 @@ export default function EstoqueAtualPage() {
         {error && <div className="alert alert-red">{error}</div>}
         <div className="form-group"><label className="form-label">Produto</label><select className="form-select" value={ajusteForm.produto_id} onChange={event => setAjusteForm(form => ({ ...form, produto_id: event.target.value }))}><option value="">Selecione...</option>{produtos.map(produto => <option key={produto.id} value={produto.id}>{produto.nome}</option>)}</select></div>
         <div className="grid-2"><div className="form-group"><label className="form-label">Data</label><input className="form-input" type="date" value={ajusteForm.data_ajuste} onChange={event => setAjusteForm(form => ({ ...form, data_ajuste: event.target.value }))} /></div><div className="form-group"><label className="form-label">Tipo</label><select className="form-select" value={ajusteForm.tipo} onChange={event => setAjusteForm(form => ({ ...form, tipo: event.target.value as TipoAjusteEstoque }))}><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div></div>
-        <div className="form-group"><label className="form-label">Quantidade (unidade base)</label><input className="form-input" type="number" min={1} step={1} value={ajusteForm.quantidade || ''} onChange={event => setAjusteForm(form => ({ ...form, quantidade: Number(event.target.value) }))} /></div>
+        {(() => {
+          const produtoSelecionado = produtos.find(item => item.id === ajusteForm.produto_id)
+          const fatorConversao = produtoSelecionado?.fator_conversao || 1
+          const valorInput = modoAjusteUnidade === 'maior' ? ajusteForm.quantidade / fatorConversao : ajusteForm.quantidade
+          const unidadeLabel = modoAjusteUnidade === 'maior' ? (produtoSelecionado?.unidade_maior?.nome ?? 'unidade maior') : (produtoSelecionado?.unidade_base?.nome ?? 'unidade base')
+          return (
+            <>
+              <div className="form-group">
+                <label className="form-label">Lançar em</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className={`btn btn-sm ${modoAjusteUnidade === 'maior' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteUnidade('maior')}>Unidade maior</button>
+                  <button type="button" className={`btn btn-sm ${modoAjusteUnidade === 'base' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteUnidade('base')}>Unidade base</button>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Quantidade ({unidadeLabel})</label>
+                <input className="form-input" type="number" min={0} step="0.01" value={valorInput || ''} onChange={event => {
+                  const v = Number(event.target.value)
+                  const base = modoAjusteUnidade === 'maior' ? v * fatorConversao : v
+                  setAjusteForm(form => ({ ...form, quantidade: base }))
+                }} />
+              </div>
+            </>
+          )
+        })()}
         <div className="form-group"><label className="form-label">Motivo</label><textarea className="form-textarea" rows={3} value={ajusteForm.motivo} onChange={event => setAjusteForm(form => ({ ...form, motivo: event.target.value }))} placeholder="Ex.: correção após contagem física" /></div>
       </Modal>
       <ConfirmDialog open={Boolean(confirmId)} onClose={() => setConfirmId(null)} onConfirm={removerAjuste} loading={saving} title="Excluir ajuste?" message="O ajuste deixará de compor o saldo, mas a alteração permanecerá registrada no histórico." />
