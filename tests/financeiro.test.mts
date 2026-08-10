@@ -2,9 +2,19 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   calcularPainelFinanceiro,
+  calcularStatusPagamento,
   normalizarMovimentacoes,
   type ParcelaFinanceira,
+  type PagamentoParcela,
 } from '../lib/financeiro.ts'
+
+const pagamento = (overrides: Partial<PagamentoParcela> = {}): PagamentoParcela => ({
+  id: 'pg1',
+  parcela_id: 'p1',
+  valor: 600,
+  data_pagamento: '2026-08-05',
+  ...overrides,
+})
 
 const parcela = (overrides: Partial<ParcelaFinanceira> = {}): ParcelaFinanceira => ({
   id: 'p1',
@@ -141,4 +151,104 @@ test('dias sem movimentação carregam o saldo do dia anterior', () => {
   assert.equal(result.dias[9].saldoFinal, 1500)
   assert.equal(result.dias[10].saldoFinal, 1500)
   assert.equal(result.dias[30].saldoFinal, 1500)
+})
+
+test('pagamento parcial gera um movimento na data do lançamento', () => {
+  const [movimento] = normalizarMovimentacoes(
+    [parcela({ valor: 1000, vencimento: '2026-08-20' })],
+    '2026-08-12',
+    new Map([['p1', [pagamento()]]]),
+  )
+
+  assert.equal(movimento.data, '2026-08-05')
+  assert.equal(movimento.valor, 600)
+  assert.equal(movimento.valor_total, 1000)
+  assert.equal(movimento.status, 'pago')
+})
+
+test('saldo restante de parcela parcial aparece como movimento parcial no vencimento', () => {
+  const movimentos = normalizarMovimentacoes(
+    [parcela({ valor: 1000, vencimento: '2026-08-20' })],
+    '2026-08-12',
+    new Map([['p1', [pagamento()]]]),
+  )
+  const restante = movimentos.find(m => m.status === 'parcial')
+
+  assert.ok(restante)
+  assert.equal(restante!.data, '2026-08-20')
+  assert.equal(restante!.valor, 400)
+  assert.equal(restante!.atrasada, false)
+})
+
+test('parcial vencido aparece como atrasado', () => {
+  const movimentos = normalizarMovimentacoes(
+    [parcela({ valor: 1000, vencimento: '2026-08-01' })],
+    '2026-08-12',
+    new Map([['p1', [pagamento({ data_pagamento: '2026-07-20' })]]]),
+  )
+  const restante = movimentos.find(m => m.status === 'parcial')
+
+  assert.equal(restante!.atrasada, true)
+})
+
+test('múltiplos lançamentos que somam o valor total não deixam saldo restante', () => {
+  const movimentos = normalizarMovimentacoes(
+    [parcela({ valor: 1000, vencimento: '2026-08-20' })],
+    '2026-08-12',
+    new Map([['p1', [
+      pagamento({ id: 'pg1', valor: 600, data_pagamento: '2026-08-05' }),
+      pagamento({ id: 'pg2', valor: 400, data_pagamento: '2026-08-20' }),
+    ]]]),
+  )
+
+  assert.equal(movimentos.length, 2)
+  assert.equal(movimentos.every(m => m.status === 'pago'), true)
+  assert.equal(movimentos.reduce((total, m) => total + m.valor, 0), 1000)
+})
+
+test('calcularPainelFinanceiro soma pagamentos parciais no saldo diário na data real', () => {
+  const result = calcularPainelFinanceiro({
+    ano: 2026,
+    mes: 8,
+    hoje: '2026-08-12',
+    saldoBase: 1000,
+    competenciaBase: '2026-08-01',
+    parcelas: [parcela({ valor: 1000, vencimento: '2026-08-20' })],
+    pagamentos: [pagamento({ valor: 600, data_pagamento: '2026-08-05' })],
+  })
+
+  assert.equal(result.dias[4].saidas, 600)
+  assert.equal(result.dias[4].saldoFinal, 400)
+  assert.equal(result.dias[19].saidas, 400)
+  assert.equal(result.dias[19].saldoFinal, 0)
+})
+
+test('parcela sem lançamento continua com um único movimento (regressão)', () => {
+  const movimentos = normalizarMovimentacoes([parcela({ valor: 1000 })], '2026-08-12')
+
+  assert.equal(movimentos.length, 1)
+  assert.equal(movimentos[0].valor, 1000)
+  assert.equal(movimentos[0].valor_total, 1000)
+  assert.equal(movimentos[0].parcela_id, 'p1')
+})
+
+test('calcularStatusPagamento: sem lançamento fica pendente', () => {
+  const resultado = calcularStatusPagamento(1000, [])
+  assert.deepEqual(resultado, { status: 'pendente', dataPagamento: null })
+})
+
+test('calcularStatusPagamento: soma parcial fica parcial com data do último lançamento', () => {
+  const resultado = calcularStatusPagamento(1000, [
+    pagamento({ id: 'pg1', valor: 300, data_pagamento: '2026-08-05' }),
+    pagamento({ id: 'pg2', valor: 200, data_pagamento: '2026-08-12' }),
+  ])
+  assert.deepEqual(resultado, { status: 'parcial', dataPagamento: '2026-08-12' })
+})
+
+test('calcularStatusPagamento: soma igual ou maior que o total fica pago', () => {
+  const resultado = calcularStatusPagamento(1000, [
+    pagamento({ id: 'pg1', valor: 600, data_pagamento: '2026-08-05' }),
+    pagamento({ id: 'pg2', valor: 400, data_pagamento: '2026-08-20' }),
+  ])
+  assert.deepEqual(resultado, { status: 'pago', dataPagamento: '2026-08-20' })
 })
