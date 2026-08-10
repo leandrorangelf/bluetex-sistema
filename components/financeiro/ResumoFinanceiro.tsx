@@ -3,6 +3,7 @@ import type { ResumoFinanceiro as Resumo } from '@/lib/financeiro'
 
 interface Props {
   resumo: Resumo
+  saldoBanco: number
   isAdmin?: boolean
   onAjustarSaldo?: () => void
 }
@@ -14,14 +15,14 @@ const ITENS = [
   { key: 'saldoFinal', label: 'Saldo final projetado', tone: 'final' },
 ] as const
 
-export default function ResumoFinanceiro({ resumo, isAdmin, onAjustarSaldo }: Props) {
+export default function ResumoFinanceiro({ resumo, saldoBanco, isAdmin, onAjustarSaldo }: Props) {
   return (
     <section className="finance-summary" aria-label="Resumo financeiro do mês">
       {ITENS.map(item => {
-        const valor = resumo[item.key]
+        const ehSaldoBanco = item.key === 'saldoInicial'
+        const valor = ehSaldoBanco ? saldoBanco : resumo[item.key]
         const negativo = valor < 0
         const tone = item.tone === 'final' && negativo ? 'final negative' : item.tone
-        const ehSaldoBanco = item.key === 'saldoInicial'
 
         return (
           <div key={item.key} className={`finance-stat ${tone}${ehSaldoBanco ? ' finance-stat-banco' : ''}`.trim()}>
