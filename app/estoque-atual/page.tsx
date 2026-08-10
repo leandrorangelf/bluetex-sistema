@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { anoAtual, getMesAnoLabel, hoje, mesAtual } from '@/lib/utils'
+import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos } from '@/lib/utils'
 import { calcularEstoque, type AberturaEstoque, type MovimentoEstoque, type ProdutoEstoque } from '@/lib/estoque'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
@@ -114,7 +114,7 @@ export default function EstoqueAtualPage() {
       setLoading(false)
       return
     }
-    setProdutos((consultas[0].data ?? []) as Produto[])
+    setProdutos(ordenarProdutos((consultas[0].data ?? []) as Produto[]))
     setAberturas((consultas[1].data ?? []) as AberturaDb[])
     setCompras((consultas[2].data ?? []) as unknown as CompraEstoque[])
     setVendas((consultas[3].data ?? []) as unknown as VendaEstoque[])

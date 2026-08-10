@@ -34,3 +34,16 @@ export function mesAtual(): number {
 export function anoAtual(): number {
   return new Date().getFullYear()
 }
+
+const ORDEM_PRODUTOS = ['GUDANG RED', 'GUDANG GREEN', 'CRETEC MENTA', 'CRETEC CEREJA', 'GUDANG TWIN TEN']
+
+export function ordenarProdutos<T extends { nome: string }>(produtos: T[]): T[] {
+  return [...produtos].sort((a, b) => {
+    const ia = ORDEM_PRODUTOS.indexOf(a.nome)
+    const ib = ORDEM_PRODUTOS.indexOf(b.nome)
+    if (ia === -1 && ib === -1) return a.nome.localeCompare(b.nome)
+    if (ia === -1) return 1
+    if (ib === -1) return -1
+    return ia - ib
+  })
+}

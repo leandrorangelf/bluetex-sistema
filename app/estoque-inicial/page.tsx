@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { getMesAnoLabel, converterParaUnidadeMaior, mesAtual, anoAtual } from '@/lib/utils'
+import { getMesAnoLabel, converterParaUnidadeMaior, mesAtual, anoAtual, ordenarProdutos } from '@/lib/utils'
 import type { Produto, Unidade } from '@/types'
 import { UNIDADES } from '@/types'
 
@@ -33,7 +33,7 @@ export default function EstoqueInicialPage() {
   async function loadData() {
     setLoading(true)
     const { data: prods } = await sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome')
-    setProdutos(prods ?? [])
+    setProdutos(ordenarProdutos(prods ?? []))
     if (!unidade) { setLoading(false); return }
     const { data: est } = await sb.from('btx_estoque_inicial').select('*')
       .eq('unidade', unidade).eq('mes', mes).eq('ano', ano)
