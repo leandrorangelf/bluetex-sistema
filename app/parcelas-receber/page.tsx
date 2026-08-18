@@ -8,9 +8,15 @@ import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Parcela } from '@/types'
 
+type RelacaoNome = { nome: string } | { nome: string }[] | null
+function nomeRelacao(relacao: RelacaoNome) {
+  return Array.isArray(relacao) ? relacao[0]?.nome : relacao?.nome
+}
+
 export default function ParcelasReceberPage() {
   const { unidadeAtiva } = useAuth()
   const [rows, setRows] = useState<Parcela[]>([])
+  const [clientesPorVenda, setClientesPorVenda] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [statusFiltro, setStatusFiltro] = useState('pendente')
   const [modal, setModal] = useState(false)
@@ -28,7 +34,16 @@ export default function ParcelasReceberPage() {
     if (unidadeAtiva) q = q.eq('unidade', unidadeAtiva)
     if (statusFiltro !== 'todos') q = q.eq('status', statusFiltro)
     const { data } = await q
-    setRows(data ?? [])
+    const parcelas = (data ?? []) as Parcela[]
+    setRows(parcelas)
+
+    const vendaIds = [...new Set(parcelas.filter(p => p.origem === 'venda' && p.origem_id).map(p => p.origem_id as string))]
+    if (vendaIds.length) {
+      const { data: vendas } = await sb.from('btx_vendas').select('id,cliente:btx_clientes(nome)').in('id', vendaIds)
+      setClientesPorVenda(new Map((vendas ?? []).map((v: { id: string; cliente: RelacaoNome }) => [v.id, nomeRelacao(v.cliente) ?? '—'])))
+    } else {
+      setClientesPorVenda(new Map())
+    }
     setLoading(false)
   }
 
@@ -79,15 +94,17 @@ export default function ParcelasReceberPage() {
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Vencimento</th><th>Parcela</th><th>Valor</th><th>Boleto/Doc</th><th>Status</th><th>Recebimento</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Vencimento</th><th>Cliente</th><th>Parcela</th><th>Valor</th><th>Boleto/Doc</th><th>Status</th><th>Recebimento</th><th>Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={7} className="empty-state">Carregando...</td></tr>
-            : rows.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhuma parcela.</td></tr>
+            {loading ? <tr><td colSpan={8} className="empty-state">Carregando...</td></tr>
+            : rows.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma parcela.</td></tr>
             : rows.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
+              const cliente = r.origem === 'venda' && r.origem_id ? clientesPorVenda.get(r.origem_id) ?? '—' : '—'
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(200,118,10,0.04)' } : {}}>
                   <td className="mono" style={vencida ? { color: 'var(--amber)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
+                  <td>{cliente}</td>
                   <td className="mono">#{r.numero_parcela}</td>
                   <td className="mono" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono">{r.numero_boleto ?? '—'}</td>
