@@ -64,11 +64,25 @@ interface CalculoFinanceiroInput {
   pagamentos?: PagamentoParcela[]
 }
 
+function proximoDiaUtil(dataISO: string): string {
+  const data = new Date(`${dataISO}T00:00:00Z`)
+  data.setUTCDate(data.getUTCDate() + 1)
+  while (data.getUTCDay() === 0 || data.getUTCDay() === 6) {
+    data.setUTCDate(data.getUTCDate() + 1)
+  }
+  return data.toISOString().slice(0, 10)
+}
+
+// ponytail: boleto só compensa no próximo dia útil após o vencimento; demais formas (pix, dinheiro) entram na própria data
+export function dataCompensacao(parcela: ParcelaFinanceira): string {
+  return parcela.numero_boleto ? proximoDiaUtil(parcela.vencimento) : parcela.vencimento
+}
+
 export function obterDataEfetiva(parcela: ParcelaFinanceira) {
   const inconsistente = parcela.status === 'pago' && !parcela.data_pagamento
   const data = parcela.status === 'pago' && parcela.data_pagamento
     ? parcela.data_pagamento
-    : parcela.vencimento
+    : dataCompensacao(parcela)
 
   return { data, inconsistente }
 }
@@ -127,7 +141,7 @@ export function normalizarMovimentacoes(
         status: 'parcial',
         valor: saldoRestante,
         valor_total: valorTotal,
-        data: parcela.vencimento,
+        data: dataCompensacao(parcela),
         inconsistente: false,
         entradas: parcela.tipo === 'receber' ? saldoRestante : 0,
         saidas: parcela.tipo === 'pagar' ? saldoRestante : 0,
