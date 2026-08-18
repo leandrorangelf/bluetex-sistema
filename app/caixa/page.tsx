@@ -62,6 +62,8 @@ export default function CaixaPage() {
   const [saldoEdit, setSaldoEdit] = useState(0)
   const [saldoBanco, setSaldoBanco] = useState(0)
   const [realizadoMesAtual, setRealizadoMesAtual] = useState(0)
+  const [modo, setModo] = useState<'projetado' | 'realizado'>('projetado')
+  const [dadosBase, setDadosBase] = useState<{ saldoBase: number; competenciaBase: string; parcelas: ParcelaFinanceira[]; pagamentos: PagamentoCalculo[] } | null>(null)
   const [saving, setSaving] = useState(false)
   const [pagamentoModal, setPagamentoModal] = useState<{ parcelaId: string; saldoRestante: number; edicao?: { id: string; valor: number; data: string; observacoes: string } } | null>(null)
   const [pagamentoSaving, setPagamentoSaving] = useState(false)
@@ -73,7 +75,7 @@ export default function CaixaPage() {
 
   async function loadData() {
     if (!unidade) {
-      setPainel(null); setError(''); setLoading(false)
+      setDadosBase(null); setPainel(null); setError(''); setLoading(false)
       return
     }
     setLoading(true)
@@ -116,9 +118,7 @@ export default function CaixaPage() {
       (vendasResult.data ?? []) as unknown as VendaOrigem[],
       (despesasResult.data ?? []) as unknown as DespesaOrigem[],
     )
-    const calculado = calcularPainelFinanceiro({
-      ano, mes, hoje: hoje(), saldoBase: Number(base?.saldo_inicial ?? 0), competenciaBase, parcelas: parcelasEnriquecidas, pagamentos,
-    })
+    setDadosBase({ saldoBase: Number(base?.saldo_inicial ?? 0), competenciaBase, parcelas: parcelasEnriquecidas, pagamentos })
 
     const competenciaHoje = chaveCompetencia(anoAtual(), mesAtual())
     const baseHoje = bases.find(item => chaveCompetencia(item.ano, item.mes) <= competenciaHoje)
@@ -133,10 +133,15 @@ export default function CaixaPage() {
     setRealizadoMesAtual(realizadoEsteMes)
 
     setBaseConfigurada(Boolean(base))
-    setSaldoEdit(calculado.resumo.saldoInicial)
-    setPainel(calculado)
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (!dadosBase) { setPainel(null); return }
+    const calculado = calcularPainelFinanceiro({ ano, mes, hoje: hoje(), modo, ...dadosBase })
+    setSaldoEdit(calculado.resumo.saldoInicial)
+    setPainel(calculado)
+  }, [dadosBase, modo, ano, mes])
 
   function navMes(direcao: number) {
     let novoMes = mes + direcao
@@ -234,6 +239,10 @@ export default function CaixaPage() {
           <button className="btn btn-secondary btn-sm" onClick={() => navMes(-1)} aria-label="Mês anterior">←</button>
           <strong>{getMesAnoLabel(mes, ano)}</strong>
           <button className="btn btn-secondary btn-sm" onClick={() => navMes(1)} aria-label="Próximo mês">→</button>
+        </div>
+        <div className="finance-mode-toggle" role="tablist" aria-label="Modo de cálculo">
+          <button className={`btn btn-sm ${modo === 'projetado' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModo('projetado')} title="Assume que tudo é pago/recebido no vencimento">Projetado</button>
+          <button className={`btn btn-sm ${modo === 'realizado' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModo('realizado')} title="Só conta o que já foi de fato baixado; pendências entram a partir de hoje">Realizado</button>
         </div>
         {isAdmin && (
           <select className="form-select finance-unit-select" value={unidade} onChange={event => setUnidade(event.target.value as Unidade)} aria-label="Unidade">

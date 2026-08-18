@@ -276,6 +276,7 @@ tbody tr:hover { background: var(--purple-light); }
 }
 .finance-month-nav { display: flex; align-items: center; gap: 8px; }
 .finance-month-nav strong { min-width: 160px; text-align: center; font-size: 14px; text-transform: capitalize; }
+.finance-mode-toggle { display: flex; gap: 6px; }
 .finance-unit-select { width: 230px; }
 .finance-loading {
   min-height: 280px; display: grid; place-items: center;

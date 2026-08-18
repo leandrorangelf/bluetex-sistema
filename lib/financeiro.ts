@@ -62,6 +62,8 @@ interface CalculoFinanceiroInput {
   competenciaBase: string
   parcelas: ParcelaFinanceira[]
   pagamentos?: PagamentoParcela[]
+  // 'projetado' (padrão): assume que tudo é pago/recebido no vencimento. 'realizado': só conta o que foi de fato baixado; pendências (mesmo atrasadas) só entram a partir de hoje.
+  modo?: 'projetado' | 'realizado'
 }
 
 function proximoDiaUtil(dataISO: string): string {
@@ -204,7 +206,13 @@ export function calcularPainelFinanceiro(input: CalculoFinanceiroInput): {
     pagamentosPorParcela.set(item.parcela_id, lista)
   }
 
-  const movimentacoes = normalizarMovimentacoes(input.parcelas, input.hoje, pagamentosPorParcela)
+  const movimentacoesBase = normalizarMovimentacoes(input.parcelas, input.hoje, pagamentosPorParcela)
+  // realizado: pendência não baixada não pode pesar em dia já passado (o dinheiro nunca saiu/entrou) — só passa a contar a partir de hoje
+  const movimentacoesAjustadas = input.modo === 'realizado'
+    ? movimentacoesBase.map(movimento => (movimento.status === 'pago' || movimento.data >= input.hoje) ? movimento : { ...movimento, data: input.hoje })
+    : movimentacoesBase
+
+  const movimentacoes = movimentacoesAjustadas
     .filter(movimento => movimento.data >= input.competenciaBase && movimento.data <= fimMes)
   const anteriores = movimentacoes.filter(movimento => movimento.data < inicioMes)
   const saldoInicial = anteriores.reduce(
