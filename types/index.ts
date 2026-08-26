@@ -1,5 +1,5 @@
 export type Unidade = 'NEW BLUETEX MG' | 'NEW BLUETEX SC' | 'NEW BLUETEX AM'
-export type Role = 'admin' | 'unidade'
+export type Role = 'admin' | 'unidade' | 'diretoria'
 export type TipoParcela = 'pagar' | 'receber'
 export type OrigemParcela = 'compra' | 'venda' | 'despesa' | 'manual'
 export type StatusParcela = 'pendente' | 'pago' | 'parcial' | 'cancelado'

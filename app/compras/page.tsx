@@ -20,7 +20,8 @@ function qtdParaBase(item: ItemForm, produtos: Produto[]): number {
 }
 
 export default function ComprasPage() {
-  const { unidadeAtiva } = useAuth()
+  const { profile, unidadeAtiva } = useAuth()
+  const isDiretoria = profile?.role === 'diretoria'
   const [rows, setRows] = useState<Compra[]>([])
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -102,7 +103,7 @@ export default function ComprasPage() {
     <div>
       <div className="page-header">
         <div><h1 className="page-title">Compras</h1><div className="page-subtitle">Entradas de estoque por NF</div></div>
-        <button className="btn btn-primary" onClick={openNew}>+ Nova compra</button>
+        {!isDiretoria && <button className="btn btn-primary" onClick={openNew}>+ Nova compra</button>}
       </div>
       <div className="table-wrap">
         <table>
@@ -119,8 +120,10 @@ export default function ComprasPage() {
                 <td className="mono">{formatMoeda((r as unknown as { valor_st?: number }).valor_st ?? 0)}</td>
                 <td className="mono">{formatMoeda(r.valor_total)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  {!isDiretoria && <>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  </>}
                 </td>
               </tr>
             ))}

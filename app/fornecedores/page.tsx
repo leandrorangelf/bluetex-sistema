@@ -23,6 +23,7 @@ export default function FornecedoresPage() {
   const [err, setErr] = useState('')
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
+  const isDiretoria = profile?.role === 'diretoria'
 
   useEffect(() => { load() }, [unidadeAtiva])
 
@@ -66,7 +67,7 @@ export default function FornecedoresPage() {
     <div>
       <div className="page-header">
         <div><h1 className="page-title">Fornecedores</h1><div className="page-subtitle">Cadastro de fornecedores por unidade</div></div>
-        <button className="btn btn-primary" onClick={openNew}>+ Novo fornecedor</button>
+        {!isDiretoria && <button className="btn btn-primary" onClick={openNew}>+ Novo fornecedor</button>}
       </div>
       <div className="table-wrap">
         <table>
@@ -81,8 +82,10 @@ export default function FornecedoresPage() {
                 <td className="mono">{r.cnpj ?? '—'}</td>
                 <td>{r.telefone ?? '—'}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  {!isDiretoria && <>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  </>}
                 </td>
               </tr>
             ))}

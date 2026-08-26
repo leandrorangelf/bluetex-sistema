@@ -9,7 +9,8 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Parcela } from '@/types'
 
 export default function ParcelasPagarPage() {
-  const { unidadeAtiva } = useAuth()
+  const { profile, unidadeAtiva } = useAuth()
+  const isDiretoria = profile?.role === 'diretoria'
   const [rows, setRows] = useState<Parcela[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFiltro, setStatusFiltro] = useState('pendente')
@@ -98,9 +99,11 @@ export default function ParcelasPagarPage() {
                   </td>
                   <td className="mono">{formatData(r.data_pagamento)}</td>
                   <td style={{ display: 'flex', gap: 4 }}>
-                    {r.status === 'pendente' && <button className="btn btn-primary btn-sm" onClick={() => marcarPago(r)}>✓ Pago</button>}
-                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
+                    {!isDiretoria && <>
+                      {r.status === 'pendente' && <button className="btn btn-primary btn-sm" onClick={() => marcarPago(r)}>✓ Pago</button>}
+                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
+                    </>}
                   </td>
                 </tr>
               )

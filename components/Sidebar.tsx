@@ -47,8 +47,8 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Seletor de unidade — admin */}
-      {profile?.role === 'admin' && (
+      {/* Seletor de unidade — admin e diretoria */}
+      {(profile?.role === 'admin' || profile?.role === 'diretoria') && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
             Unidade Ativa
@@ -91,7 +91,7 @@ export default function Sidebar() {
           {profile?.nome}
         </div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
-          {profile?.role === 'admin' ? 'Administrador' : unidadeAtiva}
+          {profile?.role === 'admin' ? 'Administrador' : profile?.role === 'diretoria' ? 'Diretoria' : unidadeAtiva}
         </div>
         <button
           className="btn btn-secondary btn-sm"

@@ -69,6 +69,7 @@ export default function CaixaPage() {
   const [pagamentoSaving, setPagamentoSaving] = useState(false)
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
+  const veTudo = isAdmin || profile?.role === 'diretoria'
 
   useEffect(() => { if (unidadeAtiva) setUnidade(unidadeAtiva) }, [unidadeAtiva])
   useEffect(() => { setDiaSelecionado(null); loadData() }, [mes, ano, unidade])
@@ -244,7 +245,7 @@ export default function CaixaPage() {
           <button className={`btn btn-sm ${modo === 'projetado' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModo('projetado')} title="Assume que tudo é pago/recebido no vencimento">Projetado</button>
           <button className={`btn btn-sm ${modo === 'realizado' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModo('realizado')} title="Só conta o que já foi de fato baixado; pendências entram a partir de hoje">Realizado</button>
         </div>
-        {isAdmin && (
+        {veTudo && (
           <select className="form-select finance-unit-select" value={unidade} onChange={event => setUnidade(event.target.value as Unidade)} aria-label="Unidade">
             <option value="">Selecione a unidade...</option>
             {UNIDADES.map(item => <option key={item} value={item}>{item}</option>)}

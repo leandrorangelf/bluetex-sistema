@@ -12,7 +12,8 @@ import type { Despesa, CategoriaDespesa, Fornecedor } from '@/types'
 const EMPTY = { categoria_id: '', fornecedor_id: '', data_despesa: hoje(), numero_nf: '', descricao: '', valor_total: 0, observacoes: '' }
 
 export default function DespesasPage() {
-  const { unidadeAtiva } = useAuth()
+  const { profile, unidadeAtiva } = useAuth()
+  const isDiretoria = profile?.role === 'diretoria'
   const [rows, setRows] = useState<Despesa[]>([])
   const [categorias, setCategorias] = useState<CategoriaDespesa[]>([])
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
@@ -87,7 +88,7 @@ export default function DespesasPage() {
     <div>
       <div className="page-header">
         <div><h1 className="page-title">Despesas</h1><div className="page-subtitle">Lançamento de despesas operacionais</div></div>
-        <button className="btn btn-primary" onClick={openNew}>+ Nova despesa</button>
+        {!isDiretoria && <button className="btn btn-primary" onClick={openNew}>+ Nova despesa</button>}
       </div>
       <div className="table-wrap">
         <table>
@@ -104,8 +105,10 @@ export default function DespesasPage() {
                 <td className="mono">{r.numero_nf ?? '—'}</td>
                 <td className="mono">{formatMoeda(r.valor_total)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  {!isDiretoria && <>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  </>}
                 </td>
               </tr>
             ))}

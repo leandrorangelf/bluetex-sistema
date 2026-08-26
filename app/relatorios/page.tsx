@@ -20,7 +20,7 @@ export default function RelatoriosPage() {
   const [totalDespesas, setTotalDespesas] = useState(0)
   const [loading, setLoading] = useState(false)
   const sb = createClient()
-  const isAdmin = profile?.role === 'admin'
+  const veTudo = profile?.role === 'admin' || profile?.role === 'diretoria'
 
   useEffect(() => { if (unidadeAtiva) setUnidade(unidadeAtiva) }, [unidadeAtiva])
   useEffect(() => { if (unidade) load() }, [mes, ano, unidade])
@@ -83,7 +83,7 @@ export default function RelatoriosPage() {
         <button className="btn btn-secondary btn-sm" onClick={() => navMes(-1)}>← Anterior</button>
         <span style={{ fontWeight: 600, fontSize: 15, minWidth: 160, textAlign: 'center' }}>{getMesAnoLabel(mes, ano)}</span>
         <button className="btn btn-secondary btn-sm" onClick={() => navMes(1)}>Próximo →</button>
-        {isAdmin && (
+        {veTudo && (
           <select className="form-select" style={{ width: 220 }} value={unidade} onChange={e => setUnidade(e.target.value as Unidade)}>
             <option value="">Selecione a unidade...</option>
             {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}

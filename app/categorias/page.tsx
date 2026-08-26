@@ -21,6 +21,7 @@ export default function CategoriasPage() {
   const [err, setErr] = useState('')
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
+  const isDiretoria = profile?.role === 'diretoria'
 
   useEffect(() => { load() }, [unidadeAtiva])
 
@@ -56,7 +57,7 @@ export default function CategoriasPage() {
     <div>
       <div className="page-header">
         <div><h1 className="page-title">Categorias de Despesas</h1><div className="page-subtitle">Categorias para classificar despesas</div></div>
-        <button className="btn btn-primary" onClick={openNew}>+ Nova categoria</button>
+        {!isDiretoria && <button className="btn btn-primary" onClick={openNew}>+ Nova categoria</button>}
       </div>
       <div className="table-wrap">
         <table>
@@ -69,8 +70,10 @@ export default function CategoriasPage() {
                 <td style={{ fontWeight: 500 }}>{r.nome}</td>
                 <td><span className="badge badge-green">{r.unidade.replace('NEW BLUETEX ','')}</span></td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  {!isDiretoria && <>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                  </>}
                 </td>
               </tr>
             ))}

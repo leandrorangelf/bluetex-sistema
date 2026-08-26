@@ -23,6 +23,8 @@ export default function EstoqueInicialPage() {
   const [loading, setLoading] = useState(true)
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
+  const isDiretoria = profile?.role === 'diretoria'
+  const veTudo = isAdmin || isDiretoria
 
   useEffect(() => {
     if (unidadeAtiva) setUnidade(unidadeAtiva)
@@ -69,7 +71,7 @@ export default function EstoqueInicialPage() {
       <div className="page-header">
         <div><h1 className="page-title">Estoque Inicial</h1><div className="page-subtitle">Saldo de abertura por produto e unidade</div></div>
         {!editMode ? (
-          <button className="btn btn-primary" onClick={() => setEditMode(true)} disabled={!unidade}>Editar</button>
+          !isDiretoria && <button className="btn btn-primary" onClick={() => setEditMode(true)} disabled={!unidade}>Editar</button>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-secondary" onClick={() => { setEditMode(false); setEditMap({...estMap}) }}>Cancelar</button>
@@ -82,7 +84,7 @@ export default function EstoqueInicialPage() {
         <button className="btn btn-secondary btn-sm" onClick={() => navMes(-1)}>← Anterior</button>
         <span style={{ fontWeight: 600, fontSize: 15, minWidth: 160, textAlign: 'center' }}>{getMesAnoLabel(mes, ano)}</span>
         <button className="btn btn-secondary btn-sm" onClick={() => navMes(1)}>Próximo →</button>
-        {isAdmin && (
+        {veTudo && (
           <select className="form-select" style={{ width: 220 }} value={unidade} onChange={e => setUnidade(e.target.value as Unidade)}>
             <option value="">Selecione a unidade...</option>
             {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}

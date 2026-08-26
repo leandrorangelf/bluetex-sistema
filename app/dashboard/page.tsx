@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const { profile, unidadeAtiva } = useAuth()
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
+  const veTudo = isAdmin || profile?.role === 'diretoria'
   const [abaAtiva, setAbaAtiva] = useState<'consolidado' | Unidade>('consolidado')
   const [dados, setDados] = useState<Record<string, DashData>>({})
   const [parcelas, setParcelas] = useState<Parcela[]>([])
@@ -40,7 +41,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!profile) return
-    if (profile.role === 'admin') {
+    if (profile.role === 'admin' || profile.role === 'diretoria') {
       carregarTodas()
     } else if (unidadeAtiva) {
       carregarUnidade(unidadeAtiva).then(d => {
@@ -178,13 +179,13 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (!profile || !isAdmin) return
+    if (!profile || !veTudo) return
     const u = abaAtiva === 'consolidado' ? null : abaAtiva as string
     carregarParcelas(u)
     carregarEstoque(u)
   }, [abaAtiva, profile])
 
-  const dadosAtivos = isAdmin ? (abaAtiva === 'consolidado' ? consolidado() : (dados[abaAtiva] ?? EMPTY)) : (unidadeAtiva ? (dados[unidadeAtiva] ?? EMPTY) : EMPTY)
+  const dadosAtivos = veTudo ? (abaAtiva === 'consolidado' ? consolidado() : (dados[abaAtiva] ?? EMPTY)) : (unidadeAtiva ? (dados[unidadeAtiva] ?? EMPTY) : EMPTY)
   const resultado = dadosAtivos.aReceber - dadosAtivos.aPagar
 
   const vencidas = parcelas.filter(p => p.vencimento < hoje)
@@ -199,7 +200,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {isAdmin && (
+      {veTudo && (
         <div className="tabs">
           <button className={`tab${abaAtiva === 'consolidado' ? ' active' : ''}`} onClick={() => setAbaAtiva('consolidado')}>◈ Consolidado</button>
           {UNIDADES.map(u => <button key={u} className={`tab${abaAtiva === u ? ' active' : ''}`} onClick={() => setAbaAtiva(u)}>{UNIDADE_SHORT[u]}</button>)}
@@ -271,7 +272,7 @@ export default function DashboardPage() {
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: vencida ? 'var(--red)' : proxima ? 'var(--amber)' : 'var(--text)' }}>
                             {vencida ? '⚠ ' : proxima ? '⏰ ' : ''}{formatData(p.vencimento)}
-                            {isAdmin && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{UNIDADE_SHORT[p.unidade]}</span>}
+                            {veTudo && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{UNIDADE_SHORT[p.unidade]}</span>}
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.origem}</div>
                         </div>
@@ -312,7 +313,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {isAdmin && abaAtiva === 'consolidado' && (
+          {veTudo && abaAtiva === 'consolidado' && (
             <div className="card">
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 16 }}>
                 Comparativo por Unidade

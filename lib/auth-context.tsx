@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(data as Profile)
       if (data.role === 'unidade' && data.unidade) {
         setUnidadeAtivaState(data.unidade as Unidade)
-      } else if (data.role === 'admin') {
+      } else if (data.role === 'admin' || data.role === 'diretoria') {
         const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
         if (saved) setUnidadeAtivaState(saved as Unidade)
       }

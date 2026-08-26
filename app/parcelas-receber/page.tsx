@@ -14,7 +14,8 @@ function nomeRelacao(relacao: RelacaoNome) {
 }
 
 export default function ParcelasReceberPage() {
-  const { unidadeAtiva } = useAuth()
+  const { profile, unidadeAtiva } = useAuth()
+  const isDiretoria = profile?.role === 'diretoria'
   const [rows, setRows] = useState<Parcela[]>([])
   const [clientesPorVenda, setClientesPorVenda] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -115,9 +116,11 @@ export default function ParcelasReceberPage() {
                   </td>
                   <td className="mono">{formatData(r.data_pagamento)}</td>
                   <td style={{ display: 'flex', gap: 4 }}>
-                    {r.status === 'pendente' && <button className="btn btn-primary btn-sm" onClick={() => marcarRecebido(r)}>✓ Recebido</button>}
-                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
+                    {!isDiretoria && <>
+                      {r.status === 'pendente' && <button className="btn btn-primary btn-sm" onClick={() => marcarRecebido(r)}>✓ Recebido</button>}
+                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
+                    </>}
                   </td>
                 </tr>
               )

@@ -42,6 +42,8 @@ export default function EstoqueAtualPage() {
   const [error, setError] = useState('')
   const sb = useMemo(() => createClient(), [])
   const isAdmin = profile?.role === 'admin'
+  const isDiretoria = profile?.role === 'diretoria'
+  const veTudo = isAdmin || isDiretoria
 
   useEffect(() => { if (unidadeAtiva) setUnidade(unidadeAtiva) }, [unidadeAtiva])
 
@@ -71,7 +73,7 @@ export default function EstoqueAtualPage() {
     setVendas((consultas[3].data ?? []) as unknown as VendaEstoqueDb[])
     setAjustes((consultas[4].data ?? []) as AjusteEstoque[])
 
-    if (isAdmin) {
+    if (veTudo) {
       const auditResult = await sb.from('btx_auditoria_estoque').select('*').eq('unidade', unidade).order('created_at', { ascending: false }).limit(300)
       if (!auditResult.error) {
         const registros = (auditResult.data ?? []) as AuditoriaEstoque[]
@@ -88,7 +90,7 @@ export default function EstoqueAtualPage() {
       setTab('movimentos')
     }
     setLoading(false)
-  }, [isAdmin, sb, unidade])
+  }, [veTudo, sb, unidade])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -171,7 +173,7 @@ export default function EstoqueAtualPage() {
     <div className="stock-page">
       <div className="page-header stock-page-header">
         <div><h1 className="page-title">Estoque Atual</h1><div className="page-subtitle">Saldo real, entradas, saídas e ajustes{unidade ? ` · ${unidade}` : ''}</div></div>
-        <button className="btn btn-primary" onClick={abrirNovoAjuste} disabled={!unidade}>+ Novo ajuste</button>
+        {!isDiretoria && <button className="btn btn-primary" onClick={abrirNovoAjuste} disabled={!unidade}>+ Novo ajuste</button>}
       </div>
 
       <div className="stock-toolbar">
@@ -180,7 +182,7 @@ export default function EstoqueAtualPage() {
           <option value="">Todos os produtos</option>
           {produtos.map(produto => <option key={produto.id} value={produto.id}>{produto.nome}</option>)}
         </select>
-        {isAdmin && <select className="form-select stock-unit-filter" value={unidade} onChange={event => setUnidade(event.target.value as Unidade)} aria-label="Unidade">{UNIDADES.map(item => <option key={item}>{item}</option>)}</select>}
+        {veTudo && <select className="form-select stock-unit-filter" value={unidade} onChange={event => setUnidade(event.target.value as Unidade)} aria-label="Unidade">{UNIDADES.map(item => <option key={item}>{item}</option>)}</select>}
       </div>
 
       {!unidade ? <div className="empty-state">Selecione uma unidade para visualizar o estoque.</div>
@@ -191,10 +193,10 @@ export default function EstoqueAtualPage() {
           <TabelaSaldosEstoque saldos={painel.saldos} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
           <div className="stock-tabs" role="tablist">
             <button className={tab === 'movimentos' ? 'active' : ''} onClick={() => setTab('movimentos')} role="tab" aria-selected={tab === 'movimentos'}>Movimentações</button>
-            {isAdmin && <button className={tab === 'auditoria' ? 'active' : ''} onClick={() => setTab('auditoria')} role="tab" aria-selected={tab === 'auditoria'}>Histórico de alterações</button>}
+            {veTudo && <button className={tab === 'auditoria' ? 'active' : ''} onClick={() => setTab('auditoria')} role="tab" aria-selected={tab === 'auditoria'}>Histórico de alterações</button>}
           </div>
-          {tab === 'movimentos' ? <RelatorioMovimentosEstoque movimentos={painel.movimentos} onEditAjuste={editarAjuste} onRemoveAjuste={setConfirmId} />
-            : isAdmin ? <HistoricoAuditoriaEstoque registros={auditoria} nomesUsuarios={nomesUsuarios} /> : null}
+          {tab === 'movimentos' ? <RelatorioMovimentosEstoque movimentos={painel.movimentos} onEditAjuste={isDiretoria ? undefined : editarAjuste} onRemoveAjuste={isDiretoria ? undefined : setConfirmId} />
+            : veTudo ? <HistoricoAuditoriaEstoque registros={auditoria} nomesUsuarios={nomesUsuarios} /> : null}
         </>}
 
       <Modal open={ajusteModal} onClose={() => setAjusteModal(false)} title={ajusteEditId ? 'Editar ajuste' : 'Novo ajuste'} size="sm" footer={<><button className="btn btn-secondary" onClick={() => setAjusteModal(false)}>Cancelar</button><button className="btn btn-primary" onClick={salvarAjuste} disabled={saving}>{saving ? 'Salvando...' : 'Salvar ajuste'}</button></>}>
