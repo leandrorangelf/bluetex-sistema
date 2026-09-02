@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { UNIDADES, type Unidade } from '@/types'
 
 const NAV = [
-  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard', label: 'Painel Executivo' },
   { section: 'Cadastros' },
   { href: '/produtos', label: 'Produtos' },
   { href: '/unidades', label: 'Unidades' },
