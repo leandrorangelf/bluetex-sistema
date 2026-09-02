@@ -3,14 +3,15 @@ export const dynamic = 'force-dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
-import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual } from '@/lib/utils'
+import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, hoje } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar } from '@/lib/painel-resumo'
 import { UNIDADES, type Unidade, type GrupoCategoria } from '@/types'
+import Modal from '@/components/Modal'
 
 const SHORT: Record<string, string> = { 'NEW BLUETEX MG': 'MG', 'NEW BLUETEX SC': 'SC', 'NEW BLUETEX AM': 'AM' }
 
-async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: string, ano: number, mes: number, hoje: string): Promise<ResumoUnidade> {
+async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: string, ano: number, mes: number, hojeStr: string): Promise<ResumoUnidade> {
   const competenciaSel = chaveCompetencia(ano, mes)
   const [basesRes, parcelasRes, despesasRes] = await Promise.all([
     sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
@@ -36,10 +37,152 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
   }
 
   return calcularResumoUnidade({
-    unidade, ano, mes, hoje,
+    unidade, ano, mes, hoje: hojeStr,
     saldoBase: Number(baseVigente?.saldo_inicial ?? 0),
     competenciaBase, parcelas, pagamentos, grupoPorDespesa,
   })
+}
+
+function FaixaResumo({ resumo }: { resumo: ResumoUnidade }) {
+  const par = (label: string, valor: number, cor?: string) => (
+    <div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div className="mono" style={{ fontSize: 14, fontWeight: 700, color: cor }}>{formatMoeda(valor)}</div>
+    </div>
+  )
+  return (
+    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '12px 0', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
+      {par('Saldo', resumo.saldoHoje, resumo.saldoHoje < 0 ? 'var(--red)' : undefined)}
+      {par('A receber', resumo.aReceberMes)}
+      {par('A pagar', resumo.totalDespesas, 'var(--red)')}
+      {par('Resultado', resumo.resultado, resumo.resultado >= 0 ? 'var(--green)' : 'var(--red)')}
+    </div>
+  )
+}
+
+function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidade, onClickHeader, onClickConta }: {
+  resumo: ResumoUnidade; nome: string; short: string
+  expandidoInicial: boolean; mostrarTagUnidade: boolean
+  onClickHeader?: () => void; onClickConta: (c: ContaPagar) => void
+}) {
+  const [abertos, setAbertos] = useState<Set<string>>(
+    () => new Set(expandidoInicial ? resumo.gruposPagar.map(g => g.grupo) : [])
+  )
+  const toggle = (g: string) => setAbertos(prev => {
+    const n = new Set(prev)
+    n.has(g) ? n.delete(g) : n.add(g)
+    return n
+  })
+
+  return (
+    <div className="card">
+      <div
+        onClick={onClickHeader}
+        title={nome}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, cursor: onClickHeader ? 'pointer' : 'default' }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 700 }}>{short}</div>
+        <div>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 6 }}>Resultado de caixa</span>
+          <span className={`mono ${resumo.resultado >= 0 ? 'text-green' : 'text-red'}`} style={{ fontWeight: 700, fontSize: 13 }}>{formatMoeda(resumo.resultado)}</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+        <span style={{ color: 'var(--text-muted)' }}>Saldo hoje</span>
+        <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+        <span style={{ color: 'var(--text-muted)' }}>A receber</span>
+        <span className="mono">{formatMoeda(resumo.aReceberMes)}</span>
+      </div>
+
+      {resumo.gruposPagar.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem contas a pagar</div>
+      ) : resumo.gruposPagar.map(g => (
+        <div key={g.grupo}>
+          <button
+            onClick={() => toggle(g.grupo)}
+            style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{abertos.has(g.grupo) ? '▾' : '▸'} {g.label}</span>
+            <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{formatMoeda(g.subtotal)}</span>
+          </button>
+          {abertos.has(g.grupo) && g.contas.map(c => (
+            <div
+              key={c.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onClickConta(c)}
+              onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+            >
+              <div style={{ fontSize: 11, color: c.vencida ? 'var(--red)' : c.proxima ? 'var(--amber)' : 'var(--text)' }}>
+                {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
+                {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(c.vencimento)}</span>
+              </div>
+              <span className="mono" style={{ fontSize: 12, color: c.vencida ? 'var(--red)' : 'var(--text)' }}>{formatMoeda(c.valor)}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>Total despesas</span>
+        <span className="mono text-red" style={{ fontSize: 13, fontWeight: 700 }}>{formatMoeda(resumo.totalDespesas)}</span>
+      </div>
+    </div>
+  )
+}
+
+function ModalConta({ conta, onClose, onGravou, readOnly }: {
+  conta: ContaPagar | null; onClose: () => void; onGravou: () => void; readOnly: boolean
+}) {
+  const sb = useMemo(() => createClient(), [])
+  const [venc, setVenc] = useState('')
+  const [val, setVal] = useState(0)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (conta) { setVenc(conta.vencimento); setVal(conta.valor) }
+  }, [conta])
+
+  if (!conta) return null
+
+  async function run(patch: Record<string, unknown>) {
+    setSaving(true)
+    await sb.from('btx_parcelas').update(patch).eq('id', conta!.id)
+    setSaving(false)
+    onGravou()
+  }
+
+  return (
+    <Modal
+      open={!!conta}
+      onClose={onClose}
+      title={conta.descricao}
+      size="sm"
+      footer={readOnly ? (
+        <button className="btn btn-secondary" onClick={onClose}>Fechar</button>
+      ) : (
+        <>
+          <button className="btn btn-danger" disabled={saving} onClick={() => run({ status: 'cancelado' })}>Cancelar conta</button>
+          <button className="btn btn-secondary" disabled={saving} onClick={() => run({ vencimento: venc, valor: val })}>Salvar alteração</button>
+          <button className="btn btn-primary" disabled={saving} onClick={() => run({ status: 'pago', data_pagamento: hoje() })}>Marcar pago</button>
+        </>
+      )}
+    >
+      <div className="form-group">
+        <label className="form-label">Vencimento</label>
+        <input className="form-input" type="date" value={venc} disabled={readOnly} onChange={e => setVenc(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Valor (R$)</label>
+        <input className="form-input" type="number" step="0.01" value={val} disabled={readOnly} onChange={e => setVal(Number(e.target.value))} />
+      </div>
+    </Modal>
+  )
 }
 
 export default function DashboardPage() {
@@ -51,7 +194,8 @@ export default function DashboardPage() {
   const [aba, setAba] = useState<'consolidado' | Unidade>('consolidado')
   const [porUnidade, setPorUnidade] = useState<Partial<Record<string, ResumoUnidade>>>({})
   const [loading, setLoading] = useState(true)
-  const hoje = new Date().toISOString().slice(0, 10)
+  const [contaAberta, setContaAberta] = useState<ContaPagar | null>(null)
+  const hojeStr = new Date().toISOString().slice(0, 10)
 
   const carregar = useCallback(async () => {
     if (!profile) return
@@ -59,13 +203,13 @@ export default function DashboardPage() {
     const alvos = veTudo ? UNIDADES : (unidadeAtiva ? [unidadeAtiva] : [])
     const res: Partial<Record<string, ResumoUnidade>> = {}
     try {
-      const settled = await Promise.allSettled(alvos.map(u => carregarUnidade(sb, u, ano, mes, hoje)))
+      const settled = await Promise.allSettled(alvos.map(u => carregarUnidade(sb, u, ano, mes, hojeStr)))
       settled.forEach((s, i) => { if (s.status === 'fulfilled') res[alvos[i]] = s.value })
       setPorUnidade(res)
     } finally {
       setLoading(false)
     }
-  }, [profile, veTudo, unidadeAtiva, sb, ano, mes, hoje])
+  }, [profile, veTudo, unidadeAtiva, sb, ano, mes, hojeStr])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -76,11 +220,12 @@ export default function DashboardPage() {
     setMes(m); setAno(a)
   }
 
-  const resumo: ResumoUnidade | null = !veTudo
+  const unidadesComDados = UNIDADES.filter(u => porUnidade[u])
+  const consolidado = veTudo ? consolidarResumos(unidadesComDados.map(u => porUnidade[u]!) ) : null
+  const abaUnica: ResumoUnidade | null = !veTudo
     ? (unidadeAtiva ? porUnidade[unidadeAtiva] ?? null : null)
-    : aba === 'consolidado'
-      ? consolidarResumos(UNIDADES.map(u => porUnidade[u]).filter(Boolean) as ResumoUnidade[])
-      : porUnidade[aba] ?? null
+    : aba === 'consolidado' ? null : porUnidade[aba] ?? null
+  const nomeUnica = !veTudo ? (unidadeAtiva ?? '') : (aba !== 'consolidado' ? aba : '')
 
   return (
     <div>
@@ -103,89 +248,53 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <ModalConta
+        conta={contaAberta}
+        readOnly={profile?.role === 'diretoria'}
+        onClose={() => setContaAberta(null)}
+        onGravou={() => { setContaAberta(null); carregar() }}
+      />
+
       {loading ? <div className="empty-state">Carregando...</div>
-      : !resumo ? <div className="empty-state">Selecione uma unidade.</div>
-      : (
-        <>
-          <div className="grid-3" style={{ marginBottom: 16 }}>
-            <div className="stat-card">
-              <div className="stat-card-label">Saldo Hoje</div>
-              <div className={`stat-card-value ${resumo.saldoHoje < 0 ? 'text-red' : 'text-green'}`}>{formatMoeda(resumo.saldoHoje)}</div>
-              <div className="stat-card-sub">saldo real na data de hoje</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card-label">A Receber · {getMesAnoLabel(mes, ano)}</div>
-              <div className="stat-card-value" style={{ color: 'var(--purple)' }}>{formatMoeda(resumo.aReceberMes)}</div>
-              <div className="stat-card-sub">parcelas que vencem no mês</div>
-            </div>
-            <div className="stat-card" style={{ borderColor: resumo.resultado >= 0 ? 'var(--green)' : 'var(--red)' }}>
-              <div className="stat-card-label">Resultado de Caixa</div>
-              <div className={`stat-card-value ${resumo.resultado >= 0 ? 'text-green' : 'text-red'}`} style={{ fontSize: 28 }}>{formatMoeda(resumo.resultado)}</div>
-              <div className="stat-card-sub">(saldo + a receber) − contas a pagar</div>
-            </div>
-          </div>
-
-          {resumo.parcelasVencidas > 0 && (
-            <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {resumo.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
-          )}
-
-          {resumo.gruposPagar.length === 0 ? (
-            <div className="card"><div className="empty-state" style={{ padding: '24px 0' }}>Nenhuma conta a pagar em {getMesAnoLabel(mes, ano)}</div></div>
-          ) : (
-            <div className="grid-2" style={{ gap: 16, marginBottom: 16 }}>
-              {resumo.gruposPagar.map(g => (
-                <div className="card" key={g.grupo}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>{g.label}</div>
-                    <div className="mono" style={{ fontWeight: 700, fontSize: 13 }}>{formatMoeda(g.subtotal)}</div>
-                  </div>
-                  {g.contas.map((c: ContaPagar) => (
-                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: c.vencida ? 'var(--red)' : c.proxima ? 'var(--amber)' : 'var(--text)' }}>
-                          {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
-                          {veTudo && aba === 'consolidado' && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{SHORT[c.unidade]}</span>}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>vence {formatData(c.vencimento)}</div>
-                      </div>
-                      <div className="mono" style={{ fontWeight: 700, fontSize: 13, color: c.vencida ? 'var(--red)' : 'var(--text)' }}>{formatMoeda(c.valor)}</div>
-                    </div>
-                  ))}
-                </div>
+      : veTudo && aba === 'consolidado' ? (
+        !consolidado || unidadesComDados.length === 0 ? <div className="empty-state">Sem dados.</div> : (
+          <>
+            {consolidado.parcelasVencidas > 0 && (
+              <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {consolidado.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
+            )}
+            <FaixaResumo resumo={consolidado} />
+            <div className="grid-3">
+              {unidadesComDados.map(u => (
+                <ColunaUnidade
+                  key={u}
+                  resumo={porUnidade[u]!}
+                  nome={u}
+                  short={SHORT[u]}
+                  expandidoInicial={false}
+                  mostrarTagUnidade={false}
+                  onClickHeader={() => setAba(u)}
+                  onClickConta={setContaAberta}
+                />
               ))}
             </div>
+          </>
+        )
+      ) : !abaUnica ? <div className="empty-state">Selecione uma unidade.</div> : (
+        <>
+          {abaUnica.parcelasVencidas > 0 && (
+            <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {abaUnica.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
           )}
-
-          <div className="stat-card" style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="stat-card-label" style={{ margin: 0 }}>Total Despesas do Mês</div>
-            <div className="stat-card-value text-red" style={{ margin: 0 }}>{formatMoeda(resumo.totalDespesas)}</div>
+          <FaixaResumo resumo={abaUnica} />
+          <div style={{ maxWidth: 560 }}>
+            <ColunaUnidade
+              resumo={abaUnica}
+              nome={nomeUnica}
+              short={SHORT[nomeUnica] ?? nomeUnica}
+              expandidoInicial={true}
+              mostrarTagUnidade={false}
+              onClickConta={setContaAberta}
+            />
           </div>
-
-          {veTudo && aba === 'consolidado' && (
-            <div className="card">
-              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 16 }}>Por Unidade</div>
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Unidade</th><th>Saldo Hoje</th><th>A Receber</th><th>A Pagar</th><th>Resultado</th></tr></thead>
-                  <tbody>
-                    {UNIDADES.map(u => {
-                      const d = porUnidade[u]
-                      if (!d) return null
-                      return (
-                        <tr key={u} style={{ cursor: 'pointer' }} onClick={() => setAba(u)}>
-                          <td><span className="badge badge-purple">{SHORT[u]}</span></td>
-                          <td className={`mono ${d.saldoHoje < 0 ? 'text-red' : 'text-green'}`}>{formatMoeda(d.saldoHoje)}</td>
-                          <td className="mono" style={{ color: 'var(--purple)' }}>{formatMoeda(d.aReceberMes)}</td>
-                          <td className="mono text-red">{formatMoeda(d.totalDespesas)}</td>
-                          <td className={`mono ${d.resultado >= 0 ? 'text-green' : 'text-red'}`}>{formatMoeda(d.resultado)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>
