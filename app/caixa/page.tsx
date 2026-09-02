@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual } from '@/lib/utils'
 import { calcularPainelFinanceiro, calcularSaldoRealizado, calcularStatusPagamento, chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela as PagamentoCalculo, type MovimentacaoFinanceira } from '@/lib/financeiro'
+import { ajustarSaldoBanco } from '@/lib/saldo'
 import ResumoFinanceiro from '@/components/financeiro/ResumoFinanceiro'
 import ListaMovimentacoes from '@/components/financeiro/ListaMovimentacoes'
 import CalendarioFinanceiro from '@/components/financeiro/CalendarioFinanceiro'
@@ -61,7 +62,6 @@ export default function CaixaPage() {
   const [saldoModal, setSaldoModal] = useState(false)
   const [saldoEdit, setSaldoEdit] = useState(0)
   const [saldoBanco, setSaldoBanco] = useState(0)
-  const [realizadoMesAtual, setRealizadoMesAtual] = useState(0)
   const [modo, setModo] = useState<'projetado' | 'realizado'>('projetado')
   const [dadosBase, setDadosBase] = useState<{ saldoBase: number; competenciaBase: string; parcelas: ParcelaFinanceira[]; pagamentos: PagamentoCalculo[] } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -127,11 +127,7 @@ export default function CaixaPage() {
     const realizadoTotal = calcularSaldoRealizado({
       hoje: hoje(), competenciaInicio: competenciaBaseHoje, parcelas: parcelasEnriquecidas, pagamentos,
     })
-    const realizadoEsteMes = calcularSaldoRealizado({
-      hoje: hoje(), competenciaInicio: competenciaHoje, parcelas: parcelasEnriquecidas, pagamentos,
-    })
     setSaldoBanco(Number(baseHoje?.saldo_inicial ?? 0) + realizadoTotal)
-    setRealizadoMesAtual(realizadoEsteMes)
 
     setBaseConfigurada(Boolean(base))
     setLoading(false)
@@ -160,14 +156,10 @@ export default function CaixaPage() {
   async function salvarSaldoBase() {
     if (!unidade) return
     setSaving(true)
-    const novoSaldoInicial = saldoEdit - realizadoMesAtual
-    const { error: saveError } = await sb.from('btx_caixa_mensal').upsert(
-      { unidade, mes: mesAtual(), ano: anoAtual(), saldo_inicial: novoSaldoInicial, updated_at: new Date().toISOString() },
-      { onConflict: 'unidade,mes,ano' },
-    )
+    const { error: saveError } = await ajustarSaldoBanco(sb, unidade, saldoEdit)
     setSaving(false)
     if (saveError) {
-      setError('Não foi possível salvar o saldo em banco. Tente novamente.')
+      setError(saveError)
       return
     }
     setSaldoModal(false)
