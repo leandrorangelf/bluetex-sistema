@@ -19,6 +19,7 @@ const NAV = [
   { href: '/vendas', label: 'Vendas / NFs' },
   { href: '/despesas', label: 'Despesas' },
   { section: 'Financeiro' },
+  { href: '/lancar', label: 'Lançar' },
   { href: '/parcelas-pagar', label: 'Parcelas a Pagar' },
   { href: '/parcelas-receber', label: 'Parcelas a Receber' },
   { href: '/caixa', label: 'Painel Financeiro' },
@@ -76,6 +77,7 @@ export default function Sidebar() {
           if ('section' in item) return (
             <div key={i} className="nav-section">{item.section}</div>
           )
+          if (item.href === '/lancar' && profile?.role === 'diretoria') return null
           const active = path === item.href || path.startsWith(item.href + '/')
           return (
             <Link key={item.href} href={item.href} className={`nav-link${active ? ' active' : ''}`}>
