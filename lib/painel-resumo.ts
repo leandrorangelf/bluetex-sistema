@@ -1,5 +1,5 @@
-import { calcularSaldoRealizado, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
-import { GRUPOS_CATEGORIA, type GrupoCategoria } from '@/types'
+import { calcularSaldoRealizado, type ParcelaFinanceira, type PagamentoParcela } from './financeiro.ts'
+import { GRUPOS_CATEGORIA, type GrupoCategoria } from '../types/index.ts'
 
 export interface ContaPagar {
   id: string; descricao: string; vencimento: string; valor: number
