@@ -3,37 +3,17 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { formatMoeda, formatData, hoje } from '@/lib/utils'
-import Modal from '@/components/Modal'
+import { formatMoeda, formatData } from '@/lib/utils'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import ParcelasEditor, { type ParcelaForm } from '@/components/ParcelasEditor'
-import type { Venda, Cliente, Produto } from '@/types'
-
-interface ItemForm { produto_id: string; qtdInput: number; unidade: 'base' | 'maior'; valor: number }
-const EMPTY_ITEM: ItemForm = { produto_id: '', qtdInput: 0, unidade: 'base', valor: 0 }
-const EMPTY = { cliente_id: '', data_venda: hoje(), numero_nf: '', valor_st: 0, observacoes: '' }
-
-function qtdParaBase(item: ItemForm, produtos: Produto[]): number {
-  const p = produtos.find(pr => pr.id === item.produto_id)
-  const fator = p?.fator_conversao ?? 1
-  return item.unidade === 'maior' ? Math.round(item.qtdInput * fator) : item.qtdInput
-}
+import type { Venda } from '@/types'
 
 export default function VendasPage() {
   const { profile, unidadeAtiva } = useAuth()
   const isDiretoria = profile?.role === 'diretoria'
   const [rows, setRows] = useState<Venda[]>([])
-  const [clientes, setClientes] = useState<Cliente[]>([])
-  const [produtos, setProdutos] = useState<Produto[]>([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
-  const [form, setForm] = useState(EMPTY)
-  const [itens, setItens] = useState<ItemForm[]>([{ ...EMPTY_ITEM }])
-  const [parcelas, setParcelas] = useState<ParcelaForm[]>([])
-  const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState('')
   const sb = createClient()
 
   useEffect(() => { load() }, [unidadeAtiva])
@@ -41,55 +21,11 @@ export default function VendasPage() {
   async function load() {
     setLoading(true)
     const u = unidadeAtiva
-    const [{ data: d }, { data: c }, { data: p }] = await Promise.all([
-      (() => { let q = sb.from('btx_vendas').select('*, cliente:btx_clientes(id,nome), itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)))').eq('ativo', true).order('data_venda', { ascending: false }); if (u) q = q.eq('unidade', u); return q })(),
-      (() => { let q = sb.from('btx_clientes').select('*').eq('ativo', true).order('nome'); if (u) q = q.eq('unidade', u); return q })(),
-      sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome'),
-    ])
-    setRows(d ?? []); setClientes(c ?? []); setProdutos(p ?? [])
+    let q = sb.from('btx_vendas').select('*, cliente:btx_clientes(id,nome), itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)))').eq('ativo', true).order('data_venda', { ascending: false })
+    if (u) q = q.eq('unidade', u)
+    const { data: d } = await q
+    setRows(d ?? [])
     setLoading(false)
-  }
-
-  const totalProdutos = itens.reduce((s, i) => s + Number(i.valor), 0)
-  const totalNF = totalProdutos + Number(form.valor_st)
-
-  function addItem() { setItens(prev => [...prev, { ...EMPTY_ITEM }]) }
-  function removeItem(idx: number) { if (itens.length > 1) setItens(prev => prev.filter((_, i) => i !== idx)) }
-  function updateItem(idx: number, field: keyof ItemForm, value: string | number) {
-    setItens(prev => prev.map((it, i) => i === idx ? { ...it, [field]: value } : it))
-  }
-
-  function openNew() { setForm(EMPTY); setItens([{ ...EMPTY_ITEM }]); setParcelas([]); setEditId(null); setErr(''); setModal(true) }
-
-  async function openEdit(r: Venda) {
-    setForm({ cliente_id: r.cliente_id ?? '', data_venda: r.data_venda, numero_nf: r.numero_nf ?? '', valor_st: r.valor_st ?? 0, observacoes: r.observacoes ?? '' })
-    const { data: its } = await sb.from('btx_vendas_itens').select('*').eq('venda_id', r.id)
-    setItens(its && its.length > 0 ? its.map((i: { produto_id: string; qtd_carteiras: number; valor: number }) => ({ produto_id: i.produto_id, qtdInput: i.qtd_carteiras, unidade: 'base' as const, valor: i.valor })) : [{ ...EMPTY_ITEM }])
-    const { data: parcs } = await sb.from('btx_parcelas').select('*').eq('origem_id', r.id).eq('ativo', true).order('numero_parcela')
-    setParcelas((parcs ?? []).map((p: { numero_parcela: number; vencimento: string; valor: number; numero_boleto: string | null; observacoes: string | null }) => ({ numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor, numero_boleto: p.numero_boleto ?? '', observacoes: p.observacoes ?? '' })))
-    setEditId(r.id); setErr(''); setModal(true)
-  }
-
-  async function save() {
-    if (!itens[0].produto_id) return setErr('Adicione pelo menos um produto.')
-    const unidade = unidadeAtiva
-    if (!unidade) return setErr('Sem unidade ativa.')
-    setSaving(true)
-    const payload = { unidade, cliente_id: form.cliente_id || null, data_venda: form.data_venda, numero_nf: form.numero_nf || null, valor_st: Number(form.valor_st), valor_total: totalNF, observacoes: form.observacoes || null }
-    let id = editId
-    if (editId) {
-      await sb.from('btx_vendas').update(payload).eq('id', editId)
-      await sb.from('btx_vendas_itens').delete().eq('venda_id', editId)
-      await sb.from('btx_parcelas').update({ ativo: false }).eq('origem_id', editId)
-    } else {
-      const { data } = await sb.from('btx_vendas').insert(payload).select('id').single()
-      id = data?.id
-    }
-    if (id) {
-      await sb.from('btx_vendas_itens').insert(itens.filter(i => i.produto_id).map(i => ({ venda_id: id, produto_id: i.produto_id, qtd_carteiras: qtdParaBase(i, produtos), valor: i.valor })))
-      if (parcelas.length > 0) await sb.from('btx_parcelas').insert(parcelas.map(p => ({ unidade, tipo: 'receber', origem: 'venda', origem_id: id, numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor, numero_boleto: p.numero_boleto || null, observacoes: p.observacoes || null })))
-    }
-    setSaving(false); setModal(false); load()
   }
 
   async function remove(id: string) {
@@ -102,15 +38,14 @@ export default function VendasPage() {
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-title">Vendas / NFs</h1><div className="page-subtitle">Saídas de estoque por NF</div></div>
-        {!isDiretoria && <button className="btn btn-primary" onClick={openNew}>+ Nova venda</button>}
+        <div><h1 className="page-title">Saídas</h1><div className="page-subtitle">O que saiu — consulta</div></div>
       </div>
       <div className="table-wrap">
         <table>
           <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Produtos</th><th>ST</th><th>Total NF</th><th>Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={7} className="empty-state">Carregando...</td></tr>
-            : rows.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhuma venda lançada.</td></tr>
+            : rows.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhuma saída lançada.</td></tr>
             : rows.map(r => (
               <tr key={r.id}>
                 <td className="mono">{formatData(r.data_venda)}</td>
@@ -120,90 +55,13 @@ export default function VendasPage() {
                 <td className="mono">{formatMoeda(r.valor_st ?? 0)}</td>
                 <td className="mono">{formatMoeda(r.valor_total)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  {!isDiretoria && <>
-                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
-                  </>}
+                  {!isDiretoria && <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      <Modal open={modal} onClose={() => setModal(false)} title={editId ? 'Editar venda' : 'Nova venda'} size="lg"
-        footer={<><button className="btn btn-secondary" onClick={() => setModal(false)}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></>}>
-        {err && <div className="alert alert-red">{err}</div>}
-        <div className="grid-2">
-          <div className="form-group">
-            <label className="form-label">Cliente</label>
-            <select className="form-select" value={form.cliente_id} onChange={e => setForm(f => ({...f, cliente_id: e.target.value}))}>
-              <option value="">Nenhum</option>
-              {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Data</label>
-            <input className="form-input" type="date" value={form.data_venda} onChange={e => setForm(f => ({...f, data_venda: e.target.value}))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Nº NF</label>
-            <input className="form-input" value={form.numero_nf} onChange={e => setForm(f => ({...f, numero_nf: e.target.value}))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Valor ST (R$)</label>
-            <input className="form-input" type="number" step="0.01" min={0} value={form.valor_st || ''} placeholder="0,00" onChange={e => setForm(f => ({...f, valor_st: parseFloat(e.target.value) || 0}))} />
-          </div>
-          <div className="form-group" style={{ gridColumn: '1/-1' }}>
-            <label className="form-label">Observações</label>
-            <input className="form-input" value={form.observacoes} onChange={e => setForm(f => ({...f, observacoes: e.target.value}))} />
-          </div>
-        </div>
-
-        <hr className="divider" />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Produtos da NF</div>
-          <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Adicionar produto</button>
-        </div>
-        {itens.map((it, idx) => {
-          const produtoSel = produtos.find(p => p.id === it.produto_id)
-          return (
-            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                {idx === 0 && <label className="form-label">Produto</label>}
-                <select className="form-select" value={it.produto_id} onChange={e => updateItem(idx, 'produto_id', e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                {idx === 0 && <label className="form-label">Quantidade</label>}
-                <input className="form-input" type="number" min={0} value={it.qtdInput || ''} placeholder="0" onChange={e => updateItem(idx, 'qtdInput', parseInt(e.target.value) || 0)} />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                {idx === 0 && <label className="form-label">Unidade</label>}
-                <select className="form-select" value={it.unidade} onChange={e => updateItem(idx, 'unidade', e.target.value)}>
-                  <option value="base">{produtoSel?.unidade_base?.nome ?? 'Unid. base'}</option>
-                  <option value="maior">{produtoSel?.unidade_maior?.nome ?? 'Unid. maior'}</option>
-                </select>
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                {idx === 0 && <label className="form-label">Valor (R$)</label>}
-                <input className="form-input" type="number" step="0.01" min={0} value={it.valor || ''} placeholder="0,00" onChange={e => updateItem(idx, 'valor', parseFloat(e.target.value) || 0)} />
-              </div>
-              <button className="btn btn-danger btn-sm" style={{ marginBottom: 0 }} onClick={() => removeItem(idx)} disabled={itens.length === 1}>✕</button>
-            </div>
-          )
-        })}
-        <div style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-          Produtos: {formatMoeda(totalProdutos)} + ST: {formatMoeda(Number(form.valor_st))}
-        </div>
-        <div style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 15, color: 'var(--text)', marginTop: 4 }}>
-          Total NF: {formatMoeda(totalNF)}
-        </div>
-        <hr className="divider" />
-        <ParcelasEditor parcelas={parcelas} onChange={setParcelas} tipo="receber" />
-      </Modal>
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm && remove(confirm)} loading={saving} />
     </div>
   )
