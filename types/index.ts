@@ -26,8 +26,18 @@ export interface Cliente {
   id: string; unidade: Unidade; nome: string; cnpj: string | null; telefone: string | null
   email: string | null; observacoes: string | null; ativo: boolean; created_at: string
 }
+export type GrupoCategoria = 'fornecedores' | 'impostos' | 'funcionarios' | 'custos_fixos' | 'outros'
+
+export const GRUPOS_CATEGORIA: { value: GrupoCategoria; label: string }[] = [
+  { value: 'fornecedores', label: 'Fornecedores' },
+  { value: 'impostos', label: 'Impostos' },
+  { value: 'funcionarios', label: 'Funcionários' },
+  { value: 'custos_fixos', label: 'Custos Fixos' },
+  { value: 'outros', label: 'Outros' },
+]
+
 export interface CategoriaDespesa {
-  id: string; unidade: Unidade; nome: string; ativo: boolean; created_at: string
+  id: string; unidade: Unidade; nome: string; grupo: GrupoCategoria; ativo: boolean; created_at: string
 }
 export interface EstoqueInicial {
   id: string; unidade: Unidade; produto_id: string; mes: number; ano: number

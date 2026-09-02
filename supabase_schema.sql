@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS btx_categorias_despesas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
   nome TEXT NOT NULL,
+  grupo TEXT NOT NULL DEFAULT 'outros' CHECK (grupo IN ('fornecedores','impostos','funcionarios','custos_fixos','outros')),
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

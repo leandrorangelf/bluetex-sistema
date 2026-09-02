@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { CategoriaDespesa, Unidade } from '@/types'
-import { UNIDADES } from '@/types'
+import { UNIDADES, GRUPOS_CATEGORIA, type GrupoCategoria } from '@/types'
 
 export default function CategoriasPage() {
   const { profile, unidadeAtiva } = useAuth()
@@ -16,6 +16,7 @@ export default function CategoriasPage() {
   const [confirm, setConfirm] = useState<string | null>(null)
   const [nome, setNome] = useState('')
   const [formUnidade, setFormUnidade] = useState<Unidade | ''>('')
+  const [grupo, setGrupo] = useState<GrupoCategoria>('outros')
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -34,16 +35,16 @@ export default function CategoriasPage() {
     setLoading(false)
   }
 
-  function openNew() { setNome(''); setFormUnidade(unidadeAtiva ?? ''); setEditId(null); setErr(''); setModal(true) }
-  function openEdit(r: CategoriaDespesa) { setNome(r.nome); setFormUnidade(r.unidade); setEditId(r.id); setErr(''); setModal(true) }
+  function openNew() { setNome(''); setFormUnidade(unidadeAtiva ?? ''); setGrupo('outros'); setEditId(null); setErr(''); setModal(true) }
+  function openEdit(r: CategoriaDespesa) { setNome(r.nome); setFormUnidade(r.unidade); setGrupo(r.grupo); setEditId(r.id); setErr(''); setModal(true) }
 
   async function save() {
     if (!nome.trim()) return setErr('Nome é obrigatório.')
     const unidade = isAdmin ? formUnidade : unidadeAtiva
     if (!unidade) return setErr('Selecione a unidade.')
     setSaving(true)
-    if (editId) await sb.from('btx_categorias_despesas').update({ nome, unidade }).eq('id', editId)
-    else await sb.from('btx_categorias_despesas').insert({ nome, unidade })
+    if (editId) await sb.from('btx_categorias_despesas').update({ nome, unidade, grupo }).eq('id', editId)
+    else await sb.from('btx_categorias_despesas').insert({ nome, unidade, grupo })
     setSaving(false); setModal(false); load()
   }
 
@@ -61,13 +62,14 @@ export default function CategoriasPage() {
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Categoria</th><th>Unidade</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Categoria</th><th>Grupo</th><th>Unidade</th><th>Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={3} className="empty-state">Carregando...</td></tr>
-            : rows.length === 0 ? <tr><td colSpan={3} className="empty-state">Nenhuma categoria cadastrada.</td></tr>
+            {loading ? <tr><td colSpan={4} className="empty-state">Carregando...</td></tr>
+            : rows.length === 0 ? <tr><td colSpan={4} className="empty-state">Nenhuma categoria cadastrada.</td></tr>
             : rows.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 500 }}>{r.nome}</td>
+                <td>{GRUPOS_CATEGORIA.find(g => g.value === r.grupo)?.label ?? 'Outros'}</td>
                 <td><span className="badge badge-green">{r.unidade.replace('NEW BLUETEX ','')}</span></td>
                 <td style={{ display: 'flex', gap: 6 }}>
                   {!isDiretoria && <>
@@ -99,6 +101,12 @@ export default function CategoriasPage() {
         <div className="form-group">
           <label className="form-label">Nome *</label>
           <input className="form-input" value={nome} onChange={e => setNome(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Grupo</label>
+          <select className="form-select" value={grupo} onChange={e => setGrupo(e.target.value as GrupoCategoria)}>
+            {GRUPOS_CATEGORIA.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+          </select>
         </div>
       </Modal>
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm && remove(confirm)} loading={saving} />
