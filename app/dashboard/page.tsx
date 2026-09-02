@@ -14,7 +14,7 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
   const competenciaSel = chaveCompetencia(ano, mes)
   const [basesRes, parcelasRes, despesasRes] = await Promise.all([
     sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
-    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,vencimento,valor,status,data_pagamento,ativo,observacoes').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
+    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
     sb.from('btx_despesas').select('id, categoria:btx_categorias_despesas(grupo)').eq('unidade', unidade).eq('ativo', true),
   ])
 
@@ -58,9 +58,13 @@ export default function DashboardPage() {
     setLoading(true)
     const alvos = veTudo ? UNIDADES : (unidadeAtiva ? [unidadeAtiva] : [])
     const res: Partial<Record<string, ResumoUnidade>> = {}
-    await Promise.all(alvos.map(async u => { res[u] = await carregarUnidade(sb, u, ano, mes, hoje) }))
-    setPorUnidade(res)
-    setLoading(false)
+    try {
+      const settled = await Promise.allSettled(alvos.map(u => carregarUnidade(sb, u, ano, mes, hoje)))
+      settled.forEach((s, i) => { if (s.status === 'fulfilled') res[alvos[i]] = s.value })
+      setPorUnidade(res)
+    } finally {
+      setLoading(false)
+    }
   }, [profile, veTudo, unidadeAtiva, sb, ano, mes, hoje])
 
   useEffect(() => { carregar() }, [carregar])
@@ -72,7 +76,6 @@ export default function DashboardPage() {
     setMes(m); setAno(a)
   }
 
-  const unidadeSel = veTudo ? aba : (unidadeAtiva ?? '')
   const resumo: ResumoUnidade | null = !veTudo
     ? (unidadeAtiva ? porUnidade[unidadeAtiva] ?? null : null)
     : aba === 'consolidado'
