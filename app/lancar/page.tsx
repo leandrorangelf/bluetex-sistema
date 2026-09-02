@@ -6,9 +6,11 @@ import { createClient } from '@/lib/supabase'
 import { hoje } from '@/lib/utils'
 import { gerarParcelas } from '@/lib/parcelamento'
 import { ajustarSaldoBanco } from '@/lib/saldo'
-import { UNIDADES, GRUPOS_CATEGORIA, type Unidade, type GrupoCategoria } from '@/types'
+import { UNIDADES, type Unidade, type GrupoCategoria } from '@/types'
+import FormMovimento from '@/components/lancar/FormMovimento'
+import FormDespesa from '@/components/lancar/FormDespesa'
 
-type Aba = 'pagar' | 'receber' | 'saldo'
+type Aba = 'entrada' | 'saida' | 'despesa' | 'receber' | 'saldo'
 type Categoria = { id: string; nome: string; grupo: GrupoCategoria }
 type Cliente = { id: string; nome: string }
 
@@ -16,7 +18,7 @@ export default function LancarPage() {
   const { profile, unidadeAtiva } = useAuth()
   const sb = useMemo(() => createClient(), [])
   const isAdmin = profile?.role === 'admin'
-  const [aba, setAba] = useState<Aba>('pagar')
+  const [aba, setAba] = useState<Aba>('entrada')
   const [unidade, setUnidade] = useState<Unidade | ''>((unidadeAtiva as Unidade) ?? '')
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -44,7 +46,7 @@ export default function LancarPage() {
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-title">Lançar</h1><div className="page-subtitle">Entrada rápida do que aparece no painel</div></div>
+        <div><h1 className="page-title">Lançar</h1><div className="page-subtitle">Todo lançamento do sistema entra por aqui</div></div>
       </div>
 
       {isAdmin && (
@@ -60,15 +62,19 @@ export default function LancarPage() {
       {!unidade ? <div className="empty-state">Selecione a unidade.</div> : (
         <>
           <div className="tabs">
-            <button className={`tab${aba === 'pagar' ? ' active' : ''}`} onClick={() => { setAba('pagar'); setMsg(null) }}>Conta a pagar</button>
+            <button className={`tab${aba === 'entrada' ? ' active' : ''}`} onClick={() => { setAba('entrada'); setMsg(null) }}>Entrada</button>
+            <button className={`tab${aba === 'saida' ? ' active' : ''}`} onClick={() => { setAba('saida'); setMsg(null) }}>Saída</button>
+            <button className={`tab${aba === 'despesa' ? ' active' : ''}`} onClick={() => { setAba('despesa'); setMsg(null) }}>Despesa</button>
             <button className={`tab${aba === 'receber' ? ' active' : ''}`} onClick={() => { setAba('receber'); setMsg(null) }}>Recebimento</button>
             <button className={`tab${aba === 'saldo' ? ' active' : ''}`} onClick={() => { setAba('saldo'); setMsg(null) }}>Ajustar saldo</button>
           </div>
 
           {msg && <div className={`alert ${msg.tipo === 'ok' ? 'alert-green' : 'alert-red'}`} style={{ marginBottom: 16 }}>{msg.texto}</div>}
 
-          <div className="card" style={{ maxWidth: 560 }}>
-            {aba === 'pagar' && <FormPagar sb={sb} unidade={unidade} categorias={categorias} saving={saving} setSaving={setSaving} onResult={setMsg} />}
+          <div className="card" style={{ maxWidth: aba === 'entrada' || aba === 'saida' ? 720 : 560 }}>
+            {aba === 'entrada' && <FormMovimento tipo="compra" unidade={unidade} onResult={setMsg} />}
+            {aba === 'saida' && <FormMovimento tipo="venda" unidade={unidade} onResult={setMsg} />}
+            {aba === 'despesa' && <FormDespesa unidade={unidade} categorias={categorias} onResult={setMsg} />}
             {aba === 'receber' && <FormReceber sb={sb} unidade={unidade} clientes={clientes} saving={saving} setSaving={setSaving} onResult={setMsg} />}
             {aba === 'saldo' && <FormSaldo sb={sb} unidade={unidade} saving={saving} setSaving={setSaving} onResult={setMsg} />}
           </div>
@@ -93,60 +99,6 @@ function ParcelarCampos({ parcelar, setParcelar, n, setN }: { parcelar: boolean;
           <input className="form-input" type="number" min={2} max={24} value={n} onChange={e => setN(Number(e.target.value))} />
         </div>
       )}
-    </>
-  )
-}
-
-function FormPagar({ sb, unidade, categorias, saving, setSaving, onResult }: FormBase & { categorias: Categoria[] }) {
-  const [descricao, setDescricao] = useState('')
-  const [categoriaId, setCategoriaId] = useState('')
-  const [valor, setValor] = useState(0)
-  const [vencimento, setVencimento] = useState(hoje())
-  const [boleto, setBoleto] = useState('')
-  const [parcelar, setParcelar] = useState(false)
-  const [n, setN] = useState(2)
-
-  async function salvar() {
-    if (!descricao.trim() || !categoriaId || valor <= 0 || !vencimento) { onResult({ tipo: 'erro', texto: 'Preencha descrição, categoria, valor e vencimento.' }); return }
-    setSaving(true)
-    const parcelas = gerarParcelas(valor, vencimento, parcelar ? n : 1)
-    const { data: desp, error: e1 } = await sb.from('btx_despesas').insert({
-      unidade, categoria_id: categoriaId, data_despesa: parcelas[0].vencimento, descricao, valor_total: valor, numero_nf: boleto || null,
-    }).select('id').single()
-    if (e1 || !desp) { setSaving(false); onResult({ tipo: 'erro', texto: 'Não foi possível salvar a despesa.' }); return }
-    const { error: e2 } = await sb.from('btx_parcelas').insert(parcelas.map(p => ({
-      unidade, tipo: 'pagar', origem: 'despesa', origem_id: desp.id,
-      numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor, numero_boleto: boleto || null,
-    })))
-    setSaving(false)
-    if (e2) { onResult({ tipo: 'erro', texto: 'Despesa criada mas falhou ao gerar parcelas. Confira em Parcelas a Pagar.' }); return }
-    onResult({ tipo: 'ok', texto: `Conta a pagar lançada (${parcelas.length} parcela(s)).` })
-    setDescricao(''); setCategoriaId(''); setValor(0); setVencimento(hoje()); setBoleto(''); setParcelar(false); setN(2)
-  }
-
-  const porGrupo = GRUPOS_CATEGORIA.map(g => ({ g, itens: categorias.filter(c => c.grupo === g.value) })).filter(x => x.itens.length)
-
-  return (
-    <>
-      <div className="form-group"><label className="form-label">Descrição *</label>
-        <input className="form-input" value={descricao} onChange={e => setDescricao(e.target.value)} /></div>
-      <div className="form-group"><label className="form-label">Categoria *</label>
-        <select className="form-select" value={categoriaId} onChange={e => setCategoriaId(e.target.value)}>
-          <option value="">Selecione…</option>
-          {porGrupo.map(({ g, itens }) => (
-            <optgroup key={g.value} label={g.label}>
-              {itens.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </optgroup>
-          ))}
-        </select></div>
-      <div className="form-group"><label className="form-label">Valor (R$) *</label>
-        <input className="form-input" type="number" step="0.01" min={0} value={valor} onChange={e => setValor(Number(e.target.value))} /></div>
-      <div className="form-group"><label className="form-label">Vencimento *</label>
-        <input className="form-input" type="date" value={vencimento} onChange={e => setVencimento(e.target.value)} /></div>
-      <div className="form-group"><label className="form-label">Nº boleto/doc</label>
-        <input className="form-input" value={boleto} onChange={e => setBoleto(e.target.value)} /></div>
-      <ParcelarCampos parcelar={parcelar} setParcelar={setParcelar} n={n} setN={setN} />
-      <button className="btn btn-primary" onClick={salvar} disabled={saving} style={{ marginTop: 8 }}>{saving ? 'Salvando…' : 'Lançar conta'}</button>
     </>
   )
 }
