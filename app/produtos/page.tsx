@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Produto, UnidadeMedida } from '@/types'
+import { isVhsysManaged } from '@/lib/vhsys/read-only'
 
 const EMPTY = { nome: '', unidade_base_id: '', unidade_maior_id: '', fator_conversao: 480 }
 
@@ -38,11 +39,13 @@ export default function ProdutosPage() {
 
   function openNew() { setForm(EMPTY); setEditId(null); setErr(''); setModal(true) }
   function openEdit(r: Produto) {
+    if (isVhsysManaged(r)) return
     setForm({ nome: r.nome, unidade_base_id: r.unidade_base_id, unidade_maior_id: r.unidade_maior_id, fator_conversao: r.fator_conversao })
     setEditId(r.id); setErr(''); setModal(true)
   }
 
   async function save() {
+    if (editId && isVhsysManaged(rows.find(r => r.id === editId) ?? {})) return
     if (!form.nome.trim()) return setErr('Nome é obrigatório.')
     if (!form.unidade_base_id || !form.unidade_maior_id) return setErr('Escolha as duas unidades.')
     setSaving(true)
@@ -56,6 +59,7 @@ export default function ProdutosPage() {
   }
 
   async function remove(id: string) {
+    if (isVhsysManaged(rows.find(r => r.id === id) ?? {})) return
     setSaving(true)
     await sb.from('btx_produtos').update({ ativo: false }).eq('id', id)
     setSaving(false); setConfirm(null); load()
@@ -78,14 +82,16 @@ export default function ProdutosPage() {
               <tr><td colSpan={5} className="empty-state">Nenhum produto cadastrado.</td></tr>
             ) : rows.map(r => (
               <tr key={r.id}>
-                <td style={{ fontWeight: 500 }}>{r.nome}</td>
+                <td style={{ fontWeight: 500 }}>{r.nome} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                 <td>{r.unidade_base?.nome}</td>
                 <td>{r.unidade_maior?.nome}</td>
                 <td className="mono">{r.fator_conversao}</td>
                 {isAdmin && (
                   <td style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                    {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span> : <>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
+                    </>}
                   </td>
                 )}
               </tr>

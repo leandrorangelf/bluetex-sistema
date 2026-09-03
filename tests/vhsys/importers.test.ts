@@ -1,0 +1,131 @@
+// @vitest-environment node
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('server-only', () => ({}))
+
+describe('importadores VHSYS', () => {
+  it('mantém vendas faturadas desde o marco e carrega seus itens', async () => {
+    const client = {
+      list: vi.fn(async (path: string) => {
+        if (path === '/pedidos') {
+          return [
+            { id_ped: 11, id_pedido: 1, data_pedido: '2026-06-30', status_pedido: 'Faturado' },
+            {
+              id_ped: 22,
+              id_pedido: 2,
+              data_pedido: '2026-07-01',
+              status_pedido: 'Faturado',
+              nome_cliente: 'Cliente A',
+              valor_total_nota: '50.00',
+            },
+            { id_ped: 33, id_pedido: 3, data_pedido: '2026-07-02', status_pedido: 'Cancelado' },
+          ]
+        }
+        if (path === '/pedidos/22/produtos') {
+          return [{
+            id_produto: 9,
+            desc_produto: 'Produto A',
+            qtde_produto: '2',
+            valor_total_produto: '50.00',
+          }]
+        }
+        return []
+      }),
+    }
+    const { importVendas } = await import('@/lib/vhsys/importers/vendas')
+
+    const result = await importVendas(client as never)
+
+    expect(result.map(item => item.externalId)).toEqual(['2'])
+    expect(result[0].data.itens).toEqual([{
+      produto_vhsys_id: '9',
+      produto_nome: 'Produto A',
+      quantidade: 2,
+      valor: 50,
+    }])
+  })
+
+  it('mantém abertos e marca liquidados para atualizar vínculos existentes', async () => {
+    const client = {
+      list: vi.fn().mockResolvedValue([
+        { id_conta_rec: 1, liquidado_rec: 'Nao', valor_rec: '100.00' },
+        { id_conta_rec: 2, liquidado_rec: 'Sim', valor_rec: '80.00' },
+      ]),
+    }
+    const { importReceber } = await import('@/lib/vhsys/importers/financeiro')
+
+    const result = await importReceber(client as never)
+
+    expect(result).toHaveLength(2)
+    expect(result[0].data).toEqual(expect.objectContaining({ status: 'pendente', liquidado: false }))
+    expect(result[1].data).toEqual(expect.objectContaining({ status: 'pago', liquidado: true }))
+  })
+
+  it('retorna somente contas Santander ativas', async () => {
+    const client = {
+      list: vi.fn().mockResolvedValue([
+        {
+          id_banco_cad: 1,
+          numero_banco: '033',
+          status_banco: 'Ativo',
+          nome_banco_cad: 'Santander',
+          saldo_atual: '50.10',
+        },
+        {
+          id_banco_cad: 2,
+          numero_banco: '001',
+          status_banco: 'Ativo',
+          saldo_atual: '99.00',
+        },
+      ]),
+    }
+    const { importBancos } = await import('@/lib/vhsys/importers/bancos')
+
+    const result = await importBancos(client as never)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].data.saldo_atual).toBe(50.1)
+  })
+
+  it('usa a posição atual dos produtos ativos como estoque', async () => {
+    const client = {
+      list: vi.fn().mockResolvedValue([
+        {
+          id_produto: 10,
+          desc_produto: 'Produto A',
+          status_produto: 'Ativo',
+          estoque_produto: '12',
+        },
+        {
+          id_produto: 20,
+          desc_produto: 'Produto B',
+          status_produto: 'Inativo',
+          estoque_produto: '99',
+        },
+      ]),
+    }
+    const { importEstoque } = await import('@/lib/vhsys/importers/estoque')
+
+    const result = await importEstoque(client as never)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].data.quantidade_atual).toBe(12)
+  })
+
+  it('isola a falha de um domínio sem descartar os demais', async () => {
+    const { runDomainImporters } = await import('@/lib/vhsys/importers')
+    const results = await runDomainImporters({} as never, [
+      ['vendas', async () => [{ domain: 'vendas', externalId: '1', data: {} }]],
+      ['compras', async () => { throw new Error('VHSYS_HTTP_403') }],
+    ])
+
+    expect(results).toEqual([
+      {
+        domain: 'vendas',
+        items: [{ domain: 'vendas', externalId: '1', data: {} }],
+        error: null,
+      },
+      { domain: 'compras', items: [], error: 'VHSYS_HTTP_403' },
+    ])
+  })
+})

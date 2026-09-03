@@ -7,6 +7,7 @@ import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Cliente, Unidade } from '@/types'
 import { UNIDADES } from '@/types'
+import { isVhsysManaged } from '@/lib/vhsys/read-only'
 
 const EMPTY = { nome: '', cnpj: '', telefone: '', email: '', observacoes: '' }
 
@@ -38,11 +39,13 @@ export default function ClientesPage() {
 
   function openNew() { setForm(EMPTY); setFormUnidade(unidadeAtiva ?? ''); setEditId(null); setErr(''); setModal(true) }
   function openEdit(r: Cliente) {
+    if (isVhsysManaged(r)) return
     setForm({ nome: r.nome, cnpj: r.cnpj ?? '', telefone: r.telefone ?? '', email: r.email ?? '', observacoes: r.observacoes ?? '' })
     setFormUnidade(r.unidade); setEditId(r.id); setErr(''); setModal(true)
   }
 
   async function save() {
+    if (editId && isVhsysManaged(rows.find(r => r.id === editId) ?? {})) return
     if (!form.nome.trim()) return setErr('Nome é obrigatório.')
     const unidade = isAdmin ? formUnidade : unidadeAtiva
     if (!unidade) return setErr('Selecione a unidade.')
@@ -54,6 +57,7 @@ export default function ClientesPage() {
   }
 
   async function remove(id: string) {
+    if (isVhsysManaged(rows.find(r => r.id === id) ?? {})) return
     setSaving(true)
     await sb.from('btx_clientes').update({ ativo: false }).eq('id', id)
     setSaving(false); setConfirm(null); load()
@@ -73,12 +77,13 @@ export default function ClientesPage() {
             : rows.length === 0 ? <tr><td colSpan={5} className="empty-state">Nenhum cliente cadastrado.</td></tr>
             : rows.map(r => (
               <tr key={r.id}>
-                <td style={{ fontWeight: 500 }}>{r.nome}</td>
+                <td style={{ fontWeight: 500 }}>{r.nome} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                 <td><span className="badge badge-green">{r.unidade.replace('NEW BLUETEX ','')}</span></td>
                 <td className="mono">{r.cnpj ?? '—'}</td>
                 <td>{r.telefone ?? '—'}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  {!isDiretoria && <>
+                  {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span>
+                  : !isDiretoria && <>
                     <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
                     <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
                   </>}
