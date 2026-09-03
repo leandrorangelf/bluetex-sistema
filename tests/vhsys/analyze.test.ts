@@ -35,6 +35,20 @@ describe('buildAnalysisItems', () => {
     expect(rows[1].decisao).toBeNull()
   })
 
+  it('só considera produto de estoque que está no mapa', () => {
+    const results = [{
+      domain: 'estoque' as const,
+      error: null,
+      items: [
+        { domain: 'estoque' as const, externalId: '111', data: { produto_nome: 'A' } },
+        { domain: 'estoque' as const, externalId: '222', data: { produto_nome: 'B' } },
+      ],
+    }]
+    expect(buildAnalysisItems(results, {}, new Set())).toHaveLength(0)
+    expect(buildAnalysisItems(results, {}, new Set(['111'])).map((r) => r.vhsys_id))
+      .toEqual(['111'])
+  })
+
   it('transforma falha de domínio em item auditável sanitizado', () => {
     const rows = buildAnalysisItems(
       [{ domain: 'pagar', items: [], error: 'VHSYS_HTTP_403' }],

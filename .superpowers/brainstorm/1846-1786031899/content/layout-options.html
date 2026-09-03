@@ -1,0 +1,59 @@
+<h2>Como organizar o novo Painel Financeiro?</h2>
+<p class="subtitle">As três opções mantêm contas a pagar à esquerda, contas a receber à direita e o saldo diário projetado no calendário.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px;background:#f6f7f9">
+      <div style="display:grid;grid-template-columns:1fr 1.45fr 1fr;gap:8px;height:220px;font:10px Arial;color:#172033">
+        <div style="background:white;border:1px solid #e1e5ea;border-radius:6px;padding:8px">
+          <b style="color:#b42318">CONTAS A PAGAR</b>
+          <div style="margin-top:10px;border-left:3px solid #d64545;padding:6px;background:#fff6f6">10 ago · Energia<br><b>− R$ 2.800</b></div>
+          <div style="margin-top:6px;border-left:3px solid #d64545;padding:6px;background:#fff6f6">18 ago · Fornecedor<br><b>− R$ 6.400</b></div>
+        </div>
+        <div style="background:white;border:1px solid #e1e5ea;border-radius:6px;padding:8px">
+          <b>AGOSTO 2026</b>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:9px">
+            <span></span><span></span><span></span><span></span><span></span><span style="padding:4px">1</span><span style="padding:4px">2</span>
+            <span style="padding:4px">3</span><span style="padding:4px">4</span><span style="padding:4px">5</span><span style="padding:4px">6</span><span style="padding:4px">7</span><span style="padding:4px">8</span><span style="padding:4px">9</span>
+            <span style="padding:4px;background:#fff0f0;border-radius:3px"><b>10</b><br><small style="color:#b42318">−2,8k</small></span><span style="padding:4px">11</span><span style="padding:4px">12</span><span style="padding:4px">13</span><span style="padding:4px">14</span><span style="padding:4px;background:#eefaf2;border-radius:3px"><b>15</b><br><small style="color:#16834b">+9,5k</small></span><span style="padding:4px">16</span>
+          </div>
+          <div style="margin-top:12px;padding:9px;background:#162033;color:white;border-radius:5px;display:flex;justify-content:space-between"><span>Saldo em 15/08</span><b>R$ 18.230</b></div>
+        </div>
+        <div style="background:white;border:1px solid #e1e5ea;border-radius:6px;padding:8px">
+          <b style="color:#16834b">CONTAS A RECEBER</b>
+          <div style="margin-top:10px;border-left:3px solid #24a466;padding:6px;background:#f2fbf6">15 ago · Cliente Alfa<br><b>+ R$ 9.500</b></div>
+          <div style="margin-top:6px;border-left:3px solid #24a466;padding:6px;background:#f2fbf6">24 ago · Cliente Beta<br><b>+ R$ 4.200</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>A — Calendário central</h3><p>Visão mais equilibrada: obrigações e recebimentos cercam o calendário, que permanece como foco principal.</p></div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px;background:#f6f7f9">
+      <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:110px 102px;gap:8px;height:220px;font:10px Arial;color:#172033">
+        <div style="background:white;border:1px solid #e1e5ea;border-radius:6px;padding:8px"><b style="color:#b42318">CONTAS A PAGAR</b><div style="margin-top:9px">10 ago · Energia <b style="float:right">− 2.800</b></div><div style="margin-top:7px">18 ago · Fornecedor <b style="float:right">− 6.400</b></div></div>
+        <div style="background:white;border:1px solid #e1e5ea;border-radius:6px;padding:8px"><b style="color:#16834b">CONTAS A RECEBER</b><div style="margin-top:9px">15 ago · Cliente Alfa <b style="float:right">+ 9.500</b></div><div style="margin-top:7px">24 ago · Cliente Beta <b style="float:right">+ 4.200</b></div></div>
+        <div style="grid-column:1/3;background:white;border:1px solid #e1e5ea;border-radius:6px;padding:8px"><b>CALENDÁRIO DE SALDO</b><div style="height:8px;background:linear-gradient(90deg,#e05d5d 0 34%,#2baa6b 34% 62%,#e05d5d 62%);border-radius:5px;margin:22px 8px 8px"></div><div style="display:flex;justify-content:space-around"><span>10<br><b>8,7k</b></span><span>15<br><b style="color:#16834b">18,2k</b></span><span>18<br><b>11,8k</b></span><span>24<br><b style="color:#16834b">16k</b></span></div></div>
+      </div>
+    </div>
+    <div class="card-body"><h3>B — Listas acima</h3><p>Exibe mais largura para os lançamentos, mas o calendário perde protagonismo e exige mais rolagem.</p></div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px;background:#f6f7f9">
+      <div style="height:220px;font:10px Arial;color:#172033;background:white;border:1px solid #e1e5ea;border-radius:6px;padding:9px">
+        <div style="display:flex;justify-content:space-between"><b>AGOSTO 2026</b><b>SALDO FINAL: R$ 16.030</b></div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px">
+          <span style="padding:7px;border:1px solid #eee">9</span><span style="padding:7px;background:#fff0f0;border:1px solid #f2caca"><b>10</b><br><small>−2,8k</small><br><b>8,7k</b></span><span style="padding:7px;border:1px solid #eee">11</span><span style="padding:7px;border:1px solid #eee">12</span><span style="padding:7px;border:1px solid #eee">13</span><span style="padding:7px;border:1px solid #eee">14</span><span style="padding:7px;background:#eefaf2;border:1px solid #cbe9d6"><b>15</b><br><small>+9,5k</small><br><b>18,2k</b></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><div style="padding:8px;background:#fff6f6"><b style="color:#b42318">PAGAR NO DIA 10</b><br>Energia · R$ 2.800</div><div style="padding:8px;background:#f2fbf6"><b style="color:#16834b">RECEBER NO DIA 15</b><br>Cliente Alfa · R$ 9.500</div></div>
+      </div>
+    </div>
+    <div class="card-body"><h3>C — Calendário dominante</h3><p>Prioriza a leitura diária do saldo; as listas completas aparecem apenas ao selecionar um dia.</p></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:22px">
+  <p><strong>Minha recomendação: A.</strong> Ela atende literalmente à sua ideia — pagar à esquerda, receber à direita e saldo no calendário — sem esconder lançamentos.</p>
+</div>

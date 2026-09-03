@@ -27,6 +27,7 @@ type CandidateMap = Partial<Record<VhsysDomain, LocalCandidate[]>>
 export function buildAnalysisItems(
   results: DomainResult[],
   candidateMap: CandidateMap,
+  mappedProductIds: Set<string> = new Set(),
 ): AnalysisRow[] {
   const bankCount = results.find((result) => result.domain === 'bancos')
     ?.items.length ?? 0
@@ -47,6 +48,10 @@ export function buildAnalysisItems(
     }
 
     for (const item of result.items) {
+      // Produto VHSYS sem mapa não entra na prévia — nada será criado no Painel.
+      if (result.domain === 'estoque' && !mappedProductIds.has(item.externalId)) {
+        continue
+      }
       const reconciled = reconcileItem(item, candidateMap[result.domain] ?? [])
       const isClosedHistoricalTitle =
         (result.domain === 'receber' || result.domain === 'pagar')
@@ -109,6 +114,15 @@ function toCandidate(
     pessoa_nome: relationValue(relation, 'nome'),
     valor_total: Number(row.valor_total ?? row.valor ?? 0),
   }
+}
+
+async function loadMappedProductIds(supabase: SupabaseClient): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('btx_vhsys_produto_map')
+    .select('vhsys_id_produto')
+    .eq('ignorar', false)
+    .not('produto_id', 'is', null)
+  return new Set((data ?? []).map((r) => String((r as { vhsys_id_produto: unknown }).vhsys_id_produto)))
 }
 
 async function loadCandidates(supabase: SupabaseClient): Promise<CandidateMap> {
@@ -205,11 +219,12 @@ export async function analyzeVhsys(
 
   const syncId = String(sync.id)
   try {
-    const [results, candidateMap] = await Promise.all([
+    const [results, candidateMap, mappedProductIds] = await Promise.all([
       runDomainImporters(client),
       loadCandidates(supabase),
+      loadMappedProductIds(supabase),
     ])
-    const rows = buildAnalysisItems(results, candidateMap)
+    const rows = buildAnalysisItems(results, candidateMap, mappedProductIds)
     if (rows.length > 0) {
       const { error } = await supabase
         .from('btx_vhsys_sincronizacao_itens')

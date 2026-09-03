@@ -502,7 +502,23 @@ CREATE POLICY "btx_admin_vhsys_saldos" ON btx_vhsys_saldos_bancarios
 CREATE POLICY "btx_admin_vhsys_estoque" ON btx_vhsys_estoque_atual
   FOR ALL USING (btx_get_my_role()='admin') WITH CHECK (btx_get_my_role()='admin');
 
--- Upsert de produto por id externo, preenchendo as unidades de medida exigidas.
+-- Mapa VHSYS -> produto local. Produto VHSYS sem linha aqui (ou com produto_id
+-- nulo) é ignorado na importação — nada é criado automaticamente.
+CREATE TABLE IF NOT EXISTS btx_vhsys_produto_map (
+  vhsys_id_produto TEXT PRIMARY KEY,
+  cod_produto TEXT,
+  desc_vhsys TEXT,
+  produto_id UUID REFERENCES btx_produtos(id),
+  ignorar BOOLEAN NOT NULL DEFAULT FALSE,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE btx_vhsys_produto_map ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "btx_admin_vhsys_produto_map" ON btx_vhsys_produto_map;
+CREATE POLICY "btx_admin_vhsys_produto_map" ON btx_vhsys_produto_map
+  FOR ALL USING (btx_get_my_role()='admin') WITH CHECK (btx_get_my_role()='admin');
+
+-- Resolve um produto VHSYS para o produto local mapeado. Retorna NULL quando
+-- não há mapeamento ou o mapeamento manda ignorar (o chamador então pula o item).
 CREATE OR REPLACE FUNCTION btx_vhsys_upsert_produto(p_nome TEXT, p_vhsys_id TEXT)
 RETURNS UUID
 LANGUAGE plpgsql
@@ -510,22 +526,16 @@ SECURITY INVOKER
 AS $$
 DECLARE
   v_id UUID;
-  v_base UUID;
-  v_maior UUID;
 BEGIN
-  SELECT id INTO v_id FROM btx_produtos WHERE vhsys_id_mg = p_vhsys_id;
-  IF v_id IS NOT NULL THEN
-    UPDATE btx_produtos SET nome = COALESCE(NULLIF(p_nome,''), nome), ativo = TRUE,
-      origem_sistema = 'vhsys', vhsys_synced_at = NOW() WHERE id = v_id;
-    RETURN v_id;
+  SELECT produto_id INTO v_id
+  FROM btx_vhsys_produto_map
+  WHERE vhsys_id_produto = p_vhsys_id AND ignorar = FALSE;
+  IF v_id IS NULL THEN
+    RETURN NULL;
   END IF;
-  SELECT id INTO v_base FROM btx_unidades_medida WHERE nome = 'Carteira' LIMIT 1;
-  SELECT id INTO v_maior FROM btx_unidades_medida WHERE nome = 'Caixa' LIMIT 1;
-  INSERT INTO btx_produtos(nome, unidade_base_id, unidade_maior_id, fator_conversao,
-    origem_sistema, vhsys_id_mg, vhsys_synced_at)
-  VALUES (COALESCE(NULLIF(p_nome,''),'Produto VHSYS'), v_base, v_maior, 480,
-    'vhsys', p_vhsys_id, NOW())
-  RETURNING id INTO v_id;
+  UPDATE btx_produtos
+  SET vhsys_id_mg = p_vhsys_id, vhsys_synced_at = NOW()
+  WHERE id = v_id AND vhsys_id_mg IS DISTINCT FROM p_vhsys_id;
   RETURN v_id;
 END;
 $$;
@@ -607,6 +617,11 @@ BEGIN
         v_local_id := btx_vhsys_upsert_produto(
           v_item.dados_normalizados->>'produto_nome', v_item.vhsys_id);
       END IF;
+      IF v_local_id IS NULL THEN
+        -- produto VHSYS não mapeado: ignora sem criar nada
+        UPDATE btx_vhsys_sincronizacao_itens SET aplicado_em = NOW() WHERE id = v_item.id;
+        CONTINUE;
+      END IF;
       INSERT INTO btx_vhsys_estoque_atual(
         unidade, produto_id, vhsys_produto_id, quantidade_atual,
         consultado_em, sincronizacao_id
@@ -670,6 +685,7 @@ BEGIN
       ) LOOP
         v_product_id := btx_vhsys_upsert_produto(
           v_child->>'produto_nome', v_child->>'produto_vhsys_id');
+        CONTINUE WHEN v_product_id IS NULL;
         INSERT INTO btx_vendas_itens(venda_id,produto_id,qtd_carteiras,valor)
         VALUES (
           v_local_id, v_product_id,
@@ -713,6 +729,7 @@ BEGIN
       ) LOOP
         v_product_id := btx_vhsys_upsert_produto(
           v_child->>'produto_nome', v_child->>'produto_vhsys_id');
+        CONTINUE WHEN v_product_id IS NULL;
         INSERT INTO btx_compras_itens(compra_id,produto_id,qtd_carteiras,valor)
         VALUES (
           v_local_id, v_product_id,
