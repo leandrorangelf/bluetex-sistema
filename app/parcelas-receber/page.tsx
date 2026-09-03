@@ -29,6 +29,7 @@ export default function ParcelasReceberPage() {
   const [rows, setRows] = useState<Parcela[]>([])
   const [pagMap, setPagMap] = useState<Map<string, PagamentoRow[]>>(new Map())
   const [clienteMap, setClienteMap] = useState<Map<string, string>>(new Map())
+  const [nfMap, setNfMap] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [statusFiltro, setStatusFiltro] = useState<(typeof STATUS)[number]['key']>('aberto')
   const [erro, setErro] = useState('')
@@ -63,15 +64,24 @@ export default function ParcelasReceberPage() {
 
     const vendaIds = [...new Set(parcelas.filter(p => p.origem === 'venda' && p.origem_id).map(p => p.origem_id as string))]
     const { data: vendas } = vendaIds.length
-      ? await sb.from('btx_vendas').select('id,cliente:btx_clientes(nome)').in('id', vendaIds)
+      ? await sb.from('btx_vendas').select('id,numero_nf,cliente:btx_clientes(nome)').in('id', vendaIds)
       : { data: [] }
-    const vendaCliente = new Map(((vendas ?? []) as { id: string; cliente: RelacaoNome }[]).map(v => [v.id, nomeRelacao(v.cliente) ?? '—']))
+    const vendaList = (vendas ?? []) as { id: string; numero_nf: string | null; cliente: RelacaoNome }[]
+    const vendaCliente = new Map(vendaList.map(v => [v.id, nomeRelacao(v.cliente) ?? '—']))
+    const vendaNf = new Map(vendaList.map(v => [v.id, v.numero_nf ?? '']))
     const cm = new Map<string, string>()
+    const nf = new Map<string, string>()
     for (const p of parcelas) {
-      if (p.origem === 'venda') cm.set(p.id, (p.origem_id && vendaCliente.get(p.origem_id)) || '—')
-      else cm.set(p.id, p.observacoes ?? '—')
+      if (p.origem === 'venda') {
+        cm.set(p.id, (p.origem_id && vendaCliente.get(p.origem_id)) || '—')
+        nf.set(p.id, (p.origem_id && vendaNf.get(p.origem_id)) || '—')
+      } else {
+        cm.set(p.id, p.observacoes ?? '—')
+        nf.set(p.id, p.numero_boleto ?? '—')
+      }
     }
     setClienteMap(cm)
+    setNfMap(nf)
 
     parcelas.sort((a, b) => (cm.get(a.id) ?? '').localeCompare(cm.get(b.id) ?? '') || a.vencimento.localeCompare(b.vencimento))
     setRows(parcelas)
@@ -148,12 +158,13 @@ export default function ParcelasReceberPage() {
         </div>
       </div>
       {erro && <div className="alert alert-red" role="alert">{erro}</div>}
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o recebimento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Cliente</th><th>Vencimento</th><th>Valor</th><th>Recebido</th><th>Saldo</th><th>Status</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>NF</th><th>Vencimento</th><th>Valor</th><th>Recebido</th><th>Saldo</th><th>Status</th><th>Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={7} className="empty-state">Carregando...</td></tr>
-            : rows.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhuma conta.</td></tr>
+            {loading ? <tr><td colSpan={8} className="empty-state">Carregando...</td></tr>
+            : rows.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma conta.</td></tr>
             : rows.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
               const recebido = somaPagos(r)
@@ -162,6 +173,7 @@ export default function ParcelasReceberPage() {
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
                   <td>{clienteMap.get(r.id) ?? '—'}</td>
+                  <td className="mono">{nfMap.get(r.id) ?? '—'}</td>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>
                     {formatData(r.vencimento)}
                     {emAberto && atraso > 0 && <span className="page-subtitle"> · {atraso} dia(s) em atraso</span>}
