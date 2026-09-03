@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData } from '@/lib/utils'
-import type { Compra, Venda } from '@/types'
+import type { Compra } from '@/types'
 import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
@@ -34,7 +34,7 @@ export default function EstoqueAtualPage() {
   const [auditoria, setAuditoria] = useState<AuditoriaEstoque[]>([])
   const [nomesUsuarios, setNomesUsuarios] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'movimentos' | 'auditoria'>('movimentos')
-  const [aba, setAba] = useState<'saldo' | 'entradas' | 'saidas'>('saldo')
+  const [aba, setAba] = useState<'saldo' | 'entradas'>('saldo')
   const [ajusteModal, setAjusteModal] = useState(false)
   const [ajusteForm, setAjusteForm] = useState(AJUSTE_VAZIO)
   const [ajusteEditId, setAjusteEditId] = useState<string | null>(null)
@@ -177,11 +177,9 @@ export default function EstoqueAtualPage() {
       <div className="tabs">
         <button className={`tab ${aba === 'saldo' ? 'active' : ''}`} onClick={() => setAba('saldo')}>Saldo</button>
         <button className={`tab ${aba === 'entradas' ? 'active' : ''}`} onClick={() => setAba('entradas')}>Entradas</button>
-        <button className={`tab ${aba === 'saidas' ? 'active' : ''}`} onClick={() => setAba('saidas')}>Saídas</button>
       </div>
 
       {aba === 'entradas' && <ListaEntradas />}
-      {aba === 'saidas' && <ListaSaidas />}
       {aba === 'saldo' && <>
       <div className="page-header stock-page-header">
         <div>
@@ -295,61 +293,6 @@ function ListaEntradas() {
                 <td>{(r.fornecedor as unknown as { nome: string })?.nome ?? '—'}</td>
                 <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: { nome: string } }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base?.nome ?? ''}</div>)}</td>
                 <td className="mono">{formatMoeda((r as unknown as { valor_st?: number }).valor_st ?? 0)}</td>
-                <td className="mono">{formatMoeda(r.valor_total)}</td>
-                <td style={{ display: 'flex', gap: 6 }}>
-                  {!isDiretoria && <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm && remove(confirm)} loading={saving} />
-    </div>
-  )
-}
-
-function ListaSaidas() {
-  const { profile, unidadeAtiva } = useAuth()
-  const isDiretoria = profile?.role === 'diretoria'
-  const [rows, setRows] = useState<Venda[]>([])
-  const [loading, setLoading] = useState(true)
-  const [confirm, setConfirm] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const sb = useMemo(() => createClient(), [])
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    let q = sb.from('btx_vendas').select('*, cliente:btx_clientes(id,nome), itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)))').eq('ativo', true).order('data_venda', { ascending: false })
-    if (unidadeAtiva) q = q.eq('unidade', unidadeAtiva)
-    const { data: d } = await q
-    setRows(d ?? [])
-    setLoading(false)
-  }, [sb, unidadeAtiva])
-
-  useEffect(() => { load() }, [load])
-
-  async function remove(id: string) {
-    setSaving(true)
-    await sb.from('btx_vendas').update({ ativo: false }).eq('id', id)
-    await sb.from('btx_parcelas').update({ ativo: false }).eq('origem_id', id)
-    setSaving(false); setConfirm(null); load()
-  }
-
-  return (
-    <div>
-      <div className="table-wrap">
-        <table>
-          <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Produtos</th><th>Total NF</th><th>Ações</th></tr></thead>
-          <tbody>
-            {loading ? <tr><td colSpan={6} className="empty-state">Carregando...</td></tr>
-            : rows.length === 0 ? <tr><td colSpan={6} className="empty-state">Nenhuma saída lançada.</td></tr>
-            : rows.map(r => (
-              <tr key={r.id}>
-                <td className="mono">{formatData(r.data_venda)}</td>
-                <td className="mono">{r.numero_nf ?? '—'}</td>
-                <td>{(r.cliente as unknown as { nome: string })?.nome ?? '—'}</td>
-                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: { nome: string } }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base?.nome ?? ''}</div>)}</td>
                 <td className="mono">{formatMoeda(r.valor_total)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
                   {!isDiretoria && <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>}

@@ -10,7 +10,7 @@ import { UNIDADES, type Unidade, type GrupoCategoria } from '@/types'
 import FormMovimento from '@/components/lancar/FormMovimento'
 import FormDespesa from '@/components/lancar/FormDespesa'
 
-type Aba = 'entrada' | 'saida' | 'despesa' | 'receber' | 'saldo'
+type Aba = 'entrada' | 'despesa' | 'receber' | 'saldo'
 type Categoria = { id: string; nome: string; grupo: GrupoCategoria }
 type Cliente = { id: string; nome: string }
 
@@ -63,7 +63,6 @@ export default function LancarPage() {
         <>
           <div className="tabs">
             <button className={`tab${aba === 'entrada' ? ' active' : ''}`} onClick={() => { setAba('entrada'); setMsg(null) }}>Entrada</button>
-            <button className={`tab${aba === 'saida' ? ' active' : ''}`} onClick={() => { setAba('saida'); setMsg(null) }}>Saída</button>
             <button className={`tab${aba === 'despesa' ? ' active' : ''}`} onClick={() => { setAba('despesa'); setMsg(null) }}>Despesa</button>
             <button className={`tab${aba === 'receber' ? ' active' : ''}`} onClick={() => { setAba('receber'); setMsg(null) }}>Recebimento</button>
             <button className={`tab${aba === 'saldo' ? ' active' : ''}`} onClick={() => { setAba('saldo'); setMsg(null) }}>Ajustar saldo</button>
@@ -71,9 +70,8 @@ export default function LancarPage() {
 
           {msg && <div className={`alert ${msg.tipo === 'ok' ? 'alert-green' : 'alert-red'}`} style={{ marginBottom: 16 }}>{msg.texto}</div>}
 
-          <div className="card" style={{ maxWidth: aba === 'entrada' || aba === 'saida' ? 720 : 560 }}>
+          <div className="card" style={{ maxWidth: aba === 'entrada' ? 720 : 560 }}>
             {aba === 'entrada' && <FormMovimento tipo="compra" unidade={unidade} onResult={setMsg} />}
-            {aba === 'saida' && <FormMovimento tipo="venda" unidade={unidade} onResult={setMsg} />}
             {aba === 'despesa' && <FormDespesa unidade={unidade} categorias={categorias} onResult={setMsg} />}
             {aba === 'receber' && <FormReceber sb={sb} unidade={unidade} clientes={clientes} saving={saving} setSaving={setSaving} onResult={setMsg} />}
             {aba === 'saldo' && <FormSaldo sb={sb} unidade={unidade} saving={saving} setSaving={setSaving} onResult={setMsg} />}

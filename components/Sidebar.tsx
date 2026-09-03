@@ -7,6 +7,7 @@ import { UNIDADES, type Unidade } from '@/types'
 const NAV = [
   { href: '/dashboard', label: 'Painel' },
   { href: '/lancar', label: 'Lançar' },
+  { href: '/vendas', label: 'Vendas' },
   { href: '/parcelas-pagar', label: 'Contas a Pagar' },
   { href: '/parcelas-receber', label: 'Contas a Receber' },
   { href: '/estoque-atual', label: 'Estoque' },
