@@ -7,20 +7,26 @@ interface Props {
   onSelectProduto?: (produtoId: string) => void
 }
 
-function qtd(valor: number) { return valor.toLocaleString('pt-BR') }
-
 export default function TabelaSaldosEstoque({ saldos, produtoSelecionado, onSelectProduto }: Props) {
+  const cx = (base: number, fator: number) => converterParaUnidadeMaior(base, fator)
   return (
     <section className="stock-panel">
       <div className="stock-panel-heading">
         <div><span className="stock-eyebrow">Posição consolidada</span><h2>Saldo por produto</h2></div>
-        <span className="stock-panel-count">{saldos.length} produtos</span>
+        <span className="stock-panel-count">{saldos.length} produtos · caixas</span>
       </div>
       <div className="table-wrap">
         <table className="stock-balance-table">
-          <thead><tr><th>Produto</th><th>Saldo inicial</th><th>Entrada do mês</th><th>Saída do mês</th><th>Ajustes</th><th>Saldo atual</th><th>Equivalente</th></tr></thead>
+          <thead><tr>
+            <th>Produto</th>
+            <th className="num">Inicial</th>
+            <th className="num">Entrada</th>
+            <th className="num">Saída</th>
+            <th className="num">Ajustes</th>
+            <th className="num">Saldo</th>
+          </tr></thead>
           <tbody>
-            {saldos.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhum produto encontrado.</td></tr> : saldos.map(item => {
+            {saldos.length === 0 ? <tr><td colSpan={6} className="empty-state">Nenhum produto encontrado.</td></tr> : saldos.map(item => {
               const ajustes = item.ajustesEntrada - item.ajustesSaida
               const selecionado = produtoSelecionado === item.produtoId
               return (
@@ -29,13 +35,12 @@ export default function TabelaSaldosEstoque({ saldos, produtoSelecionado, onSele
                   className={onSelectProduto ? `stock-row-clickable${selecionado ? ' stock-row-selected' : ''}` : ''}
                   onClick={onSelectProduto ? () => onSelectProduto(selecionado ? '' : item.produtoId) : undefined}
                 >
-                  <td><strong>{item.produtoNome}</strong><small className="stock-unit-caption">{item.unidadeBase ?? 'unidade base'}</small></td>
-                  <td className="mono">{qtd(item.saldoInicioMes)}</td>
-                  <td className="mono stock-positive">+{converterParaUnidadeMaior(item.compras, item.fatorConversao)} {item.unidadeMaior ?? ''}</td>
-                  <td className="mono stock-negative">−{converterParaUnidadeMaior(item.vendas, item.fatorConversao)} {item.unidadeMaior ?? ''}</td>
-                  <td className={`mono ${ajustes < 0 ? 'stock-negative' : ajustes > 0 ? 'stock-positive' : ''}`}>{ajustes > 0 ? '+' : ''}{qtd(ajustes)}</td>
-                  <td className={`mono stock-current ${item.saldoAtual < 0 ? 'stock-negative' : ''}`}>{qtd(item.saldoAtual)}</td>
-                  <td className="mono">{converterParaUnidadeMaior(item.saldoAtual, item.fatorConversao)} {item.unidadeMaior ?? ''}</td>
+                  <td><strong>{item.produtoNome}</strong></td>
+                  <td className="mono num">{cx(item.saldoInicioMes, item.fatorConversao)}</td>
+                  <td className="mono num stock-positive">{item.compras ? `+${cx(item.compras, item.fatorConversao)}` : '—'}</td>
+                  <td className="mono num stock-negative">{item.vendas ? `−${cx(item.vendas, item.fatorConversao)}` : '—'}</td>
+                  <td className={`mono num ${ajustes < 0 ? 'stock-negative' : ajustes > 0 ? 'stock-positive' : ''}`}>{ajustes ? `${ajustes > 0 ? '+' : '−'}${cx(Math.abs(ajustes), item.fatorConversao)}` : '—'}</td>
+                  <td className={`mono num stock-current ${item.saldoAtual < 0 ? 'stock-negative' : ''}`}>{cx(item.saldoAtual, item.fatorConversao)}</td>
                 </tr>
               )
             })}

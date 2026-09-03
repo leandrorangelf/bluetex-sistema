@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData } from '@/lib/utils'
+import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData, itensCaixas } from '@/lib/utils'
 import type { Compra } from '@/types'
 import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
@@ -282,7 +282,7 @@ function ListaEntradas() {
     <div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Data</th><th>NF</th><th>Fornecedor</th><th>Produtos</th><th>ST</th><th>Total NF</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Data</th><th>NF</th><th>Fornecedor</th><th>Produtos (caixas)</th><th className="num">ST</th><th className="num">Total NF</th><th className="num">Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={7} className="empty-state">Carregando...</td></tr>
             : rows.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhuma entrada lançada.</td></tr>
@@ -291,9 +291,9 @@ function ListaEntradas() {
                 <td className="mono">{formatData(r.data_compra)}</td>
                 <td className="mono">{r.numero_nf ?? '—'}</td>
                 <td>{(r.fornecedor as unknown as { nome: string })?.nome ?? '—'}</td>
-                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: { nome: string } }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base?.nome ?? ''}</div>)}</td>
-                <td className="mono">{formatMoeda((r as unknown as { valor_st?: number }).valor_st ?? 0)}</td>
-                <td className="mono">{formatMoeda(r.valor_total)}</td>
+                <td className="cell-wrap" style={{ fontSize: 12 }}>{itensCaixas(r.itens)}</td>
+                <td className="mono num">{formatMoeda((r as unknown as { valor_st?: number }).valor_st ?? 0)}</td>
+                <td className="mono num">{formatMoeda(r.valor_total)}</td>
                 <td className="cell-actions">
                   {!isDiretoria && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
                 </td>

@@ -177,7 +177,7 @@ export default function ParcelasPagarPage() {
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o pagamento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={8} className="empty-state">Carregando...</td></tr>
             : visiveis.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma conta.</td></tr>
@@ -189,9 +189,9 @@ export default function ParcelasPagarPage() {
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
                   <td className="mono">{nfMap.get(r.id) ?? '—'}</td>
-                  <td className="mono" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
-                  <td className="mono">{pago > 0 ? formatMoeda(pago) : '—'}</td>
-                  <td className="mono">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
+                  <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
+                  <td className="mono num">{pago > 0 ? formatMoeda(pago) : '—'}</td>
+                  <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
                   <td>{badge(r)}</td>
                   <td className="cell-actions">
                     {!isDiretoria && (
