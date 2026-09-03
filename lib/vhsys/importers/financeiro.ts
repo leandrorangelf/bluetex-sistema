@@ -50,13 +50,20 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
     ) {
       return []
     }
+    const pessoa = String(first(row, c.pessoa) ?? '')
+    const contaNome = String(first(row, ['nome_conta', 'descricao', 'identificacao']) ?? '')
+    const descricao = [pessoa, contaNome]
+      .filter((v, i, a) => v && a.indexOf(v) === i)
+      .join(' · ')
     return [{
       domain: c.domain,
       externalId: String(first(row, c.id)),
       data: {
-        numero_documento: String(first(row, c.documento) ?? ''),
+        numero_documento: String(
+          first(row, [...c.documento, 'NossoNumero', 'id_boleto']) ?? '',
+        ),
         documento_pessoa: '',
-        pessoa_nome: String(first(row, c.pessoa) ?? ''),
+        pessoa_nome: pessoa,
         pessoa_vhsys_id: String(first(row, c.pessoaId) ?? ''),
         data: isoDate(first(row, ['data_emissao', 'data_competencia'])),
         vencimento,
@@ -64,7 +71,9 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
         valor_pago: money(first(row, c.valorPago)),
         status: 'pendente',
         liquidado: false,
-        observacoes: String(first(row, c.observacoes) ?? ''),
+        // a tela mostra 'observacoes' na coluna Cliente (receber) / Origem (pagar)
+        observacoes: descricao || String(first(row, c.observacoes) ?? ''),
+        link_boleto: String(row.link_boleto ?? ''),
       },
     }]
   })
