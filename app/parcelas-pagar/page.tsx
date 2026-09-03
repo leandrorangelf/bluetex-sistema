@@ -26,6 +26,7 @@ export default function ParcelasPagarPage() {
   const [rows, setRows] = useState<Parcela[]>([])
   const [pagMap, setPagMap] = useState<Map<string, PagamentoRow[]>>(new Map())
   const [origemMap, setOrigemMap] = useState<Map<string, string>>(new Map())
+  const [nfMap, setNfMap] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [statusFiltro, setStatusFiltro] = useState<(typeof STATUS)[number]['key']>('aberto')
   const [origemFiltro, setOrigemFiltro] = useState<(typeof ORIGENS)[number]>('todos')
@@ -64,21 +65,34 @@ export default function ParcelasPagarPage() {
     const compraIds = origemIds('compra')
     const despesaIds = origemIds('despesa')
     const [compras, despesas] = await Promise.all([
-      compraIds.length ? sb.from('btx_compras').select('id,fornecedor:btx_fornecedores(nome)').in('id', compraIds) : Promise.resolve({ data: [] }),
-      despesaIds.length ? sb.from('btx_despesas').select('id,descricao,categoria:btx_categorias_despesas(nome)').in('id', despesaIds) : Promise.resolve({ data: [] }),
+      compraIds.length ? sb.from('btx_compras').select('id,numero_nf,fornecedor:btx_fornecedores(nome)').in('id', compraIds) : Promise.resolve({ data: [] }),
+      despesaIds.length ? sb.from('btx_despesas').select('id,numero_nf,descricao,categoria:btx_categorias_despesas(nome)').in('id', despesaIds) : Promise.resolve({ data: [] }),
     ])
-    const compraNome = new Map(((compras.data ?? []) as { id: string; fornecedor: RelacaoNome }[]).map(c => [c.id, nomeRelacao(c.fornecedor) ?? 'Compra']))
-    const despesaTxt = new Map(((despesas.data ?? []) as { id: string; descricao: string; categoria: RelacaoNome }[]).map(d => {
+    const compraData = (compras.data ?? []) as { id: string; numero_nf: string | null; fornecedor: RelacaoNome }[]
+    const despesaData = (despesas.data ?? []) as { id: string; numero_nf: string | null; descricao: string; categoria: RelacaoNome }[]
+    const compraNome = new Map(compraData.map(c => [c.id, nomeRelacao(c.fornecedor) ?? 'Compra']))
+    const compraNf = new Map(compraData.map(c => [c.id, c.numero_nf ?? '']))
+    const despesaNf = new Map(despesaData.map(d => [d.id, d.numero_nf ?? '']))
+    const despesaTxt = new Map(despesaData.map(d => {
       const cat = nomeRelacao(d.categoria)
       return [d.id, d.descricao + (cat ? ` · ${cat}` : '')]
     }))
     const om = new Map<string, string>()
+    const nf = new Map<string, string>()
     for (const p of parcelas) {
-      if (p.origem === 'compra') om.set(p.id, (p.origem_id && compraNome.get(p.origem_id)) || 'Compra')
-      else if (p.origem === 'despesa') om.set(p.id, (p.origem_id && despesaTxt.get(p.origem_id)) || 'Despesa')
-      else om.set(p.id, p.observacoes ?? '—')
+      if (p.origem === 'compra') {
+        om.set(p.id, (p.origem_id && compraNome.get(p.origem_id)) || 'Compra')
+        nf.set(p.id, (p.origem_id && compraNf.get(p.origem_id)) || '—')
+      } else if (p.origem === 'despesa') {
+        om.set(p.id, (p.origem_id && despesaTxt.get(p.origem_id)) || 'Despesa')
+        nf.set(p.id, (p.origem_id && despesaNf.get(p.origem_id)) || '—')
+      } else {
+        om.set(p.id, p.observacoes ?? '—')
+        nf.set(p.id, p.numero_boleto ?? '—')
+      }
     }
     setOrigemMap(om)
+    setNfMap(nf)
     setLoading(false)
   }
 
@@ -160,12 +174,13 @@ export default function ParcelasPagarPage() {
         ))}
       </div>
       {erro && <div className="alert alert-red" role="alert">{erro}</div>}
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o pagamento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Vencimento</th><th>Origem</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={7} className="empty-state">Carregando...</td></tr>
-            : visiveis.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhuma conta.</td></tr>
+            {loading ? <tr><td colSpan={8} className="empty-state">Carregando...</td></tr>
+            : visiveis.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma conta.</td></tr>
             : visiveis.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
               const pago = somaPagos(r)
@@ -173,6 +188,7 @@ export default function ParcelasPagarPage() {
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
                   <td>{origemMap.get(r.id) ?? '—'}</td>
+                  <td className="mono">{nfMap.get(r.id) ?? '—'}</td>
                   <td className="mono" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono">{pago > 0 ? formatMoeda(pago) : '—'}</td>
                   <td className="mono">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
