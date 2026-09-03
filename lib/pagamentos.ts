@@ -27,6 +27,19 @@ function comoPagamentoParcela(rows: PagamentoRow[]): PagamentoParcela[] {
   return rows.map(p => ({ id: p.id, parcela_id: p.parcela_id, valor: p.valor, data_pagamento: p.data_pagamento }))
 }
 
+// Recalcula status/data de uma parcela a partir dos pagamentos registrados.
+// Não mexe em parcela cancelada.
+export async function sincronizarParcela(
+  sb: SupabaseClient,
+  parcela: { id: string; valor: number; status?: string },
+): Promise<{ error: string | null }> {
+  if (parcela.status === 'cancelado') return { error: null }
+  const todos = await listarPagamentos(sb, [parcela.id])
+  const { status, dataPagamento } = calcularStatusPagamento(Number(parcela.valor), comoPagamentoParcela(todos))
+  const upd = await sb.from('btx_parcelas').update({ status, data_pagamento: dataPagamento }).eq('id', parcela.id)
+  return { error: upd.error ? 'Status da parcela não atualizou.' : null }
+}
+
 // Registra 1 pagamento (total ou parcial) e re-sincroniza status/data da parcela.
 export async function registrarPagamento(
   sb: SupabaseClient,
@@ -40,11 +53,7 @@ export async function registrarPagamento(
     observacoes: dados.observacoes || null,
   })
   if (ins.error) return { error: 'Não foi possível registrar o pagamento.' }
-
-  const todos = await listarPagamentos(sb, [parcela.id])
-  const { status, dataPagamento } = calcularStatusPagamento(Number(parcela.valor), comoPagamentoParcela(todos))
-  const upd = await sb.from('btx_parcelas').update({ status, data_pagamento: dataPagamento }).eq('id', parcela.id)
-  return { error: upd.error ? 'Pagamento salvo, mas o status não atualizou.' : null }
+  return sincronizarParcela(sb, parcela)
 }
 
 export async function excluirPagamento(
@@ -54,9 +63,5 @@ export async function excluirPagamento(
 ): Promise<{ error: string | null }> {
   const del = await sb.from('btx_pagamentos_parcela').delete().eq('id', pagamentoId)
   if (del.error) return { error: 'Não foi possível excluir o pagamento.' }
-
-  const todos = await listarPagamentos(sb, [parcela.id])
-  const { status, dataPagamento } = calcularStatusPagamento(Number(parcela.valor), comoPagamentoParcela(todos))
-  await sb.from('btx_parcelas').update({ status, data_pagamento: dataPagamento }).eq('id', parcela.id)
-  return { error: null }
+  return sincronizarParcela(sb, parcela)
 }

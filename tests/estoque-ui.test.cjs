@@ -102,7 +102,7 @@ test('menu e estilos incluem Estoque Atual', () => {
   const sidebar = read('components/Sidebar.tsx')
   const css = read('app/globals.css')
 
-  assert.match(sidebar, /href: '\/estoque-atual', label: 'Estoque Atual'/)
+  assert.match(sidebar, /href: '\/estoque-atual', label: 'Estoque'/)
   assert.match(css, /\.stock-summary-grid/)
   assert.match(css, /\.stock-tabs/)
   assert.match(css, /@media \(max-width: 900px\)/)
