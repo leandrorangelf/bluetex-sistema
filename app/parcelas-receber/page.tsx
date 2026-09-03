@@ -172,7 +172,7 @@ export default function ParcelasReceberPage() {
               const atraso = vencida ? diasAtraso(r.vencimento, hojeStr) : 0
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
-                  <td>{clienteMap.get(r.id) ?? '—'}</td>
+                  <td className="cell-wrap">{clienteMap.get(r.id) ?? '—'}</td>
                   <td className="mono">{nfMap.get(r.id) ?? '—'}</td>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>
                     {formatData(r.vencimento)}
@@ -182,12 +182,14 @@ export default function ParcelasReceberPage() {
                   <td className="mono">{recebido > 0 ? formatMoeda(recebido) : '—'}</td>
                   <td className="mono">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
                   <td>{badge(r)}</td>
-                  <td style={{ display: 'flex', gap: 4 }}>
-                    {!isDiretoria && <>
-                      {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setReceberRow(r)}>Receber</button>}
-                      <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
-                    </>}
+                  <td className="cell-actions">
+                    {!isDiretoria && (
+                      <div className="row-actions">
+                        {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setReceberRow(r)}>Receber</button>}
+                        <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )

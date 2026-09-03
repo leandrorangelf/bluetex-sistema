@@ -1,13 +1,104 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
-import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, hoje } from '@/lib/utils'
+import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, hoje, ordenarProdutos, converterParaUnidadeMaior } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar } from '@/lib/painel-resumo'
-import { UNIDADES, type Unidade, type GrupoCategoria } from '@/types'
+import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
+import { UNIDADES, type Unidade, type GrupoCategoria, type Produto, type AjusteEstoque } from '@/types'
 import Modal from '@/components/Modal'
+
+interface LinhaEstoque {
+  id: string; nome: string; fator: number; unidadeBase: string; unidadeMaior: string
+  saldos: Record<string, number>
+}
+
+async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number, mes: number, alvos: string[]): Promise<LinhaEstoque[]> {
+  const [produtosRes, aberturasRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
+    sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true),
+    sb.from('btx_estoque_inicial').select('id,unidade,produto_id,mes,ano,qtd_carteiras').in('unidade', alvos),
+    sb.from('btx_compras').select('id,unidade,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
+    sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
+    sb.from('btx_ajustes_estoque').select('*').eq('ativo', true).in('unidade', alvos),
+  ])
+  const produtosNorm = normalizarProdutosEstoque(ordenarProdutos((produtosRes.data ?? []) as Produto[]))
+  const aberturas = (aberturasRes.data ?? []) as (AberturaEstoqueDb & { unidade: string })[]
+  const compras = (comprasRes.data ?? []) as unknown as (CompraEstoqueDb & { unidade: string })[]
+  const vendas = (vendasRes.data ?? []) as unknown as (VendaEstoqueDb & { unidade: string })[]
+  const ajustes = (ajustesRes.data ?? []) as AjusteEstoque[]
+
+  const saldosPorProduto = new Map<string, Record<string, number>>()
+  for (const u of alvos) {
+    const painel = calcularEstoque({
+      ano, mes, produtos: produtosNorm,
+      aberturas: normalizarAberturasEstoque(aberturas.filter(a => a.unidade === u)),
+      movimentos: normalizarMovimentosEstoque(compras.filter(c => c.unidade === u), vendas.filter(v => v.unidade === u), ajustes.filter(a => a.unidade === u)),
+    })
+    for (const s of painel.saldos) {
+      const r = saldosPorProduto.get(s.produtoId) ?? {}
+      r[u] = s.saldoAtual
+      saldosPorProduto.set(s.produtoId, r)
+    }
+  }
+  return produtosNorm.map(p => ({
+    id: p.id, nome: p.nome, fator: p.fatorConversao,
+    unidadeBase: p.unidadeBase ?? '', unidadeMaior: p.unidadeMaior ?? '',
+    saldos: saldosPorProduto.get(p.id) ?? {},
+  }))
+}
+
+function SecaoEstoque({ linhas, unidadeUnica }: { linhas: LinhaEstoque[]; unidadeUnica: string | null }) {
+  const comSaldo = linhas.filter(l => Object.keys(l.saldos).length > 0)
+  if (comSaldo.length === 0) return null
+  const cx = (base: number, fator: number, nome: string) => nome ? ` (${converterParaUnidadeMaior(base, fator)} ${nome})` : ''
+  return (
+    <div className="card" style={{ marginTop: 24 }}>
+      <Link href="/estoque-atual" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)', marginBottom: 16 }}>Estoque</div>
+      </Link>
+      <div className="table-wrap">
+        <table>
+          {unidadeUnica ? (
+            <>
+              <thead><tr><th>Produto</th><th>Saldo</th></tr></thead>
+              <tbody>
+                {comSaldo.map(l => {
+                  const v = l.saldos[unidadeUnica] ?? 0
+                  return (
+                    <tr key={l.id}>
+                      <td style={{ fontSize: 12 }}>{l.nome}</td>
+                      <td className={`mono${v < 0 ? ' text-red' : ''}`}>{v.toLocaleString('pt-BR')} {l.unidadeBase}{cx(v, l.fator, l.unidadeMaior)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </>
+          ) : (
+            <>
+              <thead><tr><th>Produto</th><th>MG</th><th>SC</th><th>AM</th><th>Total</th></tr></thead>
+              <tbody>
+                {comSaldo.map(l => {
+                  const cells = UNIDADES.map(u => l.saldos[u] ?? 0)
+                  const total = cells.reduce((a, b) => a + b, 0)
+                  return (
+                    <tr key={l.id}>
+                      <td style={{ fontSize: 12 }}>{l.nome}</td>
+                      {cells.map((v, i) => <td key={i} className={`mono${v < 0 ? ' text-red' : ''}`}>{v.toLocaleString('pt-BR')}</td>)}
+                      <td className={`mono${total < 0 ? ' text-red' : ''}`}>{total.toLocaleString('pt-BR')} {l.unidadeBase}{cx(total, l.fator, l.unidadeMaior)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </>
+          )}
+        </table>
+      </div>
+    </div>
+  )
+}
 
 const SHORT: Record<string, string> = { 'NEW BLUETEX MG': 'MG', 'NEW BLUETEX SC': 'SC', 'NEW BLUETEX AM': 'AM' }
 
@@ -193,6 +284,7 @@ export default function DashboardPage() {
   const [ano, setAno] = useState(anoAtual())
   const [aba, setAba] = useState<'consolidado' | Unidade>('consolidado')
   const [porUnidade, setPorUnidade] = useState<Partial<Record<string, ResumoUnidade>>>({})
+  const [estoque, setEstoque] = useState<LinhaEstoque[]>([])
   const [loading, setLoading] = useState(true)
   const [contaAberta, setContaAberta] = useState<ContaPagar | null>(null)
   const hojeStr = new Date().toISOString().slice(0, 10)
@@ -203,9 +295,13 @@ export default function DashboardPage() {
     const alvos = veTudo ? UNIDADES : (unidadeAtiva ? [unidadeAtiva] : [])
     const res: Partial<Record<string, ResumoUnidade>> = {}
     try {
-      const settled = await Promise.allSettled(alvos.map(u => carregarUnidade(sb, u, ano, mes, hojeStr)))
+      const [settled, linhasEstoque] = await Promise.all([
+        Promise.allSettled(alvos.map(u => carregarUnidade(sb, u, ano, mes, hojeStr))),
+        alvos.length ? carregarEstoque(sb, ano, mes, alvos).catch(() => [] as LinhaEstoque[]) : Promise.resolve([] as LinhaEstoque[]),
+      ])
       settled.forEach((s, i) => { if (s.status === 'fulfilled') res[alvos[i]] = s.value })
       setPorUnidade(res)
+      setEstoque(linhasEstoque)
     } finally {
       setLoading(false)
     }
@@ -296,6 +392,13 @@ export default function DashboardPage() {
             />
           </div>
         </>
+      )}
+
+      {!loading && (
+        <SecaoEstoque
+          linhas={estoque}
+          unidadeUnica={veTudo ? (aba === 'consolidado' ? null : aba) : (unidadeAtiva ?? null)}
+        />
       )}
     </div>
   )
