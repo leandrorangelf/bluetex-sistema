@@ -2,9 +2,9 @@ import type { VhsysClient } from '../client'
 import { VHSYS_ZERO_DATE, includeAccount, isoDate, money } from '../normalizers'
 import type { ImportedItem } from './shared'
 
-// ponytail: só traz título aberto com vencimento a partir do marco zero e valor
-// relevante. A conta VHSYS acumula resíduos de centavos (juro/multa/arredondamento)
-// marcados "em aberto" há anos — sem esse corte, entram todos como conta vencida.
+// ponytail: só traz título aberto, não estornado/lixeira, com vencimento a partir
+// do marco zero e valor relevante. A conta VHSYS acumula resíduos de centavos e
+// contas estornadas marcadas "em aberto" — sem esse corte, entra tudo.
 const VALOR_MINIMO = 1
 
 function first(row: Record<string, unknown>, keys: string[]): unknown {
@@ -14,62 +14,90 @@ function first(row: Record<string, unknown>, keys: string[]): unknown {
   return undefined
 }
 
-export async function importReceber(client: VhsysClient): Promise<ImportedItem[]> {
-  const rows = await client.list<Record<string, unknown>>('/contas-receber')
+function descartada(row: Record<string, unknown>): boolean {
+  const lixeira = String(row.lixeira ?? 'Nao').trim().toLocaleLowerCase('pt-BR')
+  const situacao = String(first(row, ['situacao', 'status_conta']) ?? '')
+    .toLocaleLowerCase('pt-BR')
+  return lixeira === 'sim'
+    || situacao.includes('estorn')
+    || situacao.includes('cancel')
+}
 
+interface Campos {
+  domain: 'receber' | 'pagar'
+  id: string[]
+  liquidado: string[]
+  vencimento: string[]
+  valor: string[]
+  documento: string[]
+  pessoa: string[]
+  pessoaId: string[]
+  observacoes: string[]
+  valorPago: string[]
+}
+
+function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
   return rows.flatMap((row) => {
-    const aberto = includeAccount(first(row, ['liquidado_rec', 'liquidado']))
-    const vencimento = isoDate(first(row, ['vencimento_rec', 'data_vencimento', 'vencimento']))
-    const valorTotal = money(first(row, ['valor_rec', 'valor_documento', 'valor', 'valor_total']))
-    if (!aberto || vencimento === null || vencimento < VHSYS_ZERO_DATE || valorTotal < VALOR_MINIMO) {
+    const aberto = includeAccount(first(row, c.liquidado))
+    const vencimento = isoDate(first(row, c.vencimento))
+    const valorTotal = money(first(row, c.valor))
+    if (
+      descartada(row)
+      || !aberto
+      || vencimento === null
+      || vencimento < VHSYS_ZERO_DATE
+      || valorTotal < VALOR_MINIMO
+    ) {
       return []
     }
     return [{
-      domain: 'receber' as const,
-      externalId: String(first(row, ['id_conta_rec', 'id_conta_receber', 'id'])),
+      domain: c.domain,
+      externalId: String(first(row, c.id)),
       data: {
-        numero_documento: String(first(row, ['n_documento_rec', 'n_documento', 'numero_documento']) ?? ''),
+        numero_documento: String(first(row, c.documento) ?? ''),
         documento_pessoa: '',
-        pessoa_nome: String(first(row, ['nome_cliente', 'razao_cliente', 'cliente', 'nome']) ?? ''),
-        pessoa_vhsys_id: String(first(row, ['id_cliente', 'id_cliente_fornecedor']) ?? ''),
+        pessoa_nome: String(first(row, c.pessoa) ?? ''),
+        pessoa_vhsys_id: String(first(row, c.pessoaId) ?? ''),
         data: isoDate(first(row, ['data_emissao', 'data_competencia'])),
         vencimento,
         valor_total: valorTotal,
-        valor_pago: money(first(row, ['valor_pago', 'valor_pago_rec'])),
+        valor_pago: money(first(row, c.valorPago)),
         status: 'pendente',
         liquidado: false,
-        observacoes: String(first(row, ['observacoes_rec', 'observacao', 'observacoes', 'descricao']) ?? ''),
+        observacoes: String(first(row, c.observacoes) ?? ''),
       },
     }]
   })
 }
 
+export async function importReceber(client: VhsysClient): Promise<ImportedItem[]> {
+  const rows = await client.list<Record<string, unknown>>('/contas-receber')
+  return importar(rows, {
+    domain: 'receber',
+    id: ['id_conta_rec', 'id_conta_receber', 'id'],
+    liquidado: ['liquidado_rec', 'liquidado'],
+    vencimento: ['vencimento_rec', 'data_vencimento', 'vencimento'],
+    valor: ['valor_rec', 'valor_documento', 'valor', 'valor_total'],
+    documento: ['n_documento_rec', 'n_documento', 'numero_documento'],
+    pessoa: ['nome_cliente', 'razao_cliente', 'nome_conta', 'cliente', 'nome'],
+    pessoaId: ['id_cliente', 'id_cliente_fornecedor'],
+    observacoes: ['observacoes_rec', 'nome_conta', 'observacao', 'observacoes', 'descricao'],
+    valorPago: ['valor_pago', 'valor_pago_rec'],
+  })
+}
+
 export async function importPagar(client: VhsysClient): Promise<ImportedItem[]> {
   const rows = await client.list<Record<string, unknown>>('/contas-pagar')
-
-  return rows.flatMap((row) => {
-    const aberto = includeAccount(first(row, ['liquidado_pag', 'liquidado']))
-    const vencimento = isoDate(first(row, ['vencimento_pag', 'data_vencimento', 'vencimento']))
-    const valorTotal = money(first(row, ['valor_pag', 'valor_documento', 'valor', 'valor_total']))
-    if (!aberto || vencimento === null || vencimento < VHSYS_ZERO_DATE || valorTotal < VALOR_MINIMO) {
-      return []
-    }
-    return [{
-      domain: 'pagar' as const,
-      externalId: String(first(row, ['id_conta_pag', 'id_conta_pagar', 'id'])),
-      data: {
-        numero_documento: String(first(row, ['n_documento_pag', 'n_documento', 'numero_documento']) ?? ''),
-        documento_pessoa: '',
-        pessoa_nome: String(first(row, ['nome_fornecedor', 'razao_fornecedor', 'nome_conta', 'fornecedor', 'nome']) ?? ''),
-        pessoa_vhsys_id: String(first(row, ['id_fornecedor', 'id_cliente_fornecedor']) ?? ''),
-        data: isoDate(first(row, ['data_emissao', 'data_competencia'])),
-        vencimento,
-        valor_total: valorTotal,
-        valor_pago: money(first(row, ['valor_pago', 'valor_pago_pag'])),
-        status: 'pendente',
-        liquidado: false,
-        observacoes: String(first(row, ['observacoes_pag', 'observacao', 'observacoes', 'descricao']) ?? ''),
-      },
-    }]
+  return importar(rows, {
+    domain: 'pagar',
+    id: ['id_conta_pag', 'id_conta_pagar', 'id'],
+    liquidado: ['liquidado_pag', 'liquidado'],
+    vencimento: ['vencimento_pag', 'data_vencimento', 'vencimento'],
+    valor: ['valor_pag', 'valor_documento', 'valor', 'valor_total'],
+    documento: ['n_documento_pag', 'n_documento', 'numero_documento'],
+    pessoa: ['nome_fornecedor', 'razao_fornecedor', 'nome_conta', 'fornecedor', 'nome'],
+    pessoaId: ['id_fornecedor', 'id_cliente_fornecedor'],
+    observacoes: ['observacoes_pag', 'nome_conta', 'observacao', 'observacoes', 'descricao'],
+    valorPago: ['valor_pago', 'valor_pago_pag'],
   })
 }

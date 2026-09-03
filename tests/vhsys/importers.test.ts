@@ -52,6 +52,8 @@ describe('importadores VHSYS', () => {
         { id_conta_rec: 2, liquidado_rec: 'Sim', valor_rec: '80.00', vencimento_rec: '2026-08-10' },
         { id_conta_rec: 3, liquidado_rec: 'Nao', valor_rec: '50.00', vencimento_rec: '2025-11-01' },
         { id_conta_rec: 4, liquidado_rec: 'Nao', valor_rec: '0.06', vencimento_rec: '2026-09-01' },
+        { id_conta_rec: 5, liquidado_rec: 'Nao', valor_rec: '90.00', vencimento_rec: '2026-09-01', lixeira: 'Sim' },
+        { id_conta_rec: 6, liquidado_rec: 'Nao', valor_rec: '90.00', vencimento_rec: '2026-09-01', situacao: 'Conta estornada.' },
       ]),
     }
     const { importReceber } = await import('@/lib/vhsys/importers/financeiro')
