@@ -2,9 +2,11 @@
 export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos } from '@/lib/utils'
+import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData } from '@/lib/utils'
+import type { Compra, Venda } from '@/types'
 import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
@@ -32,6 +34,7 @@ export default function EstoqueAtualPage() {
   const [auditoria, setAuditoria] = useState<AuditoriaEstoque[]>([])
   const [nomesUsuarios, setNomesUsuarios] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'movimentos' | 'auditoria'>('movimentos')
+  const [aba, setAba] = useState<'saldo' | 'entradas' | 'saidas'>('saldo')
   const [ajusteModal, setAjusteModal] = useState(false)
   const [ajusteForm, setAjusteForm] = useState(AJUSTE_VAZIO)
   const [ajusteEditId, setAjusteEditId] = useState<string | null>(null)
@@ -171,8 +174,21 @@ export default function EstoqueAtualPage() {
 
   return (
     <div className="stock-page">
+      <div className="tabs">
+        <button className={`tab ${aba === 'saldo' ? 'active' : ''}`} onClick={() => setAba('saldo')}>Saldo</button>
+        <button className={`tab ${aba === 'entradas' ? 'active' : ''}`} onClick={() => setAba('entradas')}>Entradas</button>
+        <button className={`tab ${aba === 'saidas' ? 'active' : ''}`} onClick={() => setAba('saidas')}>Saídas</button>
+      </div>
+
+      {aba === 'entradas' && <ListaEntradas />}
+      {aba === 'saidas' && <ListaSaidas />}
+      {aba === 'saldo' && <>
       <div className="page-header stock-page-header">
-        <div><h1 className="page-title">Estoque Atual</h1><div className="page-subtitle">Saldo real, entradas, saídas e ajustes{unidade ? ` · ${unidade}` : ''}</div></div>
+        <div>
+          <h1 className="page-title">Estoque Atual</h1>
+          <div className="page-subtitle">Saldo real, entradas, saídas e ajustes{unidade ? ` · ${unidade}` : ''}</div>
+          <Link href="/estoque-inicial" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>Estoque inicial →</Link>
+        </div>
         {!isDiretoria && <button className="btn btn-primary" onClick={abrirNovoAjuste} disabled={!unidade}>+ Novo ajuste</button>}
       </div>
 
@@ -198,8 +214,9 @@ export default function EstoqueAtualPage() {
           {tab === 'movimentos' ? <RelatorioMovimentosEstoque movimentos={painel.movimentos} onEditAjuste={isDiretoria ? undefined : editarAjuste} onRemoveAjuste={isDiretoria ? undefined : setConfirmId} />
             : veTudo ? <HistoricoAuditoriaEstoque registros={auditoria} nomesUsuarios={nomesUsuarios} /> : null}
         </>}
+      </>}
 
-      <Modal open={ajusteModal} onClose={() => setAjusteModal(false)} title={ajusteEditId ? 'Editar ajuste' : 'Novo ajuste'} size="sm" footer={<><button className="btn btn-secondary" onClick={() => setAjusteModal(false)}>Cancelar</button><button className="btn btn-primary" onClick={salvarAjuste} disabled={saving}>{saving ? 'Salvando...' : 'Salvar ajuste'}</button></>}>
+      <Modal open={ajusteModal && aba === 'saldo'} onClose={() => setAjusteModal(false)} title={ajusteEditId ? 'Editar ajuste' : 'Novo ajuste'} size="sm" footer={<><button className="btn btn-secondary" onClick={() => setAjusteModal(false)}>Cancelar</button><button className="btn btn-primary" onClick={salvarAjuste} disabled={saving}>{saving ? 'Salvando...' : 'Salvar ajuste'}</button></>}>
         {error && <div className="alert alert-red">{error}</div>}
         <div className="form-group"><label className="form-label">Produto</label><select className="form-select" value={ajusteForm.produto_id} onChange={event => setAjusteForm(form => ({ ...form, produto_id: event.target.value }))}><option value="">Selecione...</option>{produtos.map(produto => <option key={produto.id} value={produto.id}>{produto.nome}</option>)}</select></div>
         <div className="grid-2"><div className="form-group"><label className="form-label">Data</label><input className="form-input" type="date" value={ajusteForm.data_ajuste} onChange={event => setAjusteForm(form => ({ ...form, data_ajuste: event.target.value }))} /></div><div className="form-group"><label className="form-label">Tipo</label><select className="form-select" value={ajusteForm.tipo} onChange={event => setAjusteForm(form => ({ ...form, tipo: event.target.value as TipoAjusteEstoque }))}><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div></div>
@@ -231,6 +248,118 @@ export default function EstoqueAtualPage() {
         <div className="form-group"><label className="form-label">Motivo</label><textarea className="form-textarea" rows={3} value={ajusteForm.motivo} onChange={event => setAjusteForm(form => ({ ...form, motivo: event.target.value }))} placeholder="Ex.: correção após contagem física" /></div>
       </Modal>
       <ConfirmDialog open={Boolean(confirmId)} onClose={() => setConfirmId(null)} onConfirm={removerAjuste} loading={saving} title="Excluir ajuste?" message="O ajuste deixará de compor o saldo, mas a alteração permanecerá registrada no histórico." />
+    </div>
+  )
+}
+
+// ponytail: abas Entradas/Saídas — lista de consulta copiada de /compras e /vendas (entrega 1)
+function ListaEntradas() {
+  const { profile, unidadeAtiva } = useAuth()
+  const isDiretoria = profile?.role === 'diretoria'
+  const [rows, setRows] = useState<Compra[]>([])
+  const [loading, setLoading] = useState(true)
+  const [confirm, setConfirm] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const sb = useMemo(() => createClient(), [])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    let q = sb.from('btx_compras').select('*, fornecedor:btx_fornecedores(id,nome), itens:btx_compras_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)))').eq('ativo', true).order('data_compra', { ascending: false })
+    if (unidadeAtiva) q = q.eq('unidade', unidadeAtiva)
+    const { data: d } = await q
+    setRows(d ?? [])
+    setLoading(false)
+  }, [sb, unidadeAtiva])
+
+  useEffect(() => { load() }, [load])
+
+  async function remove(id: string) {
+    setSaving(true)
+    await sb.from('btx_compras').update({ ativo: false }).eq('id', id)
+    await sb.from('btx_parcelas').update({ ativo: false }).eq('origem_id', id)
+    setSaving(false); setConfirm(null); load()
+  }
+
+  return (
+    <div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>NF</th><th>Fornecedor</th><th>Produtos</th><th>ST</th><th>Total NF</th><th>Ações</th></tr></thead>
+          <tbody>
+            {loading ? <tr><td colSpan={7} className="empty-state">Carregando...</td></tr>
+            : rows.length === 0 ? <tr><td colSpan={7} className="empty-state">Nenhuma entrada lançada.</td></tr>
+            : rows.map(r => (
+              <tr key={r.id}>
+                <td className="mono">{formatData(r.data_compra)}</td>
+                <td className="mono">{r.numero_nf ?? '—'}</td>
+                <td>{(r.fornecedor as unknown as { nome: string })?.nome ?? '—'}</td>
+                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: { nome: string } }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base?.nome ?? ''}</div>)}</td>
+                <td className="mono">{formatMoeda((r as unknown as { valor_st?: number }).valor_st ?? 0)}</td>
+                <td className="mono">{formatMoeda(r.valor_total)}</td>
+                <td style={{ display: 'flex', gap: 6 }}>
+                  {!isDiretoria && <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm && remove(confirm)} loading={saving} />
+    </div>
+  )
+}
+
+function ListaSaidas() {
+  const { profile, unidadeAtiva } = useAuth()
+  const isDiretoria = profile?.role === 'diretoria'
+  const [rows, setRows] = useState<Venda[]>([])
+  const [loading, setLoading] = useState(true)
+  const [confirm, setConfirm] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const sb = useMemo(() => createClient(), [])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    let q = sb.from('btx_vendas').select('*, cliente:btx_clientes(id,nome), itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor,produto:btx_produtos(id,nome,fator_conversao,unidade_base:btx_unidades_medida!unidade_base_id(nome),unidade_maior:btx_unidades_medida!unidade_maior_id(nome)))').eq('ativo', true).order('data_venda', { ascending: false })
+    if (unidadeAtiva) q = q.eq('unidade', unidadeAtiva)
+    const { data: d } = await q
+    setRows(d ?? [])
+    setLoading(false)
+  }, [sb, unidadeAtiva])
+
+  useEffect(() => { load() }, [load])
+
+  async function remove(id: string) {
+    setSaving(true)
+    await sb.from('btx_vendas').update({ ativo: false }).eq('id', id)
+    await sb.from('btx_parcelas').update({ ativo: false }).eq('origem_id', id)
+    setSaving(false); setConfirm(null); load()
+  }
+
+  return (
+    <div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Produtos</th><th>Total NF</th><th>Ações</th></tr></thead>
+          <tbody>
+            {loading ? <tr><td colSpan={6} className="empty-state">Carregando...</td></tr>
+            : rows.length === 0 ? <tr><td colSpan={6} className="empty-state">Nenhuma saída lançada.</td></tr>
+            : rows.map(r => (
+              <tr key={r.id}>
+                <td className="mono">{formatData(r.data_venda)}</td>
+                <td className="mono">{r.numero_nf ?? '—'}</td>
+                <td>{(r.cliente as unknown as { nome: string })?.nome ?? '—'}</td>
+                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: { nome: string } }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base?.nome ?? ''}</div>)}</td>
+                <td className="mono">{formatMoeda(r.valor_total)}</td>
+                <td style={{ display: 'flex', gap: 6 }}>
+                  {!isDiretoria && <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm && remove(confirm)} loading={saving} />
     </div>
   )
 }
