@@ -9,6 +9,7 @@ import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import PagamentoModal from '@/components/financeiro/PagamentoModal'
 import type { Parcela, OrigemParcela } from '@/types'
+import { isVhsysManaged } from '@/lib/vhsys/read-only'
 
 type RelacaoNome = { nome: string } | { nome: string }[] | null
 const nomeRelacao = (r: RelacaoNome) => (Array.isArray(r) ? r[0]?.nome : r?.nome)
@@ -100,7 +101,7 @@ export default function ParcelasPagarPage() {
   const somaPagos = (r: Parcela) => pagosDe(r).reduce((s, p) => s + p.valor, 0)
 
   async function onRegistrar(dados: { valor: number; data: string; observacoes: string }) {
-    if (!pagarRow) return
+    if (!pagarRow || isVhsysManaged(pagarRow)) return
     setPagarSaving(true)
     const { error } = await registrarPagamento(sb, { id: pagarRow.id, valor: pagarRow.valor }, dados)
     setPagarSaving(false)
@@ -109,6 +110,7 @@ export default function ParcelasPagarPage() {
   }
 
   async function onExcluirPagamento(p: PagamentoRow, r: Parcela) {
+    if (isVhsysManaged(r)) return
     setSaving(true)
     const { error } = await excluirPagamento(sb, p.id, { id: r.id, valor: r.valor })
     setSaving(false)
@@ -117,7 +119,7 @@ export default function ParcelasPagarPage() {
   }
 
   async function salvarEdit() {
-    if (!verRow) return
+    if (!verRow || isVhsysManaged(verRow)) return
     setSaving(true)
     await sb.from('btx_parcelas').update({ vencimento: formEdit.vencimento, valor: formEdit.valor }).eq('id', verRow.id)
     await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
@@ -125,19 +127,21 @@ export default function ParcelasPagarPage() {
   }
 
   async function cancelarConta() {
-    if (!verRow) return
+    if (!verRow || isVhsysManaged(verRow)) return
     setSaving(true)
     await sb.from('btx_parcelas').update({ status: 'cancelado' }).eq('id', verRow.id)
     setSaving(false); setVerId(null); load()
   }
 
   async function remove(id: string) {
+    if (isVhsysManaged(rows.find(r => r.id === id) ?? {})) return
     setSaving(true)
     await sb.from('btx_parcelas').update({ ativo: false }).eq('id', id)
     setSaving(false); setConfirm(null); load()
   }
 
   function abrirVer(r: Parcela) {
+    if (isVhsysManaged(r)) return
     setFormEdit({ vencimento: r.vencimento, valor: r.valor })
     setVerId(r.id)
   }
@@ -188,13 +192,14 @@ export default function ParcelasPagarPage() {
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
-                  <td className="mono">{nfMap.get(r.id) ?? '—'}</td>
+                  <td className="mono">{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono num">{pago > 0 ? formatMoeda(pago) : '—'}</td>
                   <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
                   <td>{badge(r)}</td>
                   <td className="cell-actions">
-                    {!isDiretoria && (
+                    {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span>
+                    : !isDiretoria && (
                       <div className="row-actions">
                         {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setPagarRow(r)}>Pagar</button>}
                         <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>

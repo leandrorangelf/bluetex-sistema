@@ -16,6 +16,8 @@ const NAV = [
   { href: '/clientes', label: 'Clientes' },
   { href: '/fornecedores', label: 'Fornecedores' },
   { href: '/categorias', label: 'Categorias' },
+  { section: 'Integrações' },
+  { href: '/integracoes/vhsys', label: 'Integração VHSYS', adminOnly: true },
 ]
 
 export default function Sidebar() {
@@ -69,6 +71,7 @@ export default function Sidebar() {
             <div key={i} className="nav-section">{item.section}</div>
           )
           if (item.href === '/lancar' && profile?.role === 'diretoria') return null
+          if ('adminOnly' in item && item.adminOnly && profile?.role !== 'admin') return null
           const active = path === item.href || path.startsWith(item.href + '/')
           return (
             <Link key={item.href} href={item.href} className={`nav-link${active ? ' active' : ''}`}>

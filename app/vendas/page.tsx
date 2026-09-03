@@ -7,6 +7,7 @@ import { formatMoeda, formatData, itensCaixas } from '@/lib/utils'
 import { UNIDADES, type Unidade, type Venda } from '@/types'
 import FormMovimento from '@/components/lancar/FormMovimento'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { isVhsysManaged } from '@/lib/vhsys/read-only'
 
 type Aba = 'registrar' | 'lista'
 
@@ -80,6 +81,7 @@ function ListaVendas({ unidade }: { unidade?: string }) {
   }, [sb, filtro])
 
   async function remove(id: string) {
+    if (isVhsysManaged(rows.find(r => r.id === id) ?? {})) return
     setSaving(true)
     await sb.from('btx_vendas').update({ ativo: false }).eq('id', id)
     await sb.from('btx_parcelas').update({ ativo: false }).eq('origem_id', id)
@@ -98,12 +100,13 @@ function ListaVendas({ unidade }: { unidade?: string }) {
             : rows.map(r => (
               <tr key={r.id}>
                 <td className="mono">{formatData(r.data_venda)}</td>
-                <td className="mono">{r.numero_nf ?? '—'}</td>
+                <td className="mono">{r.numero_nf ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                 <td>{(r.cliente as unknown as { nome: string })?.nome ?? '—'}</td>
                 <td className="cell-wrap" style={{ fontSize: 12 }}>{itensCaixas(r.itens)}</td>
                 <td className="mono num">{formatMoeda(r.valor_total)}</td>
                 <td className="cell-actions">
-                  {!isDiretoria && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
+                  {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span>
+                  : !isDiretoria && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
                 </td>
               </tr>
             ))}

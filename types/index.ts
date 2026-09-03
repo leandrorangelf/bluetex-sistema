@@ -4,6 +4,16 @@ export type TipoParcela = 'pagar' | 'receber'
 export type OrigemParcela = 'compra' | 'venda' | 'despesa' | 'manual'
 export type StatusParcela = 'pendente' | 'pago' | 'parcial' | 'cancelado'
 export type TipoAjusteEstoque = 'entrada' | 'saida'
+export type OrigemSistema = 'manual' | 'vhsys'
+export type SyncClassificacao =
+  | 'novo'
+  | 'ja_vinculado'
+  | 'correspondencia_exata'
+  | 'possivel_duplicidade'
+  | 'divergente'
+  | 'ignorado'
+  | 'erro'
+export type SyncDecisao = 'vincular' | 'importar' | 'ignorar'
 
 export const UNIDADES: Unidade[] = ['NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM']
 
@@ -17,14 +27,17 @@ export interface Produto {
   id: string; nome: string; unidade_base_id: string; unidade_maior_id: string; fator_conversao: number
   ativo: boolean; created_at: string
   unidade_base?: UnidadeMedida; unidade_maior?: UnidadeMedida
+  origem_sistema?: OrigemSistema; vhsys_id_mg?: string | null; vhsys_synced_at?: string | null
 }
 export interface Fornecedor {
   id: string; unidade: Unidade; nome: string; cnpj: string | null; telefone: string | null
   email: string | null; observacoes: string | null; ativo: boolean; created_at: string
+  origem_sistema?: OrigemSistema; vhsys_id?: string | null; vhsys_synced_at?: string | null
 }
 export interface Cliente {
   id: string; unidade: Unidade; nome: string; cnpj: string | null; telefone: string | null
   email: string | null; observacoes: string | null; ativo: boolean; created_at: string
+  origem_sistema?: OrigemSistema; vhsys_id?: string | null; vhsys_synced_at?: string | null
 }
 export type GrupoCategoria = 'fornecedores' | 'impostos' | 'funcionarios' | 'custos_fixos' | 'outros'
 
@@ -52,6 +65,7 @@ export interface Compra {
   data_compra: string; numero_nf: string | null; valor_total: number; valor_st?: number
   observacoes: string | null; ativo: boolean; created_at: string
   fornecedor?: Fornecedor; itens?: CompraItem[]
+  origem_sistema?: OrigemSistema; vhsys_id?: string | null; vhsys_synced_at?: string | null
 }
 export interface VendaItem {
   id: string; venda_id: string; produto_id: string; qtd_carteiras: number; valor: number
@@ -62,6 +76,7 @@ export interface Venda {
   data_venda: string; numero_nf: string | null; valor_total: number; valor_st?: number
   observacoes: string | null; ativo: boolean; created_at: string
   cliente?: Cliente; itens?: VendaItem[]
+  origem_sistema?: OrigemSistema; vhsys_id?: string | null; vhsys_synced_at?: string | null
 }
 export interface Despesa {
   id: string; unidade: Unidade; categoria_id: string | null; fornecedor_id: string | null
@@ -74,6 +89,7 @@ export interface Parcela {
   numero_parcela: number; vencimento: string; valor: number; status: StatusParcela
   numero_boleto: string | null; data_pagamento: string | null; observacoes: string | null
   ativo: boolean; created_at: string
+  origem_sistema?: OrigemSistema; vhsys_id?: string | null; vhsys_synced_at?: string | null
 }
 export interface PagamentoParcela {
   id: string; parcela_id: string; valor: number; data_pagamento: string
@@ -96,4 +112,26 @@ export interface AuditoriaEstoque {
   dados_novos: Record<string, unknown> | null
   created_at: string
   usuario?: Pick<Profile, 'nome'> | null
+}
+
+export interface VhsysSincronizacao {
+  id: string
+  unidade: 'NEW BLUETEX MG'
+  marco_zero: string
+  status: 'analisando' | 'pronto' | 'confirmando' | 'concluido' | 'falhou'
+  iniciado_em: string
+  concluido_em: string | null
+  resumo: Record<string, unknown>
+  erro_sanitizado: string | null
+}
+
+export interface VhsysSincronizacaoItem {
+  id: string
+  dominio: 'vendas' | 'compras' | 'receber' | 'pagar' | 'estoque' | 'bancos'
+  vhsys_id: string
+  classificacao: SyncClassificacao
+  decisao: SyncDecisao | null
+  local_id: string | null
+  dados_normalizados: Record<string, unknown>
+  erro_sanitizado: string | null
 }
