@@ -5,26 +5,16 @@ import { useAuth } from '@/lib/auth-context'
 import { UNIDADES, type Unidade } from '@/types'
 
 const NAV = [
-  { href: '/dashboard', label: 'Painel Executivo' },
+  { href: '/dashboard', label: 'Painel' },
+  { href: '/lancar', label: 'Lançar' },
+  { href: '/parcelas-pagar', label: 'Contas a Pagar' },
+  { href: '/parcelas-receber', label: 'Contas a Receber' },
+  { href: '/estoque-atual', label: 'Estoque' },
   { section: 'Cadastros' },
   { href: '/produtos', label: 'Produtos' },
-  { href: '/unidades', label: 'Unidades' },
-  { href: '/fornecedores', label: 'Fornecedores' },
   { href: '/clientes', label: 'Clientes' },
+  { href: '/fornecedores', label: 'Fornecedores' },
   { href: '/categorias', label: 'Categorias' },
-  { section: 'Operações' },
-  { href: '/estoque-inicial', label: 'Estoque Inicial' },
-  { href: '/estoque-atual', label: 'Estoque Atual' },
-  { href: '/compras', label: 'Entradas' },
-  { href: '/vendas', label: 'Saídas' },
-  { href: '/despesas', label: 'Despesas' },
-  { section: 'Financeiro' },
-  { href: '/lancar', label: 'Lançar' },
-  { href: '/parcelas-pagar', label: 'Parcelas a Pagar' },
-  { href: '/parcelas-receber', label: 'Parcelas a Receber' },
-  { href: '/caixa', label: 'Painel Financeiro' },
-  { section: 'Análise' },
-  { href: '/relatorios', label: 'Relatórios' },
 ]
 
 export default function Sidebar() {
