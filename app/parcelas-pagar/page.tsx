@@ -187,18 +187,20 @@ export default function ParcelasPagarPage() {
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
-                  <td>{origemMap.get(r.id) ?? '—'}</td>
+                  <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
                   <td className="mono">{nfMap.get(r.id) ?? '—'}</td>
                   <td className="mono" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono">{pago > 0 ? formatMoeda(pago) : '—'}</td>
                   <td className="mono">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
                   <td>{badge(r)}</td>
-                  <td style={{ display: 'flex', gap: 4 }}>
-                    {!isDiretoria && <>
-                      {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setPagarRow(r)}>Pagar</button>}
-                      <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
-                    </>}
+                  <td className="cell-actions">
+                    {!isDiretoria && (
+                      <div className="row-actions">
+                        {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setPagarRow(r)}>Pagar</button>}
+                        <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )

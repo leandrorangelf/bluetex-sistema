@@ -4,25 +4,25 @@
 @tailwind utilities;
 
 :root {
-  --bg: #EDEAE3;
-  --surface: #F5F2EC;
-  --surface2: #DEDAD2;
-  --border: #C8C4BC;
+  --bg: #F4F4F3;
+  --surface: #FFFFFF;
+  --surface2: #ECECEB;
+  --border: #DEDDDA;
   --border-focus: #CC2222;
   --red: #CC2222;
-  --red-light: #F5DADA;
+  --red-light: #FBE4E4;
   --red-dark: #8B1010;
-  --purple: #6B6B8A;
-  --purple-light: #E4E4EF;
+  --purple: #5C5C74;
+  --purple-light: #ECECF2;
   --navy: #1A1A2E;
   --navy-mid: #2E2E4A;
-  --text: #1A1A2E;
-  --text-mid: #3A3A5A;
-  --text-muted: #7A7A9A;
-  --green: #2A7A3A;
-  --green-light: #D4EDD8;
-  --amber: #C07010;
-  --amber-light: #F5E8CC;
+  --text: #1C1C24;
+  --text-mid: #43434E;
+  --text-muted: #6A6A72;
+  --green: #1F7A34;
+  --green-light: #DEF0E1;
+  --amber: #9A5A0C;
+  --amber-light: #F7EAD1;
   --mono: 'IBM Plex Mono', monospace;
   --sans: 'Inter', sans-serif;
   --pixel: 'Press Start 2P', monospace;
@@ -116,10 +116,15 @@ th {
   letter-spacing: 0.06em; color: var(--text-muted);
   border-bottom: 2px solid var(--border);
 }
-td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
 tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: var(--purple-light); }
+tbody tr:hover { background: #F1F1F4; }
 .mono { font-family: var(--mono); }
+/* coluna de texto livre (origem, descrição, cliente) — deixa quebrar e limita largura */
+td.cell-wrap { white-space: normal; max-width: 380px; overflow-wrap: anywhere; }
+/* botões de ação numa linha, sem quebrar nem colapsar a coluna */
+td.cell-actions { white-space: nowrap; }
+.row-actions { display: flex; gap: 6px; align-items: center; }
 
 /* Badges */
 .badge {
