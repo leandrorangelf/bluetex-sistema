@@ -56,52 +56,36 @@ function caixas(base: number, fator: number): string {
   return (Number.isInteger(q) ? q : Number(q.toFixed(1))).toLocaleString('pt-BR')
 }
 
-function SecaoEstoque({ linhas, unidadeUnica }: { linhas: LinhaEstoque[]; unidadeUnica: string | null }) {
+function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: LinhaEstoque[]; unidade: string }) {
+  return (
+    <Link href="/estoque-atual" className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{titulo} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>· estoque em caixas</span></div>
+      {linhas.map(l => {
+        const v = l.saldos[unidade] ?? 0
+        return (
+          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+            <span>{l.nome}</span>
+            <span className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</span>
+          </div>
+        )
+      })}
+    </Link>
+  )
+}
+
+function SecaoEstoque({ linhas, unidades, unidadeUnica }: { linhas: LinhaEstoque[]; unidades: string[]; unidadeUnica: string | null }) {
   const comSaldo = linhas.filter(l => Object.keys(l.saldos).length > 0)
   if (comSaldo.length === 0) return null
-  return (
-    <div className="card" style={{ marginTop: 24 }}>
-      <Link href="/estoque-atual" style={{ textDecoration: 'none', color: 'inherit', display: 'inline-block', marginBottom: 12 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>Estoque</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>saldo em caixas</span>
-      </Link>
-      <div className="table-wrap">
-        <table>
-          {unidadeUnica ? (
-            <>
-              <thead><tr><th>Produto</th><th className="num">Caixas</th></tr></thead>
-              <tbody>
-                {comSaldo.map(l => {
-                  const v = l.saldos[unidadeUnica] ?? 0
-                  return (
-                    <tr key={l.id}>
-                      <td>{l.nome}</td>
-                      <td className={`mono num${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </>
-          ) : (
-            <>
-              <thead><tr><th>Produto</th><th className="num">MG</th><th className="num">SC</th><th className="num">AM</th><th className="num">Total</th></tr></thead>
-              <tbody>
-                {comSaldo.map(l => {
-                  const cells = UNIDADES.map(u => l.saldos[u] ?? 0)
-                  const total = cells.reduce((a, b) => a + b, 0)
-                  return (
-                    <tr key={l.id}>
-                      <td>{l.nome}</td>
-                      {cells.map((v, i) => <td key={i} className={`mono num${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</td>)}
-                      <td className={`mono num${total < 0 ? ' text-red' : ''}`} style={{ fontWeight: 700 }}>{caixas(total, l.fator)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </>
-          )}
-        </table>
+  if (unidadeUnica) {
+    return (
+      <div style={{ marginTop: 24, maxWidth: 560 }}>
+        <CardEstoque titulo={SHORT[unidadeUnica] ?? unidadeUnica} linhas={comSaldo} unidade={unidadeUnica} />
       </div>
+    )
+  }
+  return (
+    <div className="grid-3" style={{ marginTop: 24 }}>
+      {unidades.map(u => <CardEstoque key={u} titulo={SHORT[u] ?? u} linhas={comSaldo} unidade={u} />)}
     </div>
   )
 }
@@ -403,6 +387,7 @@ export default function DashboardPage() {
       {!loading && (
         <SecaoEstoque
           linhas={estoque}
+          unidades={unidadesComDados}
           unidadeUnica={veTudo ? (aba === 'consolidado' ? null : aba) : (unidadeAtiva ?? null)}
         />
       )}
