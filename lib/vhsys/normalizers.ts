@@ -1,4 +1,5 @@
-export const VHSYS_ZERO_DATE = '2026-07-01'
+// Marco zero: só entra do VHSYS o que for deste mês em diante.
+export const VHSYS_ZERO_DATE = '2026-09-01'
 
 export function money(value: unknown): number {
   const parsed = Number(value ?? 0)
@@ -21,16 +22,6 @@ export function isOpen(value: unknown): boolean {
   return ['nao', 'não', 'em aberto', 'aberto', 'pendente'].includes(
     String(value ?? '').trim().toLocaleLowerCase('pt-BR'),
   )
-}
-
-export function includeDocument(date: unknown, status: unknown): boolean {
-  const normalizedDate = isoDate(date)
-  const normalizedStatus = String(status ?? '').toLocaleLowerCase('pt-BR')
-
-  return normalizedDate !== null
-    && normalizedDate >= VHSYS_ZERO_DATE
-    && !normalizedStatus.includes('cancel')
-    && (normalizedStatus.includes('fatur') || normalizedStatus.includes('emit'))
 }
 
 export function includeAccount(liquidated: unknown): boolean {

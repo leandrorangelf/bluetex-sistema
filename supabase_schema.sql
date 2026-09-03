@@ -436,7 +436,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS btx_parcelas_vhsys_uidx
 CREATE TABLE IF NOT EXISTS btx_vhsys_sincronizacoes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   unidade TEXT NOT NULL CHECK (unidade = 'NEW BLUETEX MG'),
-  marco_zero DATE NOT NULL DEFAULT '2026-07-01',
+  marco_zero DATE NOT NULL DEFAULT '2026-09-01',
   status TEXT NOT NULL CHECK (status IN ('analisando','pronto','confirmando','concluido','falhou')),
   iniciado_por UUID NOT NULL REFERENCES auth.users(id),
   confirmado_por UUID REFERENCES auth.users(id),

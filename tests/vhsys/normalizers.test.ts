@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   digits,
   includeAccount,
-  includeDocument,
   isoDate,
   isOpen,
   money,
@@ -23,12 +22,6 @@ describe('normalização VHSYS', () => {
 
   it('normaliza documentos para dígitos', () => {
     expect(digits('12.345.678/0001-99')).toBe('12345678000199')
-  })
-
-  it('inclui somente documentos faturados desde o marco zero', () => {
-    expect(includeDocument('2026-07-01', 'Faturado')).toBe(true)
-    expect(includeDocument('2026-06-30', 'Faturado')).toBe(false)
-    expect(includeDocument('2026-07-02', 'Cancelado')).toBe(false)
   })
 
   it('inclui contas abertas independentemente da data', () => {
