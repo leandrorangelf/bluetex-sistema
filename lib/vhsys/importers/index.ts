@@ -1,7 +1,6 @@
 import type { VhsysClient } from '../client'
 import { importBancos } from './bancos'
 import { importCompras } from './compras'
-import { importEstoque } from './estoque'
 import { importPagar, importReceber } from './financeiro'
 import type {
   DomainImporter,
@@ -10,12 +9,14 @@ import type {
 } from './shared'
 import { importVendas } from './vendas'
 
+// ponytail: estoque fora por ora — o estoque do VHSYS não é exibido em nenhuma
+// tela (o Painel calcula pelas entradas/saídas locais). Reativar quando houver
+// onde mostrar e o mapa de produtos cobrir todas as unidades de medida.
 export const DEFAULT_IMPORTERS: [VhsysDomain, DomainImporter][] = [
   ['vendas', importVendas],
   ['compras', importCompras],
   ['receber', importReceber],
   ['pagar', importPagar],
-  ['estoque', importEstoque],
   ['bancos', importBancos],
 ]
 
