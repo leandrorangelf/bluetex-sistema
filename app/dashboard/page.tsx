@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
-import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, hoje, ordenarProdutos, converterParaUnidadeMaior } from '@/lib/utils'
+import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, hoje, ordenarProdutos } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar } from '@/lib/painel-resumo'
 import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
@@ -50,27 +50,33 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
   }))
 }
 
+// saldo em caixas (unidade maior), 1 casa quando fracionário
+function caixas(base: number, fator: number): string {
+  const q = base / (fator || 1)
+  return (Number.isInteger(q) ? q : Number(q.toFixed(1))).toLocaleString('pt-BR')
+}
+
 function SecaoEstoque({ linhas, unidadeUnica }: { linhas: LinhaEstoque[]; unidadeUnica: string | null }) {
   const comSaldo = linhas.filter(l => Object.keys(l.saldos).length > 0)
   if (comSaldo.length === 0) return null
-  const cx = (base: number, fator: number, nome: string) => nome ? ` (${converterParaUnidadeMaior(base, fator)} ${nome})` : ''
   return (
     <div className="card" style={{ marginTop: 24 }}>
-      <Link href="/estoque-atual" style={{ textDecoration: 'none', color: 'inherit' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)', marginBottom: 16 }}>Estoque</div>
+      <Link href="/estoque-atual" style={{ textDecoration: 'none', color: 'inherit', display: 'inline-block', marginBottom: 12 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>Estoque</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>saldo em caixas</span>
       </Link>
       <div className="table-wrap">
         <table>
           {unidadeUnica ? (
             <>
-              <thead><tr><th>Produto</th><th>Saldo</th></tr></thead>
+              <thead><tr><th>Produto</th><th className="num">Caixas</th></tr></thead>
               <tbody>
                 {comSaldo.map(l => {
                   const v = l.saldos[unidadeUnica] ?? 0
                   return (
                     <tr key={l.id}>
-                      <td style={{ fontSize: 12 }}>{l.nome}</td>
-                      <td className={`mono${v < 0 ? ' text-red' : ''}`}>{v.toLocaleString('pt-BR')} {l.unidadeBase}{cx(v, l.fator, l.unidadeMaior)}</td>
+                      <td>{l.nome}</td>
+                      <td className={`mono num${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</td>
                     </tr>
                   )
                 })}
@@ -78,16 +84,16 @@ function SecaoEstoque({ linhas, unidadeUnica }: { linhas: LinhaEstoque[]; unidad
             </>
           ) : (
             <>
-              <thead><tr><th>Produto</th><th>MG</th><th>SC</th><th>AM</th><th>Total</th></tr></thead>
+              <thead><tr><th>Produto</th><th className="num">MG</th><th className="num">SC</th><th className="num">AM</th><th className="num">Total</th></tr></thead>
               <tbody>
                 {comSaldo.map(l => {
                   const cells = UNIDADES.map(u => l.saldos[u] ?? 0)
                   const total = cells.reduce((a, b) => a + b, 0)
                   return (
                     <tr key={l.id}>
-                      <td style={{ fontSize: 12 }}>{l.nome}</td>
-                      {cells.map((v, i) => <td key={i} className={`mono${v < 0 ? ' text-red' : ''}`}>{v.toLocaleString('pt-BR')}</td>)}
-                      <td className={`mono${total < 0 ? ' text-red' : ''}`}>{total.toLocaleString('pt-BR')} {l.unidadeBase}{cx(total, l.fator, l.unidadeMaior)}</td>
+                      <td>{l.nome}</td>
+                      {cells.map((v, i) => <td key={i} className={`mono num${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</td>)}
+                      <td className={`mono num${total < 0 ? ' text-red' : ''}`} style={{ fontWeight: 700 }}>{caixas(total, l.fator)}</td>
                     </tr>
                   )
                 })}

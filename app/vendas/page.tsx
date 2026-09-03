@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { formatMoeda, formatData } from '@/lib/utils'
+import { formatMoeda, formatData, itensCaixas } from '@/lib/utils'
 import { UNIDADES, type Unidade, type Venda } from '@/types'
 import FormMovimento from '@/components/lancar/FormMovimento'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -91,7 +91,7 @@ function ListaVendas({ unidade }: { unidade?: string }) {
     <div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Produtos</th><th>Total NF</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Produtos (caixas)</th><th className="num">Total NF</th><th className="num">Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={6} className="empty-state">Carregando...</td></tr>
             : rows.length === 0 ? <tr><td colSpan={6} className="empty-state">Nenhuma venda lançada.</td></tr>
@@ -100,8 +100,8 @@ function ListaVendas({ unidade }: { unidade?: string }) {
                 <td className="mono">{formatData(r.data_venda)}</td>
                 <td className="mono">{r.numero_nf ?? '—'}</td>
                 <td>{(r.cliente as unknown as { nome: string })?.nome ?? '—'}</td>
-                <td style={{ fontSize: 11 }}>{((r.itens as unknown as { produto: { nome: string; unidade_base: { nome: string } }; qtd_carteiras: number }[]) ?? []).map((it, i) => <div key={i}>{it.produto?.nome} — {it.qtd_carteiras} {it.produto?.unidade_base?.nome ?? ''}</div>)}</td>
-                <td className="mono">{formatMoeda(r.valor_total)}</td>
+                <td className="cell-wrap" style={{ fontSize: 12 }}>{itensCaixas(r.itens)}</td>
+                <td className="mono num">{formatMoeda(r.valor_total)}</td>
                 <td className="cell-actions">
                   {!isDiretoria && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
                 </td>

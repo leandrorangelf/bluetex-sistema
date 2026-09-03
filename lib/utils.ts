@@ -13,6 +13,18 @@ export function converterParaUnidadeMaior(qtdBase: number, fatorConversao: numbe
   return qtd % 1 === 0 ? qtd.toString() : qtd.toFixed(2)
 }
 
+// "GUDANG RED ×12  ·  CRETEC MENTA ×3" — itens de NF em caixas, uma linha
+type ItemNF = { qtd_carteiras: number; produto?: { nome?: string; fator_conversao?: number } | null }
+export function itensCaixas(itens: unknown): string {
+  const lista = (itens as ItemNF[] | null) ?? []
+  if (lista.length === 0) return '—'
+  return lista.map(it => {
+    const cx = it.qtd_carteiras / (it.produto?.fator_conversao || 1)
+    const n = Number.isInteger(cx) ? cx : Number(cx.toFixed(1))
+    return `${it.produto?.nome ?? '—'} ×${n.toLocaleString('pt-BR')}`
+  }).join('  ·  ')
+}
+
 export function getMesLabel(mes: number): string {
   return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mes - 1] ?? ''
 }

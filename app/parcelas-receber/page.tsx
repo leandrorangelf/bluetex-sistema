@@ -161,7 +161,7 @@ export default function ParcelasReceberPage() {
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o recebimento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Cliente</th><th>NF</th><th>Vencimento</th><th>Valor</th><th>Recebido</th><th>Saldo</th><th>Status</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>NF</th><th>Vencimento</th><th className="num">Valor</th><th className="num">Recebido</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={8} className="empty-state">Carregando...</td></tr>
             : rows.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma conta.</td></tr>
@@ -178,9 +178,9 @@ export default function ParcelasReceberPage() {
                     {formatData(r.vencimento)}
                     {emAberto && atraso > 0 && <span className="page-subtitle"> · {atraso} dia(s) em atraso</span>}
                   </td>
-                  <td className="mono" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
-                  <td className="mono">{recebido > 0 ? formatMoeda(recebido) : '—'}</td>
-                  <td className="mono">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
+                  <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
+                  <td className="mono num">{recebido > 0 ? formatMoeda(recebido) : '—'}</td>
+                  <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
                   <td>{badge(r)}</td>
                   <td className="cell-actions">
                     {!isDiretoria && (
