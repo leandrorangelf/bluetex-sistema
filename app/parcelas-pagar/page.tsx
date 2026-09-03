@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { formatMoeda, formatData, hoje } from '@/lib/utils'
-import { saldoRestante, listarPagamentos, registrarPagamento, excluirPagamento, type PagamentoRow } from '@/lib/pagamentos'
+import { saldoRestante, listarPagamentos, registrarPagamento, excluirPagamento, sincronizarParcela, type PagamentoRow } from '@/lib/pagamentos'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import PagamentoModal from '@/components/financeiro/PagamentoModal'
@@ -106,6 +106,7 @@ export default function ParcelasPagarPage() {
     if (!verRow) return
     setSaving(true)
     await sb.from('btx_parcelas').update({ vencimento: formEdit.vencimento, valor: formEdit.valor }).eq('id', verRow.id)
+    await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
     setSaving(false); setVerId(null); load()
   }
 
