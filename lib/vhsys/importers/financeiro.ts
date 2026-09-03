@@ -1,53 +1,75 @@
 import type { VhsysClient } from '../client'
-import { includeAccount, isoDate, money } from '../normalizers'
+import { VHSYS_ZERO_DATE, includeAccount, isoDate, money } from '../normalizers'
 import type { ImportedItem } from './shared'
+
+// ponytail: só traz título aberto com vencimento a partir do marco zero e valor
+// relevante. A conta VHSYS acumula resíduos de centavos (juro/multa/arredondamento)
+// marcados "em aberto" há anos — sem esse corte, entram todos como conta vencida.
+const VALOR_MINIMO = 1
+
+function first(row: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    if (row[key] != null && row[key] !== '') return row[key]
+  }
+  return undefined
+}
 
 export async function importReceber(client: VhsysClient): Promise<ImportedItem[]> {
   const rows = await client.list<Record<string, unknown>>('/contas-receber')
 
-  return rows.map((row) => {
-    const aberto = includeAccount(row.liquidado_rec)
-    return {
-      domain: 'receber',
-      externalId: String(row.id_conta_rec),
-      data: {
-        numero_documento: String(row.n_documento_rec ?? ''),
-        documento_pessoa: '',
-        pessoa_nome: String(row.nome_cliente ?? ''),
-        pessoa_vhsys_id: String(row.id_cliente ?? ''),
-        data: isoDate(row.data_emissao),
-        vencimento: isoDate(row.vencimento_rec),
-        valor_total: money(row.valor_rec),
-        valor_pago: money(row.valor_pago),
-        status: aberto ? 'pendente' : 'pago',
-        liquidado: !aberto,
-        observacoes: String(row.observacoes_rec ?? ''),
-      },
+  return rows.flatMap((row) => {
+    const aberto = includeAccount(first(row, ['liquidado_rec', 'liquidado']))
+    const vencimento = isoDate(first(row, ['vencimento_rec', 'data_vencimento', 'vencimento']))
+    const valorTotal = money(first(row, ['valor_rec', 'valor_documento', 'valor', 'valor_total']))
+    if (!aberto || vencimento === null || vencimento < VHSYS_ZERO_DATE || valorTotal < VALOR_MINIMO) {
+      return []
     }
+    return [{
+      domain: 'receber' as const,
+      externalId: String(first(row, ['id_conta_rec', 'id_conta_receber', 'id'])),
+      data: {
+        numero_documento: String(first(row, ['n_documento_rec', 'n_documento', 'numero_documento']) ?? ''),
+        documento_pessoa: '',
+        pessoa_nome: String(first(row, ['nome_cliente', 'razao_cliente', 'cliente', 'nome']) ?? ''),
+        pessoa_vhsys_id: String(first(row, ['id_cliente', 'id_cliente_fornecedor']) ?? ''),
+        data: isoDate(first(row, ['data_emissao', 'data_competencia'])),
+        vencimento,
+        valor_total: valorTotal,
+        valor_pago: money(first(row, ['valor_pago', 'valor_pago_rec'])),
+        status: 'pendente',
+        liquidado: false,
+        observacoes: String(first(row, ['observacoes_rec', 'observacao', 'observacoes', 'descricao']) ?? ''),
+      },
+    }]
   })
 }
 
 export async function importPagar(client: VhsysClient): Promise<ImportedItem[]> {
   const rows = await client.list<Record<string, unknown>>('/contas-pagar')
 
-  return rows.map((row) => {
-    const aberto = includeAccount(row.liquidado_pag)
-    return {
-      domain: 'pagar',
-      externalId: String(row.id_conta_pag),
-      data: {
-        numero_documento: String(row.n_documento_pag ?? ''),
-        documento_pessoa: '',
-        pessoa_nome: String(row.nome_fornecedor ?? row.nome_conta ?? ''),
-        pessoa_vhsys_id: String(row.id_fornecedor ?? ''),
-        data: isoDate(row.data_emissao),
-        vencimento: isoDate(row.vencimento_pag),
-        valor_total: money(row.valor_pag),
-        valor_pago: money(row.valor_pago),
-        status: aberto ? 'pendente' : 'pago',
-        liquidado: !aberto,
-        observacoes: String(row.observacoes_pag ?? ''),
-      },
+  return rows.flatMap((row) => {
+    const aberto = includeAccount(first(row, ['liquidado_pag', 'liquidado']))
+    const vencimento = isoDate(first(row, ['vencimento_pag', 'data_vencimento', 'vencimento']))
+    const valorTotal = money(first(row, ['valor_pag', 'valor_documento', 'valor', 'valor_total']))
+    if (!aberto || vencimento === null || vencimento < VHSYS_ZERO_DATE || valorTotal < VALOR_MINIMO) {
+      return []
     }
+    return [{
+      domain: 'pagar' as const,
+      externalId: String(first(row, ['id_conta_pag', 'id_conta_pagar', 'id'])),
+      data: {
+        numero_documento: String(first(row, ['n_documento_pag', 'n_documento', 'numero_documento']) ?? ''),
+        documento_pessoa: '',
+        pessoa_nome: String(first(row, ['nome_fornecedor', 'razao_fornecedor', 'nome_conta', 'fornecedor', 'nome']) ?? ''),
+        pessoa_vhsys_id: String(first(row, ['id_fornecedor', 'id_cliente_fornecedor']) ?? ''),
+        data: isoDate(first(row, ['data_emissao', 'data_competencia'])),
+        vencimento,
+        valor_total: valorTotal,
+        valor_pago: money(first(row, ['valor_pago', 'valor_pago_pag'])),
+        status: 'pendente',
+        liquidado: false,
+        observacoes: String(first(row, ['observacoes_pag', 'observacao', 'observacoes', 'descricao']) ?? ''),
+      },
+    }]
   })
 }

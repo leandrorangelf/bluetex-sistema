@@ -45,20 +45,21 @@ describe('importadores VHSYS', () => {
     }])
   })
 
-  it('mantém abertos e marca liquidados para atualizar vínculos existentes', async () => {
+  it('traz só título aberto, no marco zero e com valor relevante', async () => {
     const client = {
       list: vi.fn().mockResolvedValue([
-        { id_conta_rec: 1, liquidado_rec: 'Nao', valor_rec: '100.00' },
-        { id_conta_rec: 2, liquidado_rec: 'Sim', valor_rec: '80.00' },
+        { id_conta_rec: 1, liquidado_rec: 'Nao', valor_rec: '100.00', vencimento_rec: '2026-08-10' },
+        { id_conta_rec: 2, liquidado_rec: 'Sim', valor_rec: '80.00', vencimento_rec: '2026-08-10' },
+        { id_conta_rec: 3, liquidado_rec: 'Nao', valor_rec: '50.00', vencimento_rec: '2025-11-01' },
+        { id_conta_rec: 4, liquidado_rec: 'Nao', valor_rec: '0.06', vencimento_rec: '2026-09-01' },
       ]),
     }
     const { importReceber } = await import('@/lib/vhsys/importers/financeiro')
 
     const result = await importReceber(client as never)
 
-    expect(result).toHaveLength(2)
+    expect(result.map((r) => r.externalId)).toEqual(['1'])
     expect(result[0].data).toEqual(expect.objectContaining({ status: 'pendente', liquidado: false }))
-    expect(result[1].data).toEqual(expect.objectContaining({ status: 'pago', liquidado: true }))
   })
 
   it('retorna somente contas Santander ativas', async () => {
