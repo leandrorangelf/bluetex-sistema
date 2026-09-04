@@ -2,9 +2,12 @@ import type { VhsysClient } from '../client'
 import { VHSYS_ZERO_DATE, includeAccount, isoDate, money } from '../normalizers'
 import type { ImportedItem } from './shared'
 
-// ponytail: só traz título aberto, não estornado/lixeira, com vencimento a partir
-// do marco zero e valor relevante. A conta VHSYS acumula resíduos de centavos e
-// contas estornadas marcadas "em aberto" — sem esse corte, entra tudo.
+// ponytail: traz título aberto OU já liquidado (pra propagar baixa em título já
+// vinculado), desde que não estornado/lixeira, com vencimento a partir do marco
+// zero e valor relevante. Título liquidado nunca visto antes (classificacao
+// 'novo') é descartado depois, em buildAnalysisItems — não precisamos repetir
+// aqui. A conta VHSYS acumula resíduos de centavos que "nunca fecham" — por
+// isso o corte de valor mínimo continua valendo.
 const VALOR_MINIMO = 1
 
 function first(row: Record<string, unknown>, keys: string[]): unknown {
@@ -43,13 +46,14 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
     const valorTotal = money(first(row, c.valor))
     if (
       descartada(row)
-      || !aberto
       || vencimento === null
       || vencimento < VHSYS_ZERO_DATE
       || valorTotal < VALOR_MINIMO
     ) {
       return []
     }
+    const valorPago = money(first(row, c.valorPago))
+    const status = !aberto ? 'pago' : valorPago > 0 ? 'parcial' : 'pendente'
     const pessoa = String(first(row, c.pessoa) ?? '')
     const contaNome = String(first(row, ['nome_conta', 'descricao', 'identificacao']) ?? '')
     const descricao = [pessoa, contaNome]
@@ -68,9 +72,10 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
         data: isoDate(first(row, ['data_emissao', 'data_competencia'])),
         vencimento,
         valor_total: valorTotal,
-        valor_pago: money(first(row, c.valorPago)),
-        status: 'pendente',
-        liquidado: false,
+        valor_pago: valorPago,
+        status,
+        liquidado: !aberto,
+        data_pagamento: isoDate(row.data_pagamento),
         // a tela mostra 'observacoes' na coluna Cliente (receber) / Origem (pagar)
         observacoes: descricao || String(first(row, c.observacoes) ?? ''),
         link_boleto: String(row.link_boleto ?? ''),
