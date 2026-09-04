@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, hoje, ordenarProdutos } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
-import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar } from '@/lib/painel-resumo'
+import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber } from '@/lib/painel-resumo'
 import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
 import { UNIDADES, type Unidade, type GrupoCategoria, type Produto, type AjusteEstoque } from '@/types'
 import Modal from '@/components/Modal'
@@ -96,7 +96,7 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
   const competenciaSel = chaveCompetencia(ano, mes)
   const [basesRes, parcelasRes, despesasRes] = await Promise.all([
     sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
-    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
+    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes,origem_sistema').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
     sb.from('btx_despesas').select('id, categoria:btx_categorias_despesas(grupo)').eq('unidade', unidade).eq('ativo', true),
   ])
 
@@ -144,11 +144,12 @@ function FaixaResumo({ resumo }: { resumo: ResumoUnidade }) {
 function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidade, onClickHeader, onClickConta }: {
   resumo: ResumoUnidade; nome: string; short: string
   expandidoInicial: boolean; mostrarTagUnidade: boolean
-  onClickHeader?: () => void; onClickConta: (c: ContaPagar) => void
+  onClickHeader?: () => void; onClickConta: (c: ContaPagar | ContaReceber) => void
 }) {
   const [abertos, setAbertos] = useState<Set<string>>(
     () => new Set(expandidoInicial ? resumo.gruposPagar.map(g => g.grupo) : [])
   )
+  const [receberAberto, setReceberAberto] = useState(expandidoInicial)
   const toggle = (g: string) => setAbertos(prev => {
     const n = new Set(prev)
     n.has(g) ? n.delete(g) : n.add(g)
@@ -173,10 +174,31 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
         <span style={{ color: 'var(--text-muted)' }}>Saldo hoje</span>
         <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
-        <span style={{ color: 'var(--text-muted)' }}>A receber</span>
+      <button
+        onClick={() => setReceberAberto(v => !v)}
+        style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)', marginBottom: 8, background: 'none', border: 'none', borderBottomStyle: 'solid', cursor: resumo.contasReceber.length ? 'pointer' : 'default', font: 'inherit', color: 'inherit' }}
+      >
+        <span style={{ color: 'var(--text-muted)' }}>{resumo.contasReceber.length > 0 ? (receberAberto ? '▾ ' : '▸ ') : ''}A receber</span>
         <span className="mono">{formatMoeda(resumo.aReceberMes)}</span>
-      </div>
+      </button>
+      {receberAberto && resumo.contasReceber.map(c => (
+        <div
+          key={c.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => onClickConta(c)}
+          onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+        >
+          <div style={{ fontSize: 11, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : c.proxima ? 'var(--amber)' : 'var(--text)' }}>
+            {c.paga ? '✓ ' : c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
+            {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
+            {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(c.vencimento)}</span>
+          </div>
+          <span className="mono" style={{ fontSize: 12, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : 'var(--text)' }}>{formatMoeda(c.valor)}</span>
+        </div>
+      ))}
 
       {resumo.gruposPagar.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem contas a pagar</div>
@@ -198,12 +220,13 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
               onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
-              <div style={{ fontSize: 11, color: c.vencida ? 'var(--red)' : c.proxima ? 'var(--amber)' : 'var(--text)' }}>
-                {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
+              <div style={{ fontSize: 11, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : c.proxima ? 'var(--amber)' : 'var(--text)' }}>
+                {c.paga ? '✓ ' : c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
+                {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
                 {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(c.vencimento)}</span>
               </div>
-              <span className="mono" style={{ fontSize: 12, color: c.vencida ? 'var(--red)' : 'var(--text)' }}>{formatMoeda(c.valor)}</span>
+              <span className="mono" style={{ fontSize: 12, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : 'var(--text)' }}>{formatMoeda(c.valor)}</span>
             </div>
           ))}
         </div>
@@ -218,7 +241,7 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
 }
 
 function ModalConta({ conta, onClose, onGravou, readOnly }: {
-  conta: ContaPagar | null; onClose: () => void; onGravou: () => void; readOnly: boolean
+  conta: ContaPagar | ContaReceber | null; onClose: () => void; onGravou: () => void; readOnly: boolean
 }) {
   const sb = useMemo(() => createClient(), [])
   const [venc, setVenc] = useState('')
@@ -230,6 +253,7 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
   }, [conta])
 
   if (!conta) return null
+  const travado = readOnly || conta.gerenciadoPorVhsys
 
   async function run(patch: Record<string, unknown>) {
     setSaving(true)
@@ -244,7 +268,7 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
       onClose={onClose}
       title={conta.descricao}
       size="sm"
-      footer={readOnly ? (
+      footer={travado ? (
         <button className="btn btn-secondary" onClick={onClose}>Fechar</button>
       ) : (
         <>
@@ -254,13 +278,16 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
         </>
       )}
     >
+      {conta.gerenciadoPorVhsys && (
+        <div className="alert alert-amber" style={{ marginBottom: 12 }}>Gerenciado pelo VHSYS — edite lá; a próxima sincronização atualiza aqui.</div>
+      )}
       <div className="form-group">
         <label className="form-label">Vencimento</label>
-        <input className="form-input" type="date" value={venc} disabled={readOnly} onChange={e => setVenc(e.target.value)} />
+        <input className="form-input" type="date" value={venc} disabled={travado} onChange={e => setVenc(e.target.value)} />
       </div>
       <div className="form-group">
         <label className="form-label">Valor (R$)</label>
-        <input className="form-input" type="number" step="0.01" value={val} disabled={readOnly} onChange={e => setVal(Number(e.target.value))} />
+        <input className="form-input" type="number" step="0.01" value={val} disabled={travado} onChange={e => setVal(Number(e.target.value))} />
       </div>
     </Modal>
   )
@@ -276,7 +303,7 @@ export default function DashboardPage() {
   const [porUnidade, setPorUnidade] = useState<Partial<Record<string, ResumoUnidade>>>({})
   const [estoque, setEstoque] = useState<LinhaEstoque[]>([])
   const [loading, setLoading] = useState(true)
-  const [contaAberta, setContaAberta] = useState<ContaPagar | null>(null)
+  const [contaAberta, setContaAberta] = useState<ContaPagar | ContaReceber | null>(null)
   const hojeStr = new Date().toISOString().slice(0, 10)
 
   const carregar = useCallback(async () => {

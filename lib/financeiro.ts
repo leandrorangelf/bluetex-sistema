@@ -19,6 +19,7 @@ export interface ParcelaFinanceira {
   numero_boleto: string | null
   observacoes: string | null
   descricao?: string
+  origem_sistema?: string
 }
 
 export interface PagamentoParcela {

@@ -52,12 +52,11 @@ export function buildAnalysisItems(
       if (result.domain === 'estoque' && !mappedProductIds.has(item.externalId)) {
         continue
       }
+      // ponytail: título liquidado não entrava se nunca visto antes ("histórico").
+      // Removido — o importador já corta por marco zero (VHSYS_ZERO_DATE), então
+      // o que sobra é sempre atual; escondê-lo tirava visibilidade do que já foi
+      // pago (despesa quitada, cliente que já pagou).
       const reconciled = reconcileItem(item, candidateMap[result.domain] ?? [])
-      const isClosedHistoricalTitle =
-        (result.domain === 'receber' || result.domain === 'pagar')
-        && item.data.liquidado === true
-        && reconciled.classification === 'novo'
-      if (isClosedHistoricalTitle) continue
       let decision: AnalysisRow['decisao'] = null
       if (reconciled.classification === 'novo') {
         decision = result.domain === 'bancos' && bankCount > 1 ? null : 'importar'

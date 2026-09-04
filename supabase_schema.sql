@@ -758,21 +758,36 @@ BEGIN
     ELSIF p_dominio IN ('receber','pagar') AND v_item.decisao = 'importar' THEN
       INSERT INTO btx_parcelas(
         unidade, tipo, origem, numero_parcela, vencimento, valor, status,
-        numero_boleto, observacoes, ativo, origem_sistema, vhsys_id, vhsys_synced_at
+        numero_boleto, observacoes, data_pagamento, ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
         'NEW BLUETEX MG', CASE WHEN p_dominio='receber' THEN 'receber' ELSE 'pagar' END,
-        'manual', 1, (v_item.dados_normalizados->>'vencimento')::DATE,
+        CASE WHEN p_dominio='pagar' AND COALESCE(v_item.dados_normalizados->>'pessoa_vhsys_id','')<>''
+          THEN 'compra' ELSE 'manual' END,
+        1, (v_item.dados_normalizados->>'vencimento')::DATE,
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_total','')::NUMERIC,0),
         COALESCE(NULLIF(v_item.dados_normalizados->>'status',''),'pendente'),
         v_item.dados_normalizados->>'numero_documento',
         v_item.dados_normalizados->>'observacoes',
+        NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
         TRUE, 'vhsys', v_item.vhsys_id, NOW()
       )
       ON CONFLICT (unidade, tipo, vhsys_id) WHERE vhsys_id IS NOT NULL
       DO UPDATE SET vencimento=EXCLUDED.vencimento, valor=EXCLUDED.valor,
         status=EXCLUDED.status, numero_boleto=EXCLUDED.numero_boleto,
-        observacoes=EXCLUDED.observacoes, ativo=TRUE, vhsys_synced_at=NOW()
+        observacoes=EXCLUDED.observacoes, origem=EXCLUDED.origem,
+        data_pagamento=COALESCE(EXCLUDED.data_pagamento, btx_parcelas.data_pagamento),
+        ativo=TRUE, vhsys_synced_at=NOW()
       RETURNING id INTO v_local_id;
+
+      IF COALESCE(v_item.dados_normalizados->>'status','') = 'pago' AND NOT EXISTS (
+        SELECT 1 FROM btx_pagamentos_parcela WHERE parcela_id = v_local_id
+      ) THEN
+        INSERT INTO btx_pagamentos_parcela(parcela_id, valor, data_pagamento, observacoes)
+        SELECT id, valor,
+          COALESCE(NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE, CURRENT_DATE),
+          'Baixa automática via VHSYS'
+        FROM btx_parcelas WHERE id = v_local_id;
+      END IF;
     END IF;
 
     UPDATE btx_vhsys_sincronizacao_itens
