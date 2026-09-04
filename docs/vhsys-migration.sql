@@ -51,7 +51,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS btx_parcelas_vhsys_uidx
 CREATE TABLE IF NOT EXISTS btx_vhsys_sincronizacoes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   unidade TEXT NOT NULL CHECK (unidade = 'NEW BLUETEX MG'),
-  marco_zero DATE NOT NULL DEFAULT '2026-07-01',
+  marco_zero DATE NOT NULL DEFAULT '2026-09-01',
   status TEXT NOT NULL CHECK (status IN ('analisando','pronto','confirmando','concluido','falhou')),
   iniciado_por UUID NOT NULL REFERENCES auth.users(id),
   confirmado_por UUID REFERENCES auth.users(id),
@@ -171,6 +171,7 @@ DECLARE
   v_local_id UUID;
   v_person_id UUID;
   v_product_id UUID;
+  v_status TEXT;
 BEGIN
   IF p_dominio NOT IN ('vendas','compras','receber','pagar','estoque','bancos') THEN
     RAISE EXCEPTION 'Domínio VHSYS inválido';
@@ -218,8 +219,24 @@ BEGIN
         UPDATE btx_compras SET origem_sistema='vhsys', vhsys_id=v_item.vhsys_id,
           vhsys_synced_at=NOW() WHERE id=v_item.local_id;
       ELSIF p_dominio IN ('receber','pagar') THEN
+        -- Propaga baixa/valor feita no VHSYS para um título já vinculado aqui.
+        v_status := COALESCE(NULLIF(v_item.dados_normalizados->>'status',''), 'pendente');
         UPDATE btx_parcelas SET origem_sistema='vhsys', vhsys_id=v_item.vhsys_id,
-          vhsys_synced_at=NOW() WHERE id=v_item.local_id;
+          vhsys_synced_at=NOW(), status=v_status,
+          data_pagamento = CASE WHEN v_status='pago' THEN COALESCE(
+            NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
+            data_pagamento, CURRENT_DATE
+          ) ELSE data_pagamento END
+        WHERE id=v_item.local_id;
+        IF v_status = 'pago' AND NOT EXISTS (
+          SELECT 1 FROM btx_pagamentos_parcela WHERE parcela_id = v_item.local_id
+        ) THEN
+          INSERT INTO btx_pagamentos_parcela(parcela_id, valor, data_pagamento, observacoes)
+          SELECT id, valor,
+            COALESCE(NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE, CURRENT_DATE),
+            'Baixa automática via VHSYS'
+          FROM btx_parcelas WHERE id = v_item.local_id;
+        END IF;
       ELSIF p_dominio = 'estoque' THEN
         UPDATE btx_produtos SET origem_sistema='vhsys', vhsys_id_mg=v_item.vhsys_id,
           vhsys_synced_at=NOW() WHERE id=v_item.local_id;
