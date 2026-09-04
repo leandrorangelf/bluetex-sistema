@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { formatMoeda, formatData, hoje } from '@/lib/utils'
+import { formatMoeda, formatData, hoje, mesAtual, anoAtual, getMesAnoLabel } from '@/lib/utils'
 import { saldoRestante, listarPagamentos, registrarPagamento, excluirPagamento, sincronizarParcela, type PagamentoRow } from '@/lib/pagamentos'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -31,6 +31,9 @@ export default function ParcelasPagarPage() {
   const [loading, setLoading] = useState(true)
   const [statusFiltro, setStatusFiltro] = useState<(typeof STATUS)[number]['key']>('aberto')
   const [origemFiltro, setOrigemFiltro] = useState<(typeof ORIGENS)[number]>('todos')
+  const [mes, setMes] = useState(mesAtual())
+  const [ano, setAno] = useState(anoAtual())
+  const [todosMeses, setTodosMeses] = useState(false)
   const [erro, setErro] = useState('')
   const [pagarRow, setPagarRow] = useState<Parcela | null>(null)
   const [pagarSaving, setPagarSaving] = useState(false)
@@ -148,7 +151,14 @@ export default function ParcelasPagarPage() {
 
   const hojeStr = hoje()
   const verRow = verId ? rows.find(r => r.id === verId) ?? null : null
-  const visiveis = origemFiltro === 'todos' ? rows : rows.filter(r => r.origem === origemFiltro)
+  const competencia = `${ano}-${String(mes).padStart(2, '0')}`
+  const porOrigem = origemFiltro === 'todos' ? rows : rows.filter(r => r.origem === origemFiltro)
+  const visiveis = todosMeses ? porOrigem : porOrigem.filter(r => r.vencimento.startsWith(competencia))
+  function mudarMes(delta: number) {
+    let m = mes + delta, a = ano
+    if (m < 1) { m = 12; a-- } else if (m > 12) { m = 1; a++ }
+    setMes(m); setAno(a)
+  }
   const totalSaldo = visiveis.reduce((a, r) => a + saldoRestante(r.valor, pagosDe(r)), 0)
 
   function badge(r: Parcela) {
@@ -176,6 +186,16 @@ export default function ParcelasPagarPage() {
             {o === 'todos' ? 'Todas' : o.charAt(0).toUpperCase() + o.slice(1)}
           </button>
         ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+        {!todosMeses && <>
+          <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(-1)}>‹</button>
+          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 140, textAlign: 'center' }}>{getMesAnoLabel(mes, ano)}</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(1)}>›</button>
+        </>}
+        <button className={`btn btn-sm ${todosMeses ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTodosMeses(v => !v)}>
+          {todosMeses ? 'Ver por mês' : 'Todos os meses'}
+        </button>
       </div>
       {erro && <div className="alert alert-red" role="alert">{erro}</div>}
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o pagamento ser confirmado.</div>

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { formatMoeda, formatData, hoje } from '@/lib/utils'
+import { formatMoeda, formatData, hoje, mesAtual, anoAtual, getMesAnoLabel } from '@/lib/utils'
 import { saldoRestante, listarPagamentos, registrarPagamento, excluirPagamento, sincronizarParcela, type PagamentoRow } from '@/lib/pagamentos'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -33,6 +33,9 @@ export default function ParcelasReceberPage() {
   const [nfMap, setNfMap] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [statusFiltro, setStatusFiltro] = useState<(typeof STATUS)[number]['key']>('aberto')
+  const [mes, setMes] = useState(mesAtual())
+  const [ano, setAno] = useState(anoAtual())
+  const [todosMeses, setTodosMeses] = useState(false)
   const [erro, setErro] = useState('')
   const [receberRow, setReceberRow] = useState<Parcela | null>(null)
   const [receberSaving, setReceberSaving] = useState(false)
@@ -140,7 +143,14 @@ export default function ParcelasReceberPage() {
 
   const hojeStr = hoje()
   const verRow = verId ? rows.find(r => r.id === verId) ?? null : null
-  const totalSaldo = rows.reduce((a, r) => a + saldoRestante(r.valor, pagosDe(r)), 0)
+  const competencia = `${ano}-${String(mes).padStart(2, '0')}`
+  const visiveis = todosMeses ? rows : rows.filter(r => r.vencimento.startsWith(competencia))
+  const totalSaldo = visiveis.reduce((a, r) => a + saldoRestante(r.valor, pagosDe(r)), 0)
+  function mudarMes(delta: number) {
+    let m = mes + delta, a = ano
+    if (m < 1) { m = 12; a-- } else if (m > 12) { m = 1; a++ }
+    setMes(m); setAno(a)
+  }
 
   function badge(r: Parcela) {
     const vencida = r.status === 'pendente' && r.vencimento < hojeStr
@@ -154,12 +164,22 @@ export default function ParcelasReceberPage() {
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-title">Contas a Receber</h1><div className="page-subtitle">contas a receber — {rows.length} · {formatMoeda(totalSaldo)}</div></div>
+        <div><h1 className="page-title">Contas a Receber</h1><div className="page-subtitle">contas a receber — {visiveis.length} · {formatMoeda(totalSaldo)}</div></div>
         <div style={{ display: 'flex', gap: 6 }}>
           {STATUS.map(s => (
             <button key={s.key} className={`btn btn-sm ${statusFiltro === s.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setStatusFiltro(s.key)}>{s.label}</button>
           ))}
         </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+        {!todosMeses && <>
+          <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(-1)}>‹</button>
+          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 140, textAlign: 'center' }}>{getMesAnoLabel(mes, ano)}</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(1)}>›</button>
+        </>}
+        <button className={`btn btn-sm ${todosMeses ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTodosMeses(v => !v)}>
+          {todosMeses ? 'Ver por mês' : 'Todos os meses'}
+        </button>
       </div>
       {erro && <div className="alert alert-red" role="alert">{erro}</div>}
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o recebimento ser confirmado.</div>
@@ -168,8 +188,8 @@ export default function ParcelasReceberPage() {
           <thead><tr><th>Cliente</th><th>NF</th><th>Vencimento</th><th className="num">Valor</th><th className="num">Recebido</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={8} className="empty-state">Carregando...</td></tr>
-            : rows.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma conta.</td></tr>
-            : rows.map(r => {
+            : visiveis.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma conta.</td></tr>
+            : visiveis.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
               const recebido = somaPagos(r)
               const emAberto = r.status === 'pendente' || r.status === 'parcial'
