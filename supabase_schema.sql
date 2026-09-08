@@ -429,6 +429,8 @@ ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS origem_sistema TEXT NOT NULL D
   CHECK (origem_sistema IN ('manual','vhsys'));
 ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS vhsys_id TEXT;
 ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS vhsys_synced_at TIMESTAMPTZ;
+-- Nota interna livre: nunca é tocada pela sincronização, vale para qualquer conta.
+ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS nota_interna TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS btx_parcelas_vhsys_uidx
   ON btx_parcelas(unidade, tipo, vhsys_id) WHERE vhsys_id IS NOT NULL;
 
@@ -772,7 +774,7 @@ BEGIN
         numero_boleto, observacoes, data_pagamento, ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
         'NEW BLUETEX MG', CASE WHEN p_dominio='receber' THEN 'receber' ELSE 'pagar' END,
-        CASE WHEN p_dominio='pagar' AND COALESCE(v_item.dados_normalizados->>'pessoa_vhsys_id','')<>''
+        CASE WHEN p_dominio='pagar' AND (v_item.dados_normalizados->>'de_entrada')::boolean
           THEN 'compra' ELSE 'manual' END,
         1, (v_item.dados_normalizados->>'vencimento')::DATE,
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_total','')::NUMERIC,0),

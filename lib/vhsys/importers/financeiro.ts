@@ -113,6 +113,11 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
       String(row.forma_pagamento ?? ''),
     ].map((p) => p.trim()).filter((p, i, a) => p && a.indexOf(p) === i)
     const descricao = partes.join(' · ')
+    // entrada de mercadoria no VHSYS tem identificacao "Entr_..." e categoria
+    // "Fornecedor"; o resto é despesa comum.
+    const ident = String(row.identificacao ?? '')
+    const deEntrada = /^entr/i.test(ident)
+      || /entrada de mercadoria/i.test(String(row.nome_conta ?? ''))
     return [{
       domain: c.domain,
       externalId: String(first(row, c.id)),
@@ -132,6 +137,7 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
         data_pagamento: isoDate(row.data_pagamento),
         // a tela mostra 'observacoes' na coluna Cliente (receber) / Origem (pagar)
         observacoes: descricao || (c.domain === 'receber' ? 'Recebimento avulso' : 'Despesa'),
+        de_entrada: deEntrada,
         link_boleto: String(row.link_boleto ?? ''),
       },
     }]

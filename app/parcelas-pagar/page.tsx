@@ -39,6 +39,7 @@ export default function ParcelasPagarPage() {
   const [pagarSaving, setPagarSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
   const [formEdit, setFormEdit] = useState({ vencimento: '', valor: 0 })
+  const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
   const sb = createClient()
@@ -84,14 +85,16 @@ export default function ParcelasPagarPage() {
     const om = new Map<string, string>()
     const nf = new Map<string, string>()
     for (const p of parcelas) {
-      if (p.origem === 'compra') {
-        om.set(p.id, (p.origem_id && compraNome.get(p.origem_id)) || 'Compra')
-        nf.set(p.id, (p.origem_id && compraNf.get(p.origem_id)) || '—')
-      } else if (p.origem === 'despesa') {
-        om.set(p.id, (p.origem_id && despesaTxt.get(p.origem_id)) || 'Despesa')
-        nf.set(p.id, (p.origem_id && despesaNf.get(p.origem_id)) || '—')
+      // conta do VHSYS (sem compra/despesa local vinculada) mostra a própria descrição
+      const semVinculoLocal = !p.origem_id
+      if (p.origem === 'compra' && !semVinculoLocal) {
+        om.set(p.id, compraNome.get(p.origem_id!) || 'Compra')
+        nf.set(p.id, compraNf.get(p.origem_id!) || '—')
+      } else if (p.origem === 'despesa' && !semVinculoLocal) {
+        om.set(p.id, despesaTxt.get(p.origem_id!) || 'Despesa')
+        nf.set(p.id, despesaNf.get(p.origem_id!) || '—')
       } else {
-        om.set(p.id, p.observacoes ?? '—')
+        om.set(p.id, p.observacoes?.trim() || '—')
         nf.set(p.id, p.numero_boleto ?? '—')
       }
     }
@@ -144,9 +147,16 @@ export default function ParcelasPagarPage() {
   }
 
   function abrirVer(r: Parcela) {
-    if (isVhsysManaged(r)) return
     setFormEdit({ vencimento: r.vencimento, valor: r.valor })
+    setNota(r.nota_interna ?? '')
     setVerId(r.id)
+  }
+
+  async function salvarNota() {
+    if (!verRow) return
+    setSaving(true)
+    await sb.from('btx_parcelas').update({ nota_interna: nota || null }).eq('id', verRow.id)
+    setSaving(false); setVerId(null); load()
   }
 
   const hojeStr = hoje()
@@ -218,8 +228,12 @@ export default function ParcelasPagarPage() {
                   <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
                   <td>{badge(r)}</td>
                   <td className="cell-actions">
-                    {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span>
-                    : !isDiretoria && (
+                    {isVhsysManaged(r) ? (
+                      <div className="row-actions">
+                        <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
+                        {r.nota_interna && <span className="badge badge-gray" title={r.nota_interna}>nota</span>}
+                      </div>
+                    ) : !isDiretoria && (
                       <div className="row-actions">
                         {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setPagarRow(r)}>Pagar</button>}
                         <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
@@ -246,20 +260,31 @@ export default function ParcelasPagarPage() {
         <Modal open onClose={() => setVerId(null)} title="Detalhes da conta" size="sm"
           footer={<>
             <button className="btn btn-secondary" onClick={() => setVerId(null)}>Fechar</button>
-            <button className="btn btn-primary" onClick={salvarEdit} disabled={saving}>{saving ? 'Salvando...' : 'Salvar alterações'}</button>
+            {isVhsysManaged(verRow)
+              ? <button className="btn btn-primary" onClick={salvarNota} disabled={saving}>{saving ? 'Salvando...' : 'Salvar nota'}</button>
+              : <button className="btn btn-primary" onClick={salvarEdit} disabled={saving}>{saving ? 'Salvando...' : 'Salvar alterações'}</button>}
           </>}
         >
+          {isVhsysManaged(verRow) && (
+            <div className="alert alert-amber" style={{ marginBottom: 12 }}>
+              Conta do VHSYS — valor e vencimento vêm de lá. Aqui você só adiciona uma nota interna.
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Origem</label>
             <div>{origemMap.get(verRow.id) ?? '—'}</div>
           </div>
           <div className="form-group">
             <label className="form-label">Vencimento</label>
-            <input className="form-input" type="date" value={formEdit.vencimento} onChange={e => setFormEdit(f => ({ ...f, vencimento: e.target.value }))} />
+            <input className="form-input" type="date" value={formEdit.vencimento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, vencimento: e.target.value }))} />
           </div>
           <div className="form-group">
             <label className="form-label">Valor (R$)</label>
-            <input className="form-input mono" type="number" step="0.01" value={formEdit.valor} onChange={e => setFormEdit(f => ({ ...f, valor: Number(e.target.value) }))} />
+            <input className="form-input mono" type="number" step="0.01" value={formEdit.valor} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, valor: Number(e.target.value) }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Nota interna</label>
+            <textarea className="form-input" rows={2} value={nota} onChange={e => setNota(e.target.value)} placeholder="Anotação sua, não sincroniza com o VHSYS" />
           </div>
           <div className="form-group">
             <label className="form-label">Histórico de pagamentos</label>
@@ -267,11 +292,11 @@ export default function ParcelasPagarPage() {
               : pagosDe(verRow).map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '4px 0' }}>
                   <span className="mono">{formatData(p.data_pagamento)} · {formatMoeda(p.valor)}{p.observacoes ? ` · ${p.observacoes}` : ''}</span>
-                  <button className="btn btn-danger btn-sm" disabled={saving} onClick={() => onExcluirPagamento(p, verRow)}>excluir</button>
+                  {!isVhsysManaged(verRow) && <button className="btn btn-danger btn-sm" disabled={saving} onClick={() => onExcluirPagamento(p, verRow)}>excluir</button>}
                 </div>
               ))}
           </div>
-          {verRow.status !== 'cancelado' && (
+          {!isVhsysManaged(verRow) && verRow.status !== 'cancelado' && (
             <button className="btn btn-secondary btn-sm" onClick={cancelarConta} disabled={saving}>Cancelar conta</button>
           )}
         </Modal>
