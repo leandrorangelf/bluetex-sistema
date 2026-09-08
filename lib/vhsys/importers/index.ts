@@ -1,20 +1,16 @@
 import type { VhsysClient } from '../client'
 import { importBancos } from './bancos'
-import { importCompras } from './compras'
 import { importPagar, importReceber } from './financeiro'
 import type {
   DomainImporter,
   DomainResult,
   VhsysDomain,
 } from './shared'
-import { importVendas } from './vendas'
 
-// ponytail: estoque fora por ora — o estoque do VHSYS não é exibido em nenhuma
-// tela (o Painel calcula pelas entradas/saídas locais). Reativar quando houver
-// onde mostrar e o mapa de produtos cobrir todas as unidades de medida.
+// ponytail: por ora só o espelho financeiro (contas + saldo). Vendas/compras
+// mexem no estoque e exigem contagem de abertura + mapa de produtos fechado —
+// reativar (importVendas/importCompras/importEstoque) quando isso estiver feito.
 export const DEFAULT_IMPORTERS: [VhsysDomain, DomainImporter][] = [
-  ['vendas', importVendas],
-  ['compras', importCompras],
   ['receber', importReceber],
   ['pagar', importPagar],
   ['bancos', importBancos],
