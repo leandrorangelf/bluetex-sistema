@@ -472,6 +472,13 @@ CREATE TABLE IF NOT EXISTS btx_vhsys_saldos_bancarios (
   sincronizacao_id UUID NOT NULL REFERENCES btx_vhsys_sincronizacoes(id),
   UNIQUE(sincronizacao_id, vhsys_banco_id)
 );
+-- Saldo bancário é foto do momento: mantém 1 linha por banco, atualizada em vez
+-- de acumular uma por sincronização.
+ALTER TABLE btx_vhsys_saldos_bancarios DROP CONSTRAINT IF EXISTS btx_vhsys_saldos_bancarios_sincronizacao_id_vhsys_banco_id_key;
+DELETE FROM btx_vhsys_saldos_bancarios a USING btx_vhsys_saldos_bancarios b
+  WHERE a.vhsys_banco_id = b.vhsys_banco_id AND a.consultado_em < b.consultado_em;
+CREATE UNIQUE INDEX IF NOT EXISTS btx_vhsys_saldos_bancarios_banco_uidx
+  ON btx_vhsys_saldos_bancarios(vhsys_banco_id);
 
 CREATE TABLE IF NOT EXISTS btx_vhsys_estoque_atual (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -593,7 +600,7 @@ BEGIN
       CONTINUE;
     END IF;
 
-    IF v_item.decisao = 'vincular' THEN
+    IF v_item.decisao = 'vincular' AND p_dominio <> 'bancos' THEN
       IF v_item.local_id IS NULL THEN
         RAISE EXCEPTION 'Vínculo VHSYS sem registro local';
       END IF;
@@ -664,8 +671,10 @@ BEGIN
         COALESCE(NULLIF(v_item.dados_normalizados->>'consultado_em','')::TIMESTAMPTZ,NOW()),
         p_sincronizacao
       )
-      ON CONFLICT (sincronizacao_id, vhsys_banco_id)
-      DO UPDATE SET saldo_atual=EXCLUDED.saldo_atual, consultado_em=EXCLUDED.consultado_em;
+      ON CONFLICT (vhsys_banco_id)
+      DO UPDATE SET saldo_atual=EXCLUDED.saldo_atual, consultado_em=EXCLUDED.consultado_em,
+        nome_banco=EXCLUDED.nome_banco, numero_banco=EXCLUDED.numero_banco,
+        sincronizacao_id=EXCLUDED.sincronizacao_id;
 
     ELSIF p_dominio = 'vendas' AND v_item.decisao = 'importar' THEN
       v_person_id := NULL;

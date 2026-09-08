@@ -28,6 +28,7 @@ export function buildAnalysisItems(
   results: DomainResult[],
   candidateMap: CandidateMap,
   mappedProductIds: Set<string> = new Set(),
+  knownBankIds: Set<string> = new Set(),
 ): AnalysisRow[] {
   const bankCount = results.find((result) => result.domain === 'bancos')
     ?.items.length ?? 0
@@ -56,7 +57,11 @@ export function buildAnalysisItems(
       // Removido — o importador já corta por marco zero (VHSYS_ZERO_DATE), então
       // o que sobra é sempre atual; escondê-lo tirava visibilidade do que já foi
       // pago (despesa quitada, cliente que já pagou).
-      const reconciled = reconcileItem(item, candidateMap[result.domain] ?? [])
+      let reconciled = reconcileItem(item, candidateMap[result.domain] ?? [])
+      // saldo de banco já conhecido = só atualiza a foto, não é "lançamento novo"
+      if (result.domain === 'bancos' && knownBankIds.has(item.externalId)) {
+        reconciled = { ...reconciled, classification: 'ja_vinculado' }
+      }
       let decision: AnalysisRow['decisao'] = null
       if (reconciled.classification === 'novo') {
         decision = result.domain === 'bancos' && bankCount > 1 ? null : 'importar'
@@ -122,6 +127,13 @@ async function loadMappedProductIds(supabase: SupabaseClient): Promise<Set<strin
     .eq('ignorar', false)
     .not('produto_id', 'is', null)
   return new Set((data ?? []).map((r) => String((r as { vhsys_id_produto: unknown }).vhsys_id_produto)))
+}
+
+async function loadKnownBankIds(supabase: SupabaseClient): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('btx_vhsys_saldos_bancarios')
+    .select('vhsys_banco_id')
+  return new Set((data ?? []).map((r) => String((r as { vhsys_banco_id: unknown }).vhsys_banco_id)))
 }
 
 async function loadCandidates(supabase: SupabaseClient): Promise<CandidateMap> {
@@ -218,12 +230,13 @@ export async function analyzeVhsys(
 
   const syncId = String(sync.id)
   try {
-    const [results, candidateMap, mappedProductIds] = await Promise.all([
+    const [results, candidateMap, mappedProductIds, knownBankIds] = await Promise.all([
       runDomainImporters(client),
       loadCandidates(supabase),
       loadMappedProductIds(supabase),
+      loadKnownBankIds(supabase),
     ])
-    const rows = buildAnalysisItems(results, candidateMap, mappedProductIds)
+    const rows = buildAnalysisItems(results, candidateMap, mappedProductIds, knownBankIds)
     if (rows.length > 0) {
       const { error } = await supabase
         .from('btx_vhsys_sincronizacao_itens')
