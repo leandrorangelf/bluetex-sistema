@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/vhsys/cron", "schedule": "0 */3 * * *" }
+  ]
+}

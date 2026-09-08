@@ -64,21 +64,21 @@ export class VhsysClient {
     const result: T[] = []
     let offset = 0
 
+    // ponytail: não confia no campo `total`/`total_count` do VHSYS (às vezes vem
+    // igual à contagem da página, o que fazia a paginação parar na 1ª página).
+    // Para quando uma página vier com menos itens que o pageSize.
     for (;;) {
       const page = await this.request<VhsysListResponse<T>>(path, {
         ...query,
         limit: pageSize,
         offset,
       })
-      result.push(...page.data)
-
-      const total = Number(
-        page.paging?.total_count ?? page.paging?.total ?? result.length,
-      )
-      if (page.data.length === 0 || result.length >= total) {
+      const lote = page.data ?? []
+      result.push(...lote)
+      if (lote.length < pageSize || offset > 200_000) {
         return result
       }
-      offset += page.data.length
+      offset += lote.length
     }
   }
 }

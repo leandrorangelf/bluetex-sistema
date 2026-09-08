@@ -61,6 +61,29 @@ describe('VhsysClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('não para na primeira página quando o VHSYS reporta total igual à página', async () => {
+    const cheia = (ids: number[]) => new Response(JSON.stringify({
+      code: 200, status: 'success',
+      paging: { total: ids.length, offset: 0, limit: 2, limit_max: 250 },
+      data: ids.map((id) => ({ id })),
+    }))
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(cheia([1, 2]))
+      .mockResolvedValueOnce(cheia([3, 4]))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: 200, status: 'success', paging: { total: 1 }, data: [{ id: 5 }],
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+    const { VhsysClient } = await import('@/lib/vhsys/client')
+    const client = new VhsysClient({
+      baseUrl: 'https://api.example.test', accessToken: 'a', secretAccessToken: 's', timeoutMs: 5000,
+    })
+
+    await expect(client.list<{ id: number }>('/contas-pagar', {}, 2))
+      .resolves.toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('retorna código sanitizado quando a API rejeita a autenticação', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
       JSON.stringify({ message: 'token secret exposto pelo provedor' }),

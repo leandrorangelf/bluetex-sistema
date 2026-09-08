@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS btx_vhsys_sincronizacoes (
   unidade TEXT NOT NULL CHECK (unidade = 'NEW BLUETEX MG'),
   marco_zero DATE NOT NULL DEFAULT '2026-09-01',
   status TEXT NOT NULL CHECK (status IN ('analisando','pronto','confirmando','concluido','falhou')),
-  iniciado_por UUID NOT NULL REFERENCES auth.users(id),
+  iniciado_por UUID REFERENCES auth.users(id),
   confirmado_por UUID REFERENCES auth.users(id),
   iniciado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   concluido_em TIMESTAMPTZ,
@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS btx_vhsys_saldos_bancarios (
   sincronizacao_id UUID NOT NULL REFERENCES btx_vhsys_sincronizacoes(id),
   UNIQUE(sincronizacao_id, vhsys_banco_id)
 );
+ALTER TABLE btx_vhsys_sincronizacoes ALTER COLUMN iniciado_por DROP NOT NULL;
+
 -- Saldo bancário é foto do momento: mantém 1 linha por banco, atualizada em vez
 -- de acumular uma por sincronização.
 ALTER TABLE btx_vhsys_saldos_bancarios DROP CONSTRAINT IF EXISTS btx_vhsys_saldos_bancarios_sincronizacao_id_vhsys_banco_id_key;

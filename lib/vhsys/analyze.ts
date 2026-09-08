@@ -213,7 +213,7 @@ function summarize(rows: AnalysisRow[]): Record<string, number> {
 
 export async function analyzeVhsys(
   supabase: SupabaseClient,
-  userId: string,
+  userId: string | null,
   client: VhsysClient,
 ): Promise<string> {
   const { data: sync, error: createError } = await supabase

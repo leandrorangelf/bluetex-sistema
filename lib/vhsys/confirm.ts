@@ -46,7 +46,7 @@ const DOMAIN_ORDER = [
 export async function confirmVhsys(
   supabase: SupabaseClient,
   syncId: string,
-  userId: string,
+  userId: string | null,
   decisions: SyncDecision[],
 ): Promise<Record<string, string>> {
   const { data: sync, error: syncError } = await supabase
