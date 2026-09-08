@@ -1,5 +1,5 @@
 import type { VhsysClient } from '../client'
-import { VHSYS_ZERO_DATE, includeAccount, isoDate, money } from '../normalizers'
+import { VHSYS_ANO_MINIMO, VHSYS_ZERO_DATE, includeAccount, isoDate, money } from '../normalizers'
 import type { ImportedItem } from './shared'
 
 // ponytail: traz título aberto OU já liquidado (pra propagar baixa em título já
@@ -63,13 +63,19 @@ const CAMPOS_PAGAR: Campos = {
 function motivoExclusao(row: Record<string, unknown>, c: Campos): string | null {
   const vencimento = isoDate(first(row, c.vencimento))
   const valorTotal = money(first(row, c.valor))
+  const aberto = includeAccount(first(row, c.liquidado))
   const lixeira = String(row.lixeira ?? 'Nao').trim().toLocaleLowerCase('pt-BR')
   const situacao = String(first(row, ['situacao', 'status_conta']) ?? '').toLocaleLowerCase('pt-BR')
   if (lixeira === 'sim') return 'na lixeira do VHSYS'
   if (situacao.includes('estorn')) return 'conta estornada no VHSYS'
   if (situacao.includes('cancel')) return 'conta cancelada no VHSYS'
   if (vencimento === null) return 'sem data de vencimento'
-  if (vencimento < VHSYS_ZERO_DATE) return `vencimento ${vencimento} anterior ao marco (${VHSYS_ZERO_DATE})`
+  if (vencimento < VHSYS_ANO_MINIMO) return `vencimento ${vencimento} é de 2025 ou antes`
+  // conta a receber ainda em aberto entra mesmo se antiga (parcela de venda antiga)
+  const parcelaReceberEmAberto = c.domain === 'receber' && aberto
+  if (!parcelaReceberEmAberto && vencimento < VHSYS_ZERO_DATE) {
+    return `vencimento ${vencimento} anterior ao marco (${VHSYS_ZERO_DATE}) e já quitada`
+  }
   if (valorTotal < VALOR_MINIMO) return `valor R$ ${valorTotal.toFixed(2)} abaixo do mínimo`
   return null
 }

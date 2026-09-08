@@ -1,5 +1,7 @@
-// Marco zero: só entra do VHSYS o que for deste mês em diante.
-export const VHSYS_ZERO_DATE = '2026-09-01'
+// Marco zero: regra geral — só entra do VHSYS o que vence do mês passado em diante.
+export const VHSYS_ZERO_DATE = '2026-08-01'
+// Piso absoluto: nada de 2025 ou antes, em hipótese nenhuma.
+export const VHSYS_ANO_MINIMO = '2026-01-01'
 
 export function money(value: unknown): number {
   const parsed = Number(value ?? 0)

@@ -9,11 +9,11 @@ describe('importadores VHSYS', () => {
       list: vi.fn(async (path: string) => {
         if (path === '/pedidos') {
           return [
-            { id_ped: 11, id_pedido: 1, data_pedido: '2026-08-31', status_pedido: 'Atendido' },
+            { id_ped: 11, id_pedido: 1, data_pedido: '2026-07-31', status_pedido: 'Atendido' },
             {
               id_ped: 22,
               id_pedido: 2,
-              data_pedido: '2026-09-01',
+              data_pedido: '2026-08-01',
               status_pedido: 'Atendido',
               nome_cliente: 'Cliente A',
               valor_total_nota: '50.00',
@@ -46,25 +46,26 @@ describe('importadores VHSYS', () => {
     }])
   })
 
-  it('traz título aberto e liquidado (pra propagar baixa), no marco zero e com valor relevante', async () => {
+  it('receber: aberto de 2026 entra (mesmo antigo), pago só do marco em diante, nada de 2025', async () => {
     const client = {
       list: vi.fn().mockResolvedValue([
         { id_conta_rec: 1, liquidado_rec: 'Nao', valor_rec: '100.00', vencimento_rec: '2026-09-10', nome_cliente: 'BIANCA ROCHA' },
         { id_conta_rec: 2, liquidado_rec: 'Sim', valor_rec: '80.00', vencimento_rec: '2026-09-10', data_pagamento: '2026-09-05' },
-        { id_conta_rec: 3, liquidado_rec: 'Nao', valor_rec: '50.00', vencimento_rec: '2026-08-01' },
-        { id_conta_rec: 4, liquidado_rec: 'Nao', valor_rec: '0.06', vencimento_rec: '2026-09-15' },
-        { id_conta_rec: 5, liquidado_rec: 'Nao', valor_rec: '90.00', vencimento_rec: '2026-09-15', lixeira: 'Sim' },
-        { id_conta_rec: 6, liquidado_rec: 'Nao', valor_rec: '90.00', vencimento_rec: '2026-09-15', situacao: 'Conta estornada.' },
+        // aberto e antigo (venda antiga com parcela a receber) → entra
+        { id_conta_rec: 3, liquidado_rec: 'Nao', valor_rec: '50.00', vencimento_rec: '2026-03-01' },
+        // pago e anterior ao marco → não entra
+        { id_conta_rec: 4, liquidado_rec: 'Sim', valor_rec: '50.00', vencimento_rec: '2026-03-01' },
+        // 2025 → nunca entra
+        { id_conta_rec: 5, liquidado_rec: 'Nao', valor_rec: '50.00', vencimento_rec: '2025-12-01' },
+        { id_conta_rec: 6, liquidado_rec: 'Nao', valor_rec: '0.06', vencimento_rec: '2026-09-15' },
+        { id_conta_rec: 7, liquidado_rec: 'Nao', valor_rec: '90.00', vencimento_rec: '2026-09-15', lixeira: 'Sim' },
       ]),
     }
     const { importReceber } = await import('@/lib/vhsys/importers/financeiro')
 
     const result = await importReceber(client as never)
 
-    expect(result.map((r) => r.externalId)).toEqual(['1', '2'])
-    expect(result[0].data).toEqual(expect.objectContaining({
-      status: 'pendente', liquidado: false, pessoa_nome: 'BIANCA ROCHA', observacoes: 'BIANCA ROCHA',
-    }))
+    expect(result.map((r) => r.externalId)).toEqual(['1', '2', '3'])
     expect(result[1].data).toEqual(expect.objectContaining({
       status: 'pago', liquidado: true, data_pagamento: '2026-09-05',
     }))

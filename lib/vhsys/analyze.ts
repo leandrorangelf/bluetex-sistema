@@ -220,7 +220,7 @@ export async function analyzeVhsys(
     .from('btx_vhsys_sincronizacoes')
     .insert({
       unidade: 'NEW BLUETEX MG',
-      marco_zero: '2026-09-01',
+      marco_zero: '2026-08-01',
       status: 'analisando',
       iniciado_por: userId,
     })
