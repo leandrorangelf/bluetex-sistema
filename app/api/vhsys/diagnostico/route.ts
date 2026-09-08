@@ -25,17 +25,26 @@ async function analisarDominio(
     (locais ?? []).map((l) => [String((l as { vhsys_id: unknown }).vhsys_id), l]),
   )
 
+  const porVencDesc = (a: { vencimento: string | null }, b: { vencimento: string | null }) =>
+    String(b.vencimento ?? '').localeCompare(String(a.vencimento ?? ''))
   const deveriaEntrar = avaliadas.filter((a) => a.motivo_exclusao === null)
   const faltando = deveriaEntrar.filter((a) => !locaisPorId.has(a.vhsys_id))
-  const excluidas = avaliadas.filter((a) => a.motivo_exclusao !== null)
+  const excluidas = avaliadas.filter((a) => a.motivo_exclusao !== null).sort(porVencDesc)
+
+  const motivos: Record<string, number> = {}
+  for (const e of excluidas) {
+    const chave = e.motivo_exclusao!.replace(/\d{4}-\d{2}-\d{2}/, 'X')
+    motivos[chave] = (motivos[chave] ?? 0) + 1
+  }
 
   return {
     total_no_vhsys: rows.length,
     passam_no_filtro: deveriaEntrar.length,
     no_nosso_sistema: locaisPorId.size,
     faltando_importar: faltando.length,
-    faltando: faltando.slice(0, 50),
-    excluidas_e_motivo: excluidas.slice(0, 50),
+    faltando: faltando.sort(porVencDesc).slice(0, 50),
+    motivos_de_exclusao: motivos,
+    excluidas_recentes: excluidas.slice(0, 30),
   }
 }
 
