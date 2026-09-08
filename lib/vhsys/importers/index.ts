@@ -1,16 +1,19 @@
 import type { VhsysClient } from '../client'
 import { importBancos } from './bancos'
+import { importCompras } from './compras'
 import { importPagar, importReceber } from './financeiro'
 import type {
   DomainImporter,
   DomainResult,
   VhsysDomain,
 } from './shared'
+import { importVendas } from './vendas'
 
-// ponytail: por ora só o espelho financeiro (contas + saldo). Vendas/compras
-// mexem no estoque e exigem contagem de abertura + mapa de produtos fechado —
-// reativar (importVendas/importCompras/importEstoque) quando isso estiver feito.
+// Espelho financeiro + estoque a partir da contagem de 08/09/2026
+// (VHSYS_ESTOQUE_ZERO_DATE). Estoque (foto do VHSYS) segue fora.
 export const DEFAULT_IMPORTERS: [VhsysDomain, DomainImporter][] = [
+  ['vendas', importVendas],
+  ['compras', importCompras],
   ['receber', importReceber],
   ['pagar', importPagar],
   ['bancos', importBancos],

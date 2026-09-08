@@ -1,5 +1,5 @@
 import type { VhsysClient } from '../client'
-import { VHSYS_ZERO_DATE, isoDate, money } from '../normalizers'
+import { VHSYS_ESTOQUE_ZERO_DATE, isoDate, money } from '../normalizers'
 import type { ImportedItem } from './shared'
 
 interface VhsysOrderItem {
@@ -21,7 +21,7 @@ function pedidoValido(order: Record<string, unknown>): boolean {
     && !status.includes('cancel')
     && STATUS_OK.some((s) => status.includes(s))
     && data !== null
-    && data >= VHSYS_ZERO_DATE
+    && data >= VHSYS_ESTOQUE_ZERO_DATE
 }
 
 export async function importVendas(client: VhsysClient): Promise<ImportedItem[]> {

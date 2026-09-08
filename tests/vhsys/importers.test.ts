@@ -9,17 +9,17 @@ describe('importadores VHSYS', () => {
       list: vi.fn(async (path: string) => {
         if (path === '/pedidos') {
           return [
-            { id_ped: 11, id_pedido: 1, data_pedido: '2026-07-31', status_pedido: 'Atendido' },
+            { id_ped: 11, id_pedido: 1, data_pedido: '2026-09-07', status_pedido: 'Atendido' },
             {
               id_ped: 22,
               id_pedido: 2,
-              data_pedido: '2026-08-01',
+              data_pedido: '2026-09-08',
               status_pedido: 'Atendido',
               nome_cliente: 'Cliente A',
               valor_total_nota: '50.00',
             },
-            { id_ped: 33, id_pedido: 3, data_pedido: '2026-09-02', status_pedido: 'Cancelado' },
-            { id_ped: 44, id_pedido: 4, data_pedido: '2026-09-03', status_pedido: 'Atendido', lixeira: 'Sim' },
+            { id_ped: 33, id_pedido: 3, data_pedido: '2026-09-10', status_pedido: 'Cancelado' },
+            { id_ped: 44, id_pedido: 4, data_pedido: '2026-09-11', status_pedido: 'Atendido', lixeira: 'Sim' },
           ]
         }
         if (path === '/pedidos/22/produtos') {

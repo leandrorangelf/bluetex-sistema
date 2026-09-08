@@ -1,5 +1,5 @@
 import type { VhsysClient } from '../client'
-import { isoDate, money, VHSYS_ZERO_DATE } from '../normalizers'
+import { isoDate, money, VHSYS_ESTOQUE_ZERO_DATE } from '../normalizers'
 import type { ImportedItem } from './shared'
 
 interface VhsysPurchaseItem {
@@ -15,7 +15,7 @@ export async function importCompras(client: VhsysClient): Promise<ImportedItem[]
     const date = isoDate(entry.data_entrada ?? entry.data_pedido)
     const status = String(entry.status_entrada ?? entry.status_pedido ?? '')
       .toLocaleLowerCase('pt-BR')
-    return date !== null && date >= VHSYS_ZERO_DATE && !status.includes('cancel')
+    return date !== null && date >= VHSYS_ESTOQUE_ZERO_DATE && !status.includes('cancel')
   })
 
   return Promise.all(selected.map(async (entry) => {

@@ -1,7 +1,9 @@
-// Marco zero: regra geral — só entra do VHSYS o que vence do mês passado em diante.
+// Marco zero financeiro: contas a receber/pagar do mês passado em diante.
 export const VHSYS_ZERO_DATE = '2026-08-01'
 // Piso absoluto: nada de 2025 ou antes, em hipótese nenhuma.
 export const VHSYS_ANO_MINIMO = '2026-01-01'
+// Virada de estoque: venda/compra do VHSYS só conta a partir da contagem física.
+export const VHSYS_ESTOQUE_ZERO_DATE = '2026-09-08'
 
 export function money(value: unknown): number {
   const parsed = Number(value ?? 0)
