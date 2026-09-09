@@ -62,7 +62,7 @@ describe('buildAnalysisItems', () => {
     })])
   })
 
-  it('traz título liquidado tanto novo quanto já vinculado (importador já corta pelo marco zero)', () => {
+  it('não importa título liquidado nunca visto (reparcelamento), mas atualiza o já vinculado', () => {
     const rows = buildAnalysisItems([{
       domain: 'receber',
       error: null,
@@ -82,12 +82,9 @@ describe('buildAnalysisItems', () => {
       }],
     })
 
-    expect(rows).toHaveLength(2)
-    expect(rows.find((r) => r.vhsys_id === 'novo-pago')).toEqual(expect.objectContaining({
-      classificacao: 'novo', decisao: 'importar',
-    }))
-    expect(rows.find((r) => r.vhsys_id === 'vinculado')).toEqual(expect.objectContaining({
-      classificacao: 'ja_vinculado', decisao: 'vincular',
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toEqual(expect.objectContaining({
+      vhsys_id: 'vinculado', classificacao: 'ja_vinculado', decisao: 'vincular',
     }))
   })
 })

@@ -53,11 +53,16 @@ export function buildAnalysisItems(
       if (result.domain === 'estoque' && !mappedProductIds.has(item.externalId)) {
         continue
       }
-      // ponytail: título liquidado não entrava se nunca visto antes ("histórico").
-      // Removido — o importador já corta por marco zero (VHSYS_ZERO_DATE), então
-      // o que sobra é sempre atual; escondê-lo tirava visibilidade do que já foi
-      // pago (despesa quitada, cliente que já pagou).
       let reconciled = reconcileItem(item, candidateMap[result.domain] ?? [])
+      // Título já liquidado no VHSYS e nunca visto aqui: NÃO importa. O VHSYS
+      // guarda cada reparcelamento/renegociação como um registro "pago" separado
+      // — trazer todos triplicava o "entrou/pago no mês". Só entra o que já está
+      // vinculado (aí atualizamos a baixa) ou o que ainda está em aberto.
+      const liquidadoDesconhecido =
+        (result.domain === 'receber' || result.domain === 'pagar')
+        && item.data.liquidado === true
+        && reconciled.classification === 'novo'
+      if (liquidadoDesconhecido) continue
       // saldo de banco já conhecido = só atualiza a foto, não é "lançamento novo"
       if (result.domain === 'bancos' && knownBankIds.has(item.externalId)) {
         reconciled = { ...reconciled, classification: 'ja_vinculado' }
