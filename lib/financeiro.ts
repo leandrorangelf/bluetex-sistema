@@ -20,6 +20,7 @@ export interface ParcelaFinanceira {
   observacoes: string | null
   descricao?: string
   origem_sistema?: string
+  categoria_vhsys?: string | null
 }
 
 export interface PagamentoParcela {

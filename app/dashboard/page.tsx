@@ -96,7 +96,7 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
   const competenciaSel = chaveCompetencia(ano, mes)
   const [basesRes, parcelasRes, despesasRes, saldoRes] = await Promise.all([
     sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
-    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes,origem_sistema').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
+    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes,origem_sistema,categoria_vhsys').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
     sb.from('btx_despesas').select('id, categoria:btx_categorias_despesas(grupo)').eq('unidade', unidade).eq('ativo', true),
     sb.from('btx_vhsys_saldos_bancarios').select('saldo_atual,consultado_em').eq('unidade', unidade).order('consultado_em', { ascending: false }).limit(1),
   ])
@@ -140,6 +140,46 @@ function FaixaResumo({ resumo }: { resumo: ResumoUnidade }) {
       {par('A receber', resumo.aReceberMes)}
       {par('A pagar', resumo.totalDespesas, 'var(--red)')}
       {par('Resultado', resumo.resultado, resumo.resultado >= 0 ? 'var(--green)' : 'var(--red)')}
+    </div>
+  )
+}
+
+function PrestacaoContas({ resumo }: { resumo: ResumoUnidade }) {
+  const bloco = (titulo: string, linhas: typeof resumo.entradasPorCategoria, corTotal: string, totalPago: number) => (
+    <div className="card" style={{ flex: 1, minWidth: 280 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+        <strong style={{ fontSize: 13 }}>{titulo}</strong>
+        <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: corTotal }}>{formatMoeda(totalPago)}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '4px 12px', fontSize: 12 }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Categoria</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10, textAlign: 'right' }}>Realizado</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10, textAlign: 'right' }}>Previsto</span>
+        {linhas.length === 0 && <span style={{ gridColumn: '1/-1', color: 'var(--text-muted)', padding: '6px 0' }}>Nada no mês.</span>}
+        {linhas.map(l => (
+          <div key={l.categoria} style={{ display: 'contents' }}>
+            <span style={{ borderTop: '1px solid var(--border)', paddingTop: 4 }}>{l.categoria}</span>
+            <span className="mono" style={{ textAlign: 'right', borderTop: '1px solid var(--border)', paddingTop: 4 }}>{l.realizado ? formatMoeda(l.realizado) : '—'}</span>
+            <span className="mono" style={{ textAlign: 'right', borderTop: '1px solid var(--border)', paddingTop: 4, color: 'var(--text-muted)' }}>{l.previsto ? formatMoeda(l.previsto) : '—'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+  return (
+    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
+      {bloco('Entrou no mês', resumo.entradasPorCategoria, 'var(--green)', resumo.totalEntrou)}
+      {bloco('Pago no mês', resumo.saidasPorCategoria, 'var(--red)', resumo.totalPagou)}
+      <div className="card" style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Saldo disponível</div>
+          <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: resumo.saldoHoje < 0 ? 'var(--red)' : 'var(--navy)' }}>{formatMoeda(resumo.saldoHoje)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Projeção (saldo + a receber − a pagar)</div>
+          <div className="mono" style={{ fontSize: 15, fontWeight: 700, color: resumo.resultado >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatMoeda(resumo.resultado)}</div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -379,6 +419,7 @@ export default function DashboardPage() {
               <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {consolidado.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
             )}
             <FaixaResumo resumo={consolidado} />
+            <PrestacaoContas resumo={consolidado} />
             <div className="grid-3">
               {unidadesComDados.map(u => (
                 <ColunaUnidade
@@ -401,6 +442,7 @@ export default function DashboardPage() {
             <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {abaUnica.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
           )}
           <FaixaResumo resumo={abaUnica} />
+          <PrestacaoContas resumo={abaUnica} />
           <div style={{ maxWidth: 560 }}>
             <ColunaUnidade
               resumo={abaUnica}

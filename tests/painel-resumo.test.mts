@@ -111,6 +111,22 @@ test('pagar do vhsys com fornecedor nao classifica como fornecedores automaticam
   assert.equal(r.gruposPagar[0].grupo, 'fornecedores')
 })
 
+test('prestacao de contas agrupa por categoria do VHSYS, separando realizado e previsto', () => {
+  const r = calcularResumoUnidade(base({
+    parcelas: [
+      parc({ id: 'p1', tipo: 'pagar', valor: 300, status: 'pago', data_pagamento: '2026-09-05', categoria_vhsys: 'ENERGIA' }),
+      parc({ id: 'p2', tipo: 'pagar', valor: 200, status: 'pendente', categoria_vhsys: 'ENERGIA' }),
+      parc({ id: 'p3', tipo: 'pagar', valor: 1000, status: 'pago', data_pagamento: '2026-09-06', categoria_vhsys: 'Pessoal' }),
+      parc({ id: 'r1', tipo: 'receber', valor: 5000, status: 'pago', data_pagamento: '2026-09-04', categoria_vhsys: 'Vendas' }),
+    ],
+  }))
+  assert.equal(r.totalEntrou, 5000)
+  assert.equal(r.totalPagou, 1300)
+  const energia = r.saidasPorCategoria.find(l => l.categoria === 'ENERGIA')
+  assert.deepEqual(energia, { categoria: 'ENERGIA', realizado: 300, previsto: 200 })
+  assert.equal(r.entradasPorCategoria[0].categoria, 'Vendas')
+})
+
 test('consolida soma unidades', () => {
   const a = calcularResumoUnidade(base({ saldoBase: 1000, parcelas: [parc({ valor: 100 })] }))
   const b = calcularResumoUnidade(base({ unidade: 'NEW BLUETEX SC', saldoBase: 500, parcelas: [parc({ id: 'p2', valor: 200 })] }))

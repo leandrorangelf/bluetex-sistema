@@ -138,6 +138,7 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
         // a tela mostra 'observacoes' na coluna Cliente (receber) / Origem (pagar)
         observacoes: descricao || (c.domain === 'receber' ? 'Recebimento avulso' : 'Despesa'),
         de_entrada: deEntrada,
+        categoria: String(first(row, c.categoria) ?? '').trim(),
         link_boleto: String(row.link_boleto ?? ''),
       },
     }]

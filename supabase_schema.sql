@@ -431,6 +431,9 @@ ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS vhsys_id TEXT;
 ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS vhsys_synced_at TIMESTAMPTZ;
 -- Nota interna livre: nunca é tocada pela sincronização, vale para qualquer conta.
 ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS nota_interna TEXT;
+-- Categoria como vem do VHSYS (ENERGIA, ALUGUEL, Pessoal, Fornecedor…), para o
+-- painel agrupar entradas/saídas do jeito que a Caline lança lá.
+ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS categoria_vhsys TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS btx_parcelas_vhsys_uidx
   ON btx_parcelas(unidade, tipo, vhsys_id) WHERE vhsys_id IS NOT NULL;
 
@@ -771,7 +774,8 @@ BEGIN
     ELSIF p_dominio IN ('receber','pagar') AND v_item.decisao = 'importar' THEN
       INSERT INTO btx_parcelas(
         unidade, tipo, origem, numero_parcela, vencimento, valor, status,
-        numero_boleto, observacoes, data_pagamento, ativo, origem_sistema, vhsys_id, vhsys_synced_at
+        numero_boleto, observacoes, data_pagamento, categoria_vhsys,
+        ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
         'NEW BLUETEX MG', CASE WHEN p_dominio='receber' THEN 'receber' ELSE 'pagar' END,
         CASE WHEN p_dominio='pagar' AND (v_item.dados_normalizados->>'de_entrada')::boolean
@@ -782,6 +786,7 @@ BEGIN
         v_item.dados_normalizados->>'numero_documento',
         v_item.dados_normalizados->>'observacoes',
         NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
+        NULLIF(v_item.dados_normalizados->>'categoria',''),
         TRUE, 'vhsys', v_item.vhsys_id, NOW()
       )
       ON CONFLICT (unidade, tipo, vhsys_id) WHERE vhsys_id IS NOT NULL
@@ -789,6 +794,7 @@ BEGIN
         status=EXCLUDED.status, numero_boleto=EXCLUDED.numero_boleto,
         observacoes=EXCLUDED.observacoes, origem=EXCLUDED.origem,
         data_pagamento=COALESCE(EXCLUDED.data_pagamento, btx_parcelas.data_pagamento),
+        categoria_vhsys=EXCLUDED.categoria_vhsys,
         ativo=TRUE, vhsys_synced_at=NOW()
       RETURNING id INTO v_local_id;
 
