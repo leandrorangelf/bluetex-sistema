@@ -12,7 +12,10 @@ export interface ContaReceber {
   gerenciadoPorVhsys: boolean
 }
 export interface GrupoPagar {
-  grupo: GrupoCategoria; label: string; subtotal: number; contas: ContaPagar[]
+  grupo: GrupoCategoria; label: string
+  subtotal: number  // ainda a pagar
+  pago: number      // já pago no mês
+  contas: ContaPagar[]
 }
 // Linha de "presta contas": por categoria, quanto já foi pago/recebido e quanto falta
 export interface LinhaCategoria {
@@ -90,8 +93,8 @@ function montarGrupos(contas: ContaPagar[]): GrupoPagar[] {
     return [{
       grupo,
       label: LABEL.get(grupo) ?? 'Outros',
-      // subtotal conta só o que falta pagar; contas já pagas ficam listadas, mas não somam aqui
       subtotal: doGrupo.filter(c => !c.paga).reduce((s, c) => s + c.valor, 0),
+      pago: doGrupo.filter(c => c.paga).reduce((s, c) => s + c.valor, 0),
       contas: doGrupo,
     }]
   })

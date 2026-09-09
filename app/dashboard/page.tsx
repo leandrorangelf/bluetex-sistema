@@ -252,7 +252,10 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
             style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
           >
             <span style={{ fontSize: 12, fontWeight: 600 }}>{abertos.has(g.grupo) ? '▾' : '▸'} {g.label}</span>
-            <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{formatMoeda(g.subtotal)}</span>
+            <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>
+              {formatMoeda(g.subtotal)}
+              {g.pago > 0 && <span style={{ fontWeight: 400, color: 'var(--green)', fontSize: 11 }}> · {formatMoeda(g.pago)} pago</span>}
+            </span>
           </button>
           {abertos.has(g.grupo) && g.contas.map(c => (
             <div
