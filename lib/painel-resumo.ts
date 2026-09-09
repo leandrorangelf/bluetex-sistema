@@ -25,6 +25,9 @@ export interface EntradaResumo {
   saldoBase: number; competenciaBase: string
   parcelas: ParcelaFinanceira[]; pagamentos: PagamentoParcela[]
   grupoPorDespesa: Map<string, GrupoCategoria>
+  // saldo real do banco (VHSYS). Quando presente, vira o "saldo hoje" direto —
+  // não recalcula por lançamento, porque o extrato já reflete tudo que foi pago.
+  saldoBancario?: number | null
 }
 
 const LABEL = new Map(GRUPOS_CATEGORIA.map(g => [g.value, g.label]))
@@ -69,12 +72,14 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
   }
   const restante = (p: ParcelaFinanceira) => Number(p.valor) - (pagoPorParcela.get(p.id) ?? 0)
 
-  const saldoHoje = Number(input.saldoBase) + calcularSaldoRealizado({
-    hoje: input.hoje,
-    competenciaInicio: input.competenciaBase,
-    parcelas: input.parcelas,
-    pagamentos: input.pagamentos,
-  })
+  const saldoHoje = input.saldoBancario != null
+    ? Number(input.saldoBancario)
+    : Number(input.saldoBase) + calcularSaldoRealizado({
+      hoje: input.hoje,
+      competenciaInicio: input.competenciaBase,
+      parcelas: input.parcelas,
+      pagamentos: input.pagamentos,
+    })
 
   // mostra pendente/parcial (falta pagar/receber) e pago (já baixado) — só cancelado fica de fora
   const noMes = (p: ParcelaFinanceira) =>

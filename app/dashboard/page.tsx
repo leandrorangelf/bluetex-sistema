@@ -94,11 +94,13 @@ const SHORT: Record<string, string> = { 'NEW BLUETEX MG': 'MG', 'NEW BLUETEX SC'
 
 async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: string, ano: number, mes: number, hojeStr: string): Promise<ResumoUnidade> {
   const competenciaSel = chaveCompetencia(ano, mes)
-  const [basesRes, parcelasRes, despesasRes] = await Promise.all([
+  const [basesRes, parcelasRes, despesasRes, saldoRes] = await Promise.all([
     sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
     sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes,origem_sistema').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
     sb.from('btx_despesas').select('id, categoria:btx_categorias_despesas(grupo)').eq('unidade', unidade).eq('ativo', true),
+    sb.from('btx_vhsys_saldos_bancarios').select('saldo_atual,consultado_em').eq('unidade', unidade).order('consultado_em', { ascending: false }).limit(1),
   ])
+  const saldoBancario = (saldoRes.data?.[0]?.saldo_atual as number | undefined) ?? null
 
   const bases = (basesRes.data ?? []) as { ano: number; mes: number; saldo_inicial: number }[]
   const baseVigente = bases.find(b => chaveCompetencia(b.ano, b.mes) <= competenciaSel)
@@ -121,6 +123,7 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
     unidade, ano, mes, hoje: hojeStr,
     saldoBase: Number(baseVigente?.saldo_inicial ?? 0),
     competenciaBase, parcelas, pagamentos, grupoPorDespesa,
+    saldoBancario,
   })
 }
 
