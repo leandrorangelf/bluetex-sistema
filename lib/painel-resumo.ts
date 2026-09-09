@@ -122,10 +122,13 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
       pagamentos: input.pagamentos,
     })
 
-  // mostra pendente/parcial (falta pagar/receber) e pago (já baixado) — só cancelado fica de fora
-  const noMes = (p: ParcelaFinanceira) =>
-    p.ativo && p.status !== 'cancelado' &&
-    p.vencimento >= inicioMes && p.vencimento <= fimMes
+  const dentro = (d: string | null | undefined) =>
+    d != null && d >= inicioMes && d <= fimMes
+  // "conta do mês" na lista: venceu no mês (ainda em aberto) OU foi paga no mês
+  const abertaNoMes = (p: ParcelaFinanceira) =>
+    p.status !== 'pago' && dentro(p.vencimento)
+  const pagaNoMes = (p: ParcelaFinanceira) =>
+    p.status === 'pago' && dentro(p.data_pagamento)
 
   let aReceberMes = 0
   const contasPagar: ContaPagar[] = []
@@ -133,10 +136,12 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
   const catReceber: { categoria: string; valor: number; paga: boolean }[] = []
   const catPagar: { categoria: string; valor: number; paga: boolean }[] = []
   for (const p of input.parcelas) {
-    if (!noMes(p)) continue
-    const paga = p.status === 'pago'
+    if (!p.ativo || p.status === 'cancelado') continue
+    const paga = pagaNoMes(p)
+    const aberta = abertaNoMes(p)
+    if (!paga && !aberta) continue
     const valorExibido = paga ? Number(p.valor) : restante(p)
-    const vencida = !paga && p.vencimento < input.hoje
+    const vencida = aberta && p.vencimento < input.hoje
     const gerenciadoPorVhsys = p.origem_sistema === 'vhsys'
     const grupo: GrupoCategoria =
       p.origem === 'compra' ? 'fornecedores'
@@ -144,7 +149,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
       : 'outros'
     const categoria = categoriaDe(p, grupo)
     if (p.tipo === 'receber') {
-      if (!paga) aReceberMes += valorExibido
+      if (aberta) aReceberMes += valorExibido
       catReceber.push({ categoria, valor: valorExibido, paga })
       contasReceber.push({
         id: p.id,
