@@ -3,6 +3,7 @@ import { requireVhsysAdmin, VhsysAuthError } from '@/lib/vhsys/auth'
 import { VhsysClient } from '@/lib/vhsys/client'
 import { getVhsysConfig } from '@/lib/vhsys/config'
 import { isoDate, money } from '@/lib/vhsys/normalizers'
+import { melhorMatch, tokens, type LocalProduto } from '@/lib/vhsys/produto-match'
 
 // Relatório de vendas por cliente/produto/mês direto da API do VHSYS, todo o
 // histórico (sem o filtro de marco zero usado no fluxo de sincronização).
@@ -33,12 +34,42 @@ interface LinhaRelatorio {
   mes: string
   qtd_caixas: number
   valor: number
+  sem_conversao: boolean
+}
+
+interface ProdutoLocal extends LocalProduto {
+  fator_conversao: number
+}
+
+// VHSYS devolve qtde_produto em carteiras (unidade base). Converte pra caixas
+// usando o fator cadastrado no catálogo local (ex.: Cretec/Gudang Twin Ten =
+// 500 carteiras/caixa, Gudang Red/Green = 480). Produto sem correspondência
+// local fica sem conversão (mantém carteiras) e é sinalizado.
+function buscarFator(desc: string, locais: ProdutoLocal[]): number | null {
+  const match = melhorMatch(desc, locais)
+  return match ? (locais.find((p) => p.id === match.id)?.fator_conversao ?? null) : null
 }
 
 export async function GET() {
   const supabase = await createServerSupabase()
   try {
     await requireVhsysAdmin(supabase)
+
+    const { data: produtosRaw } = await supabase
+      .from('btx_produtos')
+      .select('id,nome,fator_conversao')
+      .eq('ativo', true)
+    const produtosLocais: ProdutoLocal[] = (produtosRaw ?? []).map((p) => {
+      const row = p as { id: unknown; nome: unknown; fator_conversao: unknown }
+      const nome = String(row.nome)
+      return {
+        id: String(row.id),
+        nome,
+        _tokens: tokens(nome),
+        fator_conversao: Number(row.fator_conversao) || 1,
+      }
+    })
+    const fatorPorDescricao = new Map<string, number | null>()
 
     const client = new VhsysClient(getVhsysConfig())
     const pedidos = await client.list<Record<string, unknown>>('/pedidos')
@@ -57,15 +88,30 @@ export async function GET() {
       for (const item of itens) {
         const produto = String(item.desc_produto ?? 'Sem produto').trim() || 'Sem produto'
         const chave = `${cliente}::${produto}::${mes}`
-        const qtd = Number(item.qtde_produto ?? 0)
+        const qtdCarteiras = Number(item.qtde_produto ?? 0)
         const valor = money(item.valor_total_produto)
+
+        if (!fatorPorDescricao.has(produto)) {
+          fatorPorDescricao.set(produto, buscarFator(produto, produtosLocais))
+        }
+        const fator = fatorPorDescricao.get(produto) ?? null
+        const qtd = fator ? qtdCarteiras / fator : qtdCarteiras
+        const semConversao = fator === null
 
         const linha = porChave.get(chave)
         if (linha) {
-          linha.qtd_caixas += qtd
+          linha.qtd_caixas = Math.round((linha.qtd_caixas + qtd) * 100) / 100
           linha.valor = Math.round((linha.valor + valor) * 100) / 100
+          linha.sem_conversao = linha.sem_conversao || semConversao
         } else {
-          porChave.set(chave, { cliente, produto, mes, qtd_caixas: qtd, valor })
+          porChave.set(chave, {
+            cliente,
+            produto,
+            mes,
+            qtd_caixas: Math.round(qtd * 100) / 100,
+            valor,
+            sem_conversao: semConversao,
+          })
         }
       }
     }
