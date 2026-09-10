@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
+import Link from 'next/link'
 import VhsysSyncClient from './VhsysSyncClient'
 
 export default function VhsysPage() {
@@ -25,6 +26,11 @@ export default function VhsysPage() {
         </div>
       </div>
       <VhsysSyncClient />
+      <p style={{ marginTop: 16 }}>
+        <Link href="/integracoes/vhsys/relatorio-vendas">
+          Ver relatório de vendas por cliente/mês (todo o período)
+        </Link>
+      </p>
     </div>
   )
 }
