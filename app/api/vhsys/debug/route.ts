@@ -2,9 +2,10 @@ import { createServerSupabase } from '@/lib/supabase-server'
 import { requireVhsysAdmin, VhsysAuthError } from '@/lib/vhsys/auth'
 import { VhsysClient } from '@/lib/vhsys/client'
 import { getVhsysConfig } from '@/lib/vhsys/config'
+import { vhsysUnidadePorCodigo } from '@/lib/vhsys/unidades'
 
 // Amostra crua de um recurso do VHSYS, só para conferir nomes de campos.
-// Uso: GET /api/vhsys/debug?recurso=produtos&limite=2  (admin, somente leitura)
+// Uso: GET /api/vhsys/debug?unidade=MG&recurso=produtos&limite=2  (admin, somente leitura)
 const RECURSOS: Record<string, string> = {
   produtos: '/produtos',
   clientes: '/clientes',
@@ -29,7 +30,11 @@ export async function GET(request: Request) {
         { status: 400 },
       )
     }
-    const client = new VhsysClient(getVhsysConfig())
+    const unidade = vhsysUnidadePorCodigo(url.searchParams.get('unidade') ?? '')
+    if (!unidade) {
+      return Response.json({ error: 'unidade inválida' }, { status: 400 })
+    }
+    const client = new VhsysClient(getVhsysConfig(unidade.codigo))
     const rows = await client.list<Record<string, unknown>>(path, {}, limite)
     return Response.json({ recurso, total_amostra: rows.length, amostra: rows.slice(0, limite) })
   } catch (error) {

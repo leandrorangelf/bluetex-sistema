@@ -21,7 +21,7 @@ export default function VhsysPage() {
         <div>
           <h1 className="page-title">Integração VHSYS</h1>
           <div className="page-subtitle">
-            NEW BLUETEX MG · Marco zero em 01/07/2026
+            6 unidades · Vendas, compras, estoque e boletos a receber
           </div>
         </div>
       </div>

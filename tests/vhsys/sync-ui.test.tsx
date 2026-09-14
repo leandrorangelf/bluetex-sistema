@@ -8,7 +8,7 @@ it('sincroniza em um clique e mostra o resultado por domínio', async () => {
   const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
     syncId: 'sync-1',
     totalItens: 34,
-    domains: { receber: 'concluido', pagar: 'concluido', bancos: 'concluido' },
+    domains: { vendas: 'concluido', receber: 'concluido', estoque: 'concluido' },
   }), { status: 200 }))
   vi.stubGlobal('fetch', fetchMock)
   render(<VhsysSyncClient />)
@@ -16,8 +16,12 @@ it('sincroniza em um clique e mostra o resultado por domínio', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Sincronizar agora' }))
 
   await screen.findByText(/34 registros processados/)
-  expect(fetchMock).toHaveBeenCalledWith('/api/vhsys/sync-auto', { method: 'POST' })
-  expect(screen.getByText('Contas a receber')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledWith('/api/vhsys/sync-auto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ unidade: 'MG' }),
+  })
+  expect(screen.getByText(/Contas a receber/)).toBeInTheDocument()
 })
 
 it('mostra erro quando a sincronização falha', async () => {

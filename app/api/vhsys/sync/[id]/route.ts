@@ -14,7 +14,6 @@ export async function GET(
       .from('btx_vhsys_sincronizacoes')
       .select('*')
       .eq('id', id)
-      .eq('unidade', 'NEW BLUETEX MG')
       .single()
     if (syncError || !sync) {
       return Response.json({ error: 'Sincronização não encontrada.' }, { status: 404 })

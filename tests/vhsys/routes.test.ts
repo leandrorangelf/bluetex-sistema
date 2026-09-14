@@ -63,7 +63,11 @@ describe('POST /api/vhsys/sync/:id/confirm', () => {
 describe('POST /api/vhsys/analyze', () => {
   it('cria análise autenticada e retorna o identificador', async () => {
     const { POST } = await import('@/app/api/vhsys/analyze/route')
-    const response = await POST()
+    const request = new Request('https://example.test', {
+      method: 'POST',
+      body: JSON.stringify({ unidade: 'MG' }),
+    })
+    const response = await POST(request)
 
     expect(response.status).toBe(201)
     await expect(response.json()).resolves.toEqual({ id: 'sync-1' })
@@ -72,7 +76,11 @@ describe('POST /api/vhsys/analyze', () => {
   it('não devolve detalhes internos quando a análise falha', async () => {
     stubs.analyzeVhsys.mockRejectedValueOnce(new Error('segredo interno'))
     const { POST } = await import('@/app/api/vhsys/analyze/route')
-    const response = await POST()
+    const request = new Request('https://example.test', {
+      method: 'POST',
+      body: JSON.stringify({ unidade: 'MG' }),
+    })
+    const response = await POST(request)
 
     expect(response.status).toBe(502)
     await expect(response.json()).resolves.toEqual({

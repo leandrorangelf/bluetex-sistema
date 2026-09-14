@@ -1,4 +1,6 @@
-export type Unidade = 'NEW BLUETEX MG' | 'NEW BLUETEX SC' | 'NEW BLUETEX AM'
+export type Unidade =
+  | 'NEW BLUETEX MG' | 'NEW BLUETEX SC' | 'NEW BLUETEX AM'
+  | 'GB SP' | 'GB CE' | 'GB MA'
 export type Role = 'admin' | 'unidade' | 'diretoria'
 export type TipoParcela = 'pagar' | 'receber'
 export type OrigemParcela = 'compra' | 'venda' | 'despesa' | 'manual'
@@ -15,7 +17,10 @@ export type SyncClassificacao =
   | 'erro'
 export type SyncDecisao = 'vincular' | 'importar' | 'ignorar'
 
-export const UNIDADES: Unidade[] = ['NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM']
+export const UNIDADES: Unidade[] = [
+  'NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM',
+  'GB SP', 'GB CE', 'GB MA',
+]
 
 export interface Profile {
   id: string; nome: string; role: Role; unidade: Unidade | null; ativo: boolean; created_at: string

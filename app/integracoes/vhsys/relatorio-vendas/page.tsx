@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
+import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
 import { useEffect, useState } from 'react'
 
 interface LinhaRelatorio {
@@ -69,6 +70,7 @@ function exportarCsv(linhas: LinhaRelatorio[]) {
 
 export default function RelatorioVendasVhsysPage() {
   const { profile } = useAuth()
+  const [unidade, setUnidade] = useState(VHSYS_UNIDADES[0].codigo)
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [dados, setDados] = useState<RespostaRelatorio | null>(null)
   const [erro, setErro] = useState('')
@@ -76,7 +78,8 @@ export default function RelatorioVendasVhsysPage() {
   useEffect(() => {
     if (profile?.role !== 'admin') return
     setState('loading')
-    fetch('/api/vhsys/relatorio-vendas')
+    setDados(null)
+    fetch(`/api/vhsys/relatorio-vendas?unidade=${encodeURIComponent(unidade)}`)
       .then(async (response) => {
         const body = await response.json() as RespostaRelatorio & { error?: string }
         if (!response.ok) throw new Error(body.error ?? 'Falha ao buscar relatório.')
@@ -87,7 +90,7 @@ export default function RelatorioVendasVhsysPage() {
         setErro(caught instanceof Error ? caught.message : 'Falha inesperada.')
         setState('error')
       })
-  }, [profile?.role])
+  }, [profile?.role, unidade])
 
   if (profile?.role !== 'admin') {
     return (
@@ -108,6 +111,20 @@ export default function RelatorioVendasVhsysPage() {
             Todo o histórico do VHSYS, direto da API — não usa o filtro de marco zero e não grava nada no sistema.
           </div>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Unidade</label>
+        <select
+          className="input"
+          value={unidade}
+          onChange={(e) => setUnidade(e.target.value)}
+          style={{ maxWidth: 280 }}
+        >
+          {VHSYS_UNIDADES.map((u) => (
+            <option key={u.codigo} value={u.codigo}>{u.unidade}</option>
+          ))}
+        </select>
       </div>
 
       {state === 'loading' && <div className="card">Carregando pedidos do VHSYS (pode levar um tempo, busca item a item)…</div>}

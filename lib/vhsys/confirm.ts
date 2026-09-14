@@ -39,8 +39,6 @@ const DOMAIN_ORDER = [
   'vendas',
   'compras',
   'receber',
-  'pagar',
-  'bancos',
 ] as const
 
 export async function confirmVhsys(
@@ -53,7 +51,6 @@ export async function confirmVhsys(
     .from('btx_vhsys_sincronizacoes')
     .select('id,status')
     .eq('id', syncId)
-    .eq('unidade', 'NEW BLUETEX MG')
     .single()
   if (syncError || !sync || sync.status !== 'pronto') {
     throw new Error('Sincronização não está pronta para confirmação.')
