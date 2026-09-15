@@ -34,6 +34,7 @@ interface LinhaRelatorio {
   produto: string
   mes: string
   qtd_caixas: number
+  qtd_bruta_vhsys: number
   valor: number
   sem_conversao: boolean
 }
@@ -106,6 +107,7 @@ export async function GET(request: Request) {
         const linha = porChave.get(chave)
         if (linha) {
           linha.qtd_caixas = Math.round((linha.qtd_caixas + qtd) * 100) / 100
+          linha.qtd_bruta_vhsys += qtdCarteiras
           linha.valor = Math.round((linha.valor + valor) * 100) / 100
           linha.sem_conversao = linha.sem_conversao || semConversao
         } else {
@@ -114,6 +116,7 @@ export async function GET(request: Request) {
             produto,
             mes,
             qtd_caixas: Math.round(qtd * 100) / 100,
+            qtd_bruta_vhsys: qtdCarteiras,
             valor,
             sem_conversao: semConversao,
           })
