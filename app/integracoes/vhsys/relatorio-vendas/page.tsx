@@ -29,6 +29,62 @@ interface RespostaRelatorio {
 const ANO_ATUAL = new Date().getFullYear()
 const ANOS_DISPONIVEIS = Array.from({ length: 6 }, (_, i) => String(ANO_ATUAL - i))
 
+// Estado é fixo pela unidade (a conta VHSYS de cada unidade só tem cliente
+// daquele estado) e o coordenador sai do estado, pela regra da operação.
+const ESTADO_E_COORD_POR_UNIDADE: Record<string, { estado: string; representante: string }> = {
+  MG: { estado: 'MG', representante: 'Igor' },
+  GB_SP: { estado: 'SP', representante: 'Igor' },
+  SC: { estado: 'SC', representante: 'Rosana' },
+  AM: { estado: 'AM', representante: 'Vitor' },
+  GB_CE: { estado: 'CE', representante: 'Junior' },
+  GB_MA: { estado: 'MA', representante: 'Junior' },
+}
+
+interface LinhaMatriz {
+  cliente: string
+  totalPorMes: Map<string, number>
+}
+
+// Pivô cliente × mês: uma linha por cliente, uma coluna por mês, valor =
+// total de caixas daquele cliente no mês (soma de todos os produtos —
+// já vem pronto em caixas_total_mes, só precisa desduplicar por cliente/mês).
+function montarMatriz(linhas: LinhaRelatorio[]): { clientes: LinhaMatriz[]; meses: string[] } {
+  const porCliente = new Map<string, Map<string, number>>()
+  const mesesSet = new Set<string>()
+  for (const linha of linhas) {
+    mesesSet.add(linha.mes)
+    if (!porCliente.has(linha.cliente)) porCliente.set(linha.cliente, new Map())
+    porCliente.get(linha.cliente)!.set(linha.mes, linha.caixas_total_mes)
+  }
+  const meses = [...mesesSet].sort()
+  const clientes = [...porCliente.entries()]
+    .map(([cliente, totalPorMes]) => ({ cliente, totalPorMes }))
+    .sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR'))
+  return { clientes, meses }
+}
+
+function exportarMatrizCsv(linhas: LinhaRelatorio[], unidade: string) {
+  const { clientes, meses } = montarMatriz(linhas)
+  const infoUnidade = ESTADO_E_COORD_POR_UNIDADE[unidade]
+  const cabecalho = ['CLIENTE', 'ESTADO', 'REPRESENTANTES', ...meses.map(formatarMes)]
+  const linhasCsv = clientes.map(({ cliente, totalPorMes }) => [
+    cliente,
+    infoUnidade?.estado ?? '',
+    infoUnidade?.representante ?? '',
+    ...meses.map((mes) => totalPorMes.get(mes) ?? 0),
+  ])
+  const conteudo = [cabecalho, ...linhasCsv]
+    .map((linha) => linha.map(campoCsv).join(';'))
+    .join('\r\n')
+  const blob = new Blob([`﻿${conteudo}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `vendas-vhsys-por-cliente-mes-${unidade}-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 const formatoMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function formatarMes(mes: string): string {
@@ -231,6 +287,47 @@ export default function RelatorioVendasVhsysPage() {
               * produto sem correspondência no catálogo local — quantidade ficou em carteiras, não convertida para caixas.
             </p>
           )}
+        </div>
+      )}
+
+      {state === 'done' && dados && dados.linhas.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <p style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <span>
+              <strong>Total por cliente/mês</strong> (todos os produtos somados — mesmo formato da sua planilha)
+            </span>
+            <button className="btn btn-primary" onClick={() => exportarMatrizCsv(dados.linhas, unidade)}>
+              Exportar para Excel
+            </button>
+          </p>
+          {(() => {
+            const { clientes, meses } = montarMatriz(dados.linhas)
+            const infoUnidade = ESTADO_E_COORD_POR_UNIDADE[unidade]
+            return (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>Estado</th>
+                      <th>Representante</th>
+                      {meses.map((mes) => <th key={mes}>{formatarMes(mes)}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientes.map(({ cliente, totalPorMes }) => (
+                      <tr key={cliente}>
+                        <td>{cliente}</td>
+                        <td>{infoUnidade?.estado ?? '—'}</td>
+                        <td>{infoUnidade?.representante ?? '—'}</td>
+                        {meses.map((mes) => <td key={mes}>{totalPorMes.get(mes) ?? 0}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>
