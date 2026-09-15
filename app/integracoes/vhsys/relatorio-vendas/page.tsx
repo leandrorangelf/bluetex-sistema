@@ -16,13 +16,18 @@ interface LinhaRelatorio {
 }
 
 interface RespostaRelatorio {
+  ano_selecionado: string | null
   total_pedidos_considerados: number
   total_pedidos_ignorados: number
+  pedidos_fora_do_ano: number
   motivos_exclusao: { lixeira: number; cancelado: number; status_invalido: number; sem_data: number }
   data_mais_antiga: string | null
   data_mais_recente: string | null
   linhas: LinhaRelatorio[]
 }
+
+const ANO_ATUAL = new Date().getFullYear()
+const ANOS_DISPONIVEIS = Array.from({ length: 6 }, (_, i) => String(ANO_ATUAL - i))
 
 const formatoMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -82,6 +87,7 @@ function formatarData(data: string | null): string {
 export default function RelatorioVendasVhsysPage() {
   const { profile } = useAuth()
   const [unidade, setUnidade] = useState(VHSYS_UNIDADES[0].codigo)
+  const [ano, setAno] = useState(String(ANO_ATUAL))
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [dados, setDados] = useState<RespostaRelatorio | null>(null)
   const [erro, setErro] = useState('')
@@ -89,7 +95,8 @@ export default function RelatorioVendasVhsysPage() {
   function buscar() {
     setState('loading')
     setDados(null)
-    fetch(`/api/vhsys/relatorio-vendas?unidade=${encodeURIComponent(unidade)}`)
+    const anoQuery = ano === 'todos' ? '' : `&ano=${encodeURIComponent(ano)}`
+    fetch(`/api/vhsys/relatorio-vendas?unidade=${encodeURIComponent(unidade)}${anoQuery}`)
       .then(async (response) => {
         const body = await response.json() as RespostaRelatorio & { error?: string }
         if (!response.ok) throw new Error(body.error ?? 'Falha ao buscar relatório.')
@@ -137,6 +144,20 @@ export default function RelatorioVendasVhsysPage() {
             ))}
           </select>
         </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Ano</label>
+          <select
+            className="input"
+            value={ano}
+            onChange={(e) => setAno(e.target.value)}
+            style={{ maxWidth: 200 }}
+          >
+            {ANOS_DISPONIVEIS.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+            <option value="todos">Todos os anos (mais lento)</option>
+          </select>
+        </div>
         <button className="btn btn-primary" onClick={buscar} disabled={state === 'loading'}>
           {state === 'loading' ? 'Buscando…' : 'Buscar'}
         </button>
@@ -150,7 +171,11 @@ export default function RelatorioVendasVhsysPage() {
           <p style={{ marginBottom: 4, fontSize: 13, color: 'var(--muted, #666)' }}>
             Pedidos do VHSYS entre <strong>{formatarData(dados.data_mais_antiga)}</strong> e{' '}
             <strong>{formatarData(dados.data_mais_recente)}</strong>
-            {dados.total_pedidos_ignorados > 0 && (
+            {dados.ano_selecionado && dados.pedidos_fora_do_ano > 0 && (
+              <> · {dados.pedidos_fora_do_ano} pedidos válidos de outros anos ficaram de fora (filtro de ano ativo)</>
+            )}
+            {(dados.motivos_exclusao.cancelado + dados.motivos_exclusao.lixeira
+              + dados.motivos_exclusao.status_invalido + dados.motivos_exclusao.sem_data) > 0 && (
               <> · ignorados: {dados.motivos_exclusao.cancelado} cancelados, {dados.motivos_exclusao.lixeira} na lixeira,{' '}
                 {dados.motivos_exclusao.status_invalido} com status não reconhecido,{' '}
                 {dados.motivos_exclusao.sem_data} sem data</>
