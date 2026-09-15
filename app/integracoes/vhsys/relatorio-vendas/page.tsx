@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context'
 import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface LinhaRelatorio {
   cliente: string
@@ -18,6 +18,9 @@ interface LinhaRelatorio {
 interface RespostaRelatorio {
   total_pedidos_considerados: number
   total_pedidos_ignorados: number
+  motivos_exclusao: { lixeira: number; cancelado: number; status_invalido: number; sem_data: number }
+  data_mais_antiga: string | null
+  data_mais_recente: string | null
   linhas: LinhaRelatorio[]
 }
 
@@ -70,6 +73,12 @@ function exportarCsv(linhas: LinhaRelatorio[]) {
   URL.revokeObjectURL(url)
 }
 
+function formatarData(data: string | null): string {
+  if (!data) return '—'
+  const [ano, mes, dia] = data.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
 export default function RelatorioVendasVhsysPage() {
   const { profile } = useAuth()
   const [unidade, setUnidade] = useState(VHSYS_UNIDADES[0].codigo)
@@ -77,8 +86,7 @@ export default function RelatorioVendasVhsysPage() {
   const [dados, setDados] = useState<RespostaRelatorio | null>(null)
   const [erro, setErro] = useState('')
 
-  useEffect(() => {
-    if (profile?.role !== 'admin') return
+  function buscar() {
     setState('loading')
     setDados(null)
     fetch(`/api/vhsys/relatorio-vendas?unidade=${encodeURIComponent(unidade)}`)
@@ -92,7 +100,7 @@ export default function RelatorioVendasVhsysPage() {
         setErro(caught instanceof Error ? caught.message : 'Falha inesperada.')
         setState('error')
       })
-  }, [profile?.role, unidade])
+  }
 
   if (profile?.role !== 'admin') {
     return (
@@ -115,18 +123,23 @@ export default function RelatorioVendasVhsysPage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Unidade</label>
-        <select
-          className="input"
-          value={unidade}
-          onChange={(e) => setUnidade(e.target.value)}
-          style={{ maxWidth: 280 }}
-        >
-          {VHSYS_UNIDADES.map((u) => (
-            <option key={u.codigo} value={u.codigo}>{u.unidade}</option>
-          ))}
-        </select>
+      <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Unidade</label>
+          <select
+            className="input"
+            value={unidade}
+            onChange={(e) => setUnidade(e.target.value)}
+            style={{ maxWidth: 280 }}
+          >
+            {VHSYS_UNIDADES.map((u) => (
+              <option key={u.codigo} value={u.codigo}>{u.unidade}</option>
+            ))}
+          </select>
+        </div>
+        <button className="btn btn-primary" onClick={buscar} disabled={state === 'loading'}>
+          {state === 'loading' ? 'Buscando…' : 'Buscar'}
+        </button>
       </div>
 
       {state === 'loading' && <div className="card">Carregando pedidos do VHSYS (pode levar um tempo, busca item a item)…</div>}
@@ -134,12 +147,18 @@ export default function RelatorioVendasVhsysPage() {
 
       {state === 'done' && dados && (
         <div className="card">
+          <p style={{ marginBottom: 4, fontSize: 13, color: 'var(--muted, #666)' }}>
+            Pedidos do VHSYS entre <strong>{formatarData(dados.data_mais_antiga)}</strong> e{' '}
+            <strong>{formatarData(dados.data_mais_recente)}</strong>
+            {dados.total_pedidos_ignorados > 0 && (
+              <> · ignorados: {dados.motivos_exclusao.cancelado} cancelados, {dados.motivos_exclusao.lixeira} na lixeira,{' '}
+                {dados.motivos_exclusao.status_invalido} com status não reconhecido,{' '}
+                {dados.motivos_exclusao.sem_data} sem data</>
+            )}
+          </p>
           <p style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <span>
               {dados.total_pedidos_considerados} pedidos considerados
-              {dados.total_pedidos_ignorados > 0
-                ? ` (${dados.total_pedidos_ignorados} ignorados: cancelados, na lixeira ou sem status válido)`
-                : ''}
               {' · '}Total geral: <strong>{formatoMoeda.format(totalGeral)}</strong>
             </span>
             <button className="btn btn-primary" onClick={() => exportarCsv(dados.linhas)}>

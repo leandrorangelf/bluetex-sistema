@@ -19,14 +19,17 @@ interface VhsysOrderItem {
   valor_total_produto?: number | string
 }
 
-function pedidoValido(order: Record<string, unknown>): boolean {
+type MotivoExclusao = 'lixeira' | 'cancelado' | 'status_invalido' | 'sem_data'
+
+function classificarPedido(order: Record<string, unknown>): MotivoExclusao | null {
   const status = String(order.status_pedido ?? '').trim().toLocaleLowerCase('pt-BR')
   const lixeira = String(order.lixeira ?? 'Nao').trim().toLocaleLowerCase('pt-BR')
   const data = isoDate(order.data_pedido ?? order.data_emissao)
-  return lixeira !== 'sim'
-    && !status.includes('cancel')
-    && STATUS_OK.some((s) => status.includes(s))
-    && data !== null
+  if (lixeira === 'sim') return 'lixeira'
+  if (status.includes('cancel')) return 'cancelado'
+  if (!STATUS_OK.some((s) => status.includes(s))) return 'status_invalido'
+  if (data === null) return 'sem_data'
+  return null
 }
 
 interface LinhaRelatorio {
@@ -79,7 +82,28 @@ export async function GET(request: Request) {
 
     const client = new VhsysClient(getVhsysConfig(unidade.codigo))
     const pedidos = await client.list<Record<string, unknown>>('/pedidos')
-    const validos = pedidos.filter(pedidoValido)
+
+    // data mais antiga/recente entre TODOS os pedidos que o VHSYS devolveu
+    // (válidos ou não), pra dar pra checar se falta histórico — se um período
+    // não aparece aqui, o VHSYS nem devolveu, não é filtro nosso descartando.
+    let dataMaisAntiga: string | null = null
+    let dataMaisRecente: string | null = null
+    const motivosExclusao: Record<MotivoExclusao, number> = {
+      lixeira: 0, cancelado: 0, status_invalido: 0, sem_data: 0,
+    }
+    const validos: Record<string, unknown>[] = []
+    for (const pedido of pedidos) {
+      const data = isoDate(pedido.data_pedido ?? pedido.data_emissao)
+      if (data !== null && (dataMaisAntiga === null || data < dataMaisAntiga)) dataMaisAntiga = data
+      if (data !== null && (dataMaisRecente === null || data > dataMaisRecente)) dataMaisRecente = data
+
+      const motivo = classificarPedido(pedido)
+      if (motivo) {
+        motivosExclusao[motivo] += 1
+      } else {
+        validos.push(pedido)
+      }
+    }
 
     const porChave = new Map<string, LinhaRelatorio>()
     for (const pedido of validos) {
@@ -146,6 +170,9 @@ export async function GET(request: Request) {
     return Response.json({
       total_pedidos_considerados: validos.length,
       total_pedidos_ignorados: pedidos.length - validos.length,
+      motivos_exclusao: motivosExclusao,
+      data_mais_antiga: dataMaisAntiga,
+      data_mais_recente: dataMaisRecente,
       linhas,
     })
   } catch (error) {
