@@ -150,6 +150,7 @@ export async function GET(request: Request) {
       return Response.json({ error: error.message }, { status: error.status })
     }
     const code = error instanceof Error ? error.message : 'VHSYS_ERRO'
+    console.error('[relatorio-vendas]', code, error)
     return Response.json({ error: code }, { status: 502 })
   }
 }
