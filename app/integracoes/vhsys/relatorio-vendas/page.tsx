@@ -143,15 +143,16 @@ export default function RelatorioVendasVhsysPage() {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error'>('idle')
   const [syncErro, setSyncErro] = useState('')
 
-  // "Buscar" só lê do nosso banco (rápido) — carrega sozinho ao abrir a
-  // página ou trocar unidade/ano. Os campos de texto (cliente/produto) só
-  // aplicam ao apertar Enter ou clicar em Buscar, pra não disparar uma
-  // requisição a cada letra digitada.
+  // A busca só lê do nosso banco (rápido, não chama o VHSYS) — carrega
+  // sozinha sempre que unidade/ano/filtro mudam. Os campos de texto têm uma
+  // pequena pausa (debounce) depois da última letra digitada, pra não
+  // disparar uma requisição a cada tecla.
   useEffect(() => {
     if (profile?.role !== 'admin') return
-    buscar()
+    const atraso = setTimeout(buscar, 300)
+    return () => clearTimeout(atraso)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.role, unidade, ano])
+  }, [profile?.role, unidade, ano, filtroCliente, filtroProduto])
 
   function paramsBase() {
     const params = new URLSearchParams({ unidade })
@@ -208,7 +209,7 @@ export default function RelatorioVendasVhsysPage() {
         <div>
           <h1 className="page-title">Relatório de vendas por cliente/produto/mês (VHSYS)</h1>
           <div className="page-subtitle">
-            Lê do histórico salvo no sistema — clique em Sincronizar pra atualizar com o VHSYS.
+            Lê do histórico salvo no sistema — filtra na hora. Clique em Sincronizar pra atualizar com o VHSYS.
           </div>
         </div>
       </div>
@@ -237,7 +238,6 @@ export default function RelatorioVendasVhsysPage() {
             className="input"
             value={filtroCliente}
             onChange={(e) => setFiltroCliente(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && buscar()}
             placeholder="ex.: due valle"
             style={{ maxWidth: 220 }}
           />
@@ -248,14 +248,10 @@ export default function RelatorioVendasVhsysPage() {
             className="input"
             value={filtroProduto}
             onChange={(e) => setFiltroProduto(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && buscar()}
             placeholder="ex.: gudang red"
             style={{ maxWidth: 220 }}
           />
         </div>
-        <button className="btn btn-primary" onClick={buscar} disabled={state === 'loading'}>
-          {state === 'loading' ? 'Buscando…' : 'Buscar'}
-        </button>
         <button className="btn" onClick={sincronizar} disabled={syncState === 'syncing'}>
           {syncState === 'syncing' ? 'Sincronizando com o VHSYS…' : 'Sincronizar com o VHSYS'}
         </button>
