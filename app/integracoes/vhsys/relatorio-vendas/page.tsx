@@ -15,14 +15,10 @@ interface LinhaRelatorio {
   sem_conversao: boolean
 }
 
-interface RespostaRelatorio {
-  ano_selecionado: string | null
-  total_pedidos_considerados: number
-  total_pedidos_ignorados: number
-  pedidos_fora_do_ano: number
-  motivos_exclusao: { lixeira: number; cancelado: number; status_invalido: number; sem_data: number }
-  data_mais_antiga: string | null
-  data_mais_recente: string | null
+interface RespostaHistorico {
+  ultima_sincronizacao: string | null
+  total_linhas: number
+  valor_total: number
   linhas: LinhaRelatorio[]
 }
 
@@ -38,6 +34,65 @@ const ESTADO_E_COORD_POR_UNIDADE: Record<string, { estado: string; representante
   AM: { estado: 'AM', representante: 'Vitor' },
   GB_CE: { estado: 'CE', representante: 'Junior' },
   GB_MA: { estado: 'MA', representante: 'Junior' },
+}
+
+const formatoMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function formatarMes(mes: string): string {
+  const [ano, mesNum] = mes.split('-')
+  const nomes = [
+    'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+    'jul', 'ago', 'set', 'out', 'nov', 'dez',
+  ]
+  return `${nomes[Number(mesNum) - 1]}/${ano}`
+}
+
+function formatarDataHora(iso: string | null): string {
+  if (!iso) return 'nunca'
+  const data = new Date(iso)
+  return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+// Linhas vêm ordenadas por cliente/mês/produto — a última linha de cada
+// grupo cliente+mês é onde mostramos o total, pra não repetir (e não deixar
+// alguém somar a coluna no Excel e inflar o resultado).
+function ultimaDoGrupo(linhas: LinhaRelatorio[], indice: number): boolean {
+  const atual = linhas[indice]
+  const proxima = linhas[indice + 1]
+  return !proxima || proxima.cliente !== atual.cliente || proxima.mes !== atual.mes
+}
+
+function campoCsv(valor: string | number): string {
+  const texto = String(valor)
+  return /[";\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto
+}
+
+function baixarCsv(cabecalho: string[], linhas: (string | number)[][], nomeArquivo: string) {
+  const conteudo = [cabecalho, ...linhas]
+    .map((linha) => linha.map(campoCsv).join(';'))
+    .join('\r\n')
+  const blob = new Blob([`﻿${conteudo}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = nomeArquivo
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function exportarCsv(linhas: LinhaRelatorio[]) {
+  const cabecalho = ['Cliente', 'Produto', 'Qtd. bruta (VHSYS)', 'Qtd. caixas (SKU)', 'Total caixas no mês', 'Mês', 'Valor', 'Obs.']
+  const linhasCsv = linhas.map((linha, indice) => [
+    linha.cliente,
+    linha.produto,
+    linha.qtd_bruta_vhsys,
+    linha.qtd_caixas,
+    ultimaDoGrupo(linhas, indice) ? linha.caixas_total_mes : '',
+    formatarMes(linha.mes),
+    linha.valor.toFixed(2).replace('.', ','),
+    linha.sem_conversao ? 'sem produto correspondente no catálogo — quantidade em carteiras, não em caixas' : '',
+  ])
+  baixarCsv(cabecalho, linhasCsv, `vendas-vhsys-por-cliente-produto-mes-${new Date().toISOString().slice(0, 10)}.csv`)
 }
 
 interface LinhaMatriz {
@@ -73,95 +128,59 @@ function exportarMatrizCsv(linhas: LinhaRelatorio[], unidade: string) {
     infoUnidade?.representante ?? '',
     ...meses.map((mes) => totalPorMes.get(mes) ?? 0),
   ])
-  const conteudo = [cabecalho, ...linhasCsv]
-    .map((linha) => linha.map(campoCsv).join(';'))
-    .join('\r\n')
-  const blob = new Blob([`﻿${conteudo}`], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `vendas-vhsys-por-cliente-mes-${unidade}-${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-const formatoMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
-function formatarMes(mes: string): string {
-  const [ano, mesNum] = mes.split('-')
-  const nomes = [
-    'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
-    'jul', 'ago', 'set', 'out', 'nov', 'dez',
-  ]
-  return `${nomes[Number(mesNum) - 1]}/${ano}`
-}
-
-// Linhas vêm ordenadas por cliente/mês/produto — a última linha de cada
-// grupo cliente+mês é onde mostramos o total, pra não repetir (e não deixar
-// alguém somar a coluna no Excel e inflar o resultado).
-function ultimaDoGrupo(linhas: LinhaRelatorio[], indice: number): boolean {
-  const atual = linhas[indice]
-  const proxima = linhas[indice + 1]
-  return !proxima || proxima.cliente !== atual.cliente || proxima.mes !== atual.mes
-}
-
-function campoCsv(valor: string | number): string {
-  const texto = String(valor)
-  return /[";\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto
-}
-
-function exportarCsv(linhas: LinhaRelatorio[]) {
-  const cabecalho = ['Cliente', 'Produto', 'Qtd. bruta (VHSYS)', 'Qtd. caixas (SKU)', 'Total caixas no mês', 'Mês', 'Valor', 'Obs.']
-  const linhasCsv = linhas.map((linha, indice) => [
-    linha.cliente,
-    linha.produto,
-    linha.qtd_bruta_vhsys,
-    linha.qtd_caixas,
-    ultimaDoGrupo(linhas, indice) ? linha.caixas_total_mes : '',
-    formatarMes(linha.mes),
-    linha.valor.toFixed(2).replace('.', ','),
-    linha.sem_conversao ? 'sem produto correspondente no catálogo — quantidade em carteiras, não em caixas' : '',
-  ])
-  const conteudo = [cabecalho, ...linhasCsv]
-    .map((linha) => linha.map(campoCsv).join(';'))
-    .join('\r\n')
-  const blob = new Blob([`﻿${conteudo}`], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `vendas-vhsys-por-cliente-produto-mes-${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function formatarData(data: string | null): string {
-  if (!data) return '—'
-  const [ano, mes, dia] = data.split('-')
-  return `${dia}/${mes}/${ano}`
+  baixarCsv(cabecalho, linhasCsv, `vendas-vhsys-por-cliente-mes-${unidade}-${new Date().toISOString().slice(0, 10)}.csv`)
 }
 
 export default function RelatorioVendasVhsysPage() {
   const { profile } = useAuth()
   const [unidade, setUnidade] = useState(VHSYS_UNIDADES[0].codigo)
   const [ano, setAno] = useState(String(ANO_ATUAL))
+  const [filtroCliente, setFiltroCliente] = useState('')
+  const [filtroProduto, setFiltroProduto] = useState('')
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [dados, setDados] = useState<RespostaRelatorio | null>(null)
+  const [dados, setDados] = useState<RespostaHistorico | null>(null)
   const [erro, setErro] = useState('')
+  const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error'>('idle')
+  const [syncErro, setSyncErro] = useState('')
+
+  function paramsBase() {
+    const params = new URLSearchParams({ unidade })
+    if (ano !== 'todos') params.set('ano', ano)
+    return params
+  }
 
   function buscar() {
     setState('loading')
-    setDados(null)
-    const anoQuery = ano === 'todos' ? '' : `&ano=${encodeURIComponent(ano)}`
-    fetch(`/api/vhsys/relatorio-vendas?unidade=${encodeURIComponent(unidade)}${anoQuery}`)
+    setErro('')
+    const params = paramsBase()
+    if (filtroCliente.trim()) params.set('cliente', filtroCliente.trim())
+    if (filtroProduto.trim()) params.set('produto', filtroProduto.trim())
+    fetch(`/api/vhsys/relatorio-vendas/historico?${params.toString()}`)
       .then(async (response) => {
-        const body = await response.json() as RespostaRelatorio & { error?: string }
-        if (!response.ok) throw new Error(body.error ?? 'Falha ao buscar relatório.')
+        const body = await response.json() as RespostaHistorico & { error?: string }
+        if (!response.ok) throw new Error(body.error ?? 'Falha ao buscar histórico.')
         setDados(body)
         setState('done')
       })
       .catch((caught) => {
         setErro(caught instanceof Error ? caught.message : 'Falha inesperada.')
         setState('error')
+      })
+  }
+
+  function sincronizar() {
+    setSyncState('syncing')
+    setSyncErro('')
+    fetch(`/api/vhsys/relatorio-vendas/sincronizar?${paramsBase().toString()}`, { method: 'POST' })
+      .then(async (response) => {
+        const body = await response.json() as { error?: string }
+        if (!response.ok) throw new Error(body.error ?? 'Falha ao sincronizar.')
+        setSyncState('idle')
+        buscar()
+      })
+      .catch((caught) => {
+        setSyncErro(caught instanceof Error ? caught.message : 'Falha inesperada.')
+        setSyncState('error')
       })
   }
 
@@ -173,15 +192,13 @@ export default function RelatorioVendasVhsysPage() {
     )
   }
 
-  const totalGeral = dados?.linhas.reduce((soma, linha) => soma + linha.valor, 0) ?? 0
-
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Relatório de vendas por cliente/produto/mês (VHSYS)</h1>
           <div className="page-subtitle">
-            Todo o histórico do VHSYS, direto da API — não usa o filtro de marco zero e não grava nada no sistema.
+            Lê do histórico salvo no sistema — clique em Sincronizar pra atualizar com o VHSYS.
           </div>
         </div>
       </div>
@@ -189,12 +206,7 @@ export default function RelatorioVendasVhsysPage() {
       <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div>
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Unidade</label>
-          <select
-            className="input"
-            value={unidade}
-            onChange={(e) => setUnidade(e.target.value)}
-            style={{ maxWidth: 280 }}
-          >
+          <select className="input" value={unidade} onChange={(e) => setUnidade(e.target.value)} style={{ maxWidth: 280 }}>
             {VHSYS_UNIDADES.map((u) => (
               <option key={u.codigo} value={u.codigo}>{u.unidade}</option>
             ))}
@@ -202,86 +214,103 @@ export default function RelatorioVendasVhsysPage() {
         </div>
         <div>
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Ano</label>
-          <select
-            className="input"
-            value={ano}
-            onChange={(e) => setAno(e.target.value)}
-            style={{ maxWidth: 200 }}
-          >
+          <select className="input" value={ano} onChange={(e) => setAno(e.target.value)} style={{ maxWidth: 200 }}>
             {ANOS_DISPONIVEIS.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
-            <option value="todos">Todos os anos (mais lento)</option>
+            <option value="todos">Todos os anos</option>
           </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Cliente contém</label>
+          <input
+            className="input"
+            value={filtroCliente}
+            onChange={(e) => setFiltroCliente(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && buscar()}
+            placeholder="ex.: due valle"
+            style={{ maxWidth: 220 }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Produto contém</label>
+          <input
+            className="input"
+            value={filtroProduto}
+            onChange={(e) => setFiltroProduto(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && buscar()}
+            placeholder="ex.: gudang red"
+            style={{ maxWidth: 220 }}
+          />
         </div>
         <button className="btn btn-primary" onClick={buscar} disabled={state === 'loading'}>
           {state === 'loading' ? 'Buscando…' : 'Buscar'}
         </button>
+        <button className="btn" onClick={sincronizar} disabled={syncState === 'syncing'}>
+          {syncState === 'syncing' ? 'Sincronizando com o VHSYS…' : 'Sincronizar com o VHSYS'}
+        </button>
       </div>
 
-      {state === 'loading' && <div className="card">Carregando pedidos do VHSYS (pode levar um tempo, busca item a item)…</div>}
+      {syncState === 'error' && <div className="alert alert-red" style={{ marginBottom: 16 }}>Falha ao sincronizar: {syncErro}</div>}
+
+      {state === 'loading' && <div className="card">Carregando…</div>}
       {state === 'error' && <div className="alert alert-red">{erro}</div>}
 
       {state === 'done' && dados && (
         <div className="card">
           <p style={{ marginBottom: 4, fontSize: 13, color: 'var(--muted, #666)' }}>
-            Pedidos do VHSYS entre <strong>{formatarData(dados.data_mais_antiga)}</strong> e{' '}
-            <strong>{formatarData(dados.data_mais_recente)}</strong>
-            {dados.ano_selecionado && dados.pedidos_fora_do_ano > 0 && (
-              <> · {dados.pedidos_fora_do_ano} pedidos válidos de outros anos ficaram de fora (filtro de ano ativo)</>
-            )}
-            {(dados.motivos_exclusao.cancelado + dados.motivos_exclusao.lixeira
-              + dados.motivos_exclusao.status_invalido + dados.motivos_exclusao.sem_data) > 0 && (
-              <> · ignorados: {dados.motivos_exclusao.cancelado} cancelados, {dados.motivos_exclusao.lixeira} na lixeira,{' '}
-                {dados.motivos_exclusao.status_invalido} com status não reconhecido,{' '}
-                {dados.motivos_exclusao.sem_data} sem data</>
-            )}
+            Última sincronização com o VHSYS: <strong>{formatarDataHora(dados.ultima_sincronizacao)}</strong>
           </p>
           <p style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <span>
-              {dados.total_pedidos_considerados} pedidos considerados
-              {' · '}Total geral: <strong>{formatoMoeda.format(totalGeral)}</strong>
+              {dados.total_linhas} linhas · Total geral: <strong>{formatoMoeda.format(dados.valor_total)}</strong>
             </span>
             <button className="btn btn-primary" onClick={() => exportarCsv(dados.linhas)}>
               Exportar para Excel
             </button>
           </p>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Produto</th>
-                <th>Qtd. bruta (VHSYS)</th>
-                <th>Qtd. caixas (SKU)</th>
-                <th>Total caixas no mês</th>
-                <th>Mês</th>
-                <th>Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dados.linhas.map((linha, indice) => (
-                <tr key={`${linha.cliente}::${linha.produto}::${linha.mes}`}>
-                  <td>{linha.cliente}</td>
-                  <td>
-                    {linha.produto}
-                    {linha.sem_conversao && (
-                      <span
-                        title="Sem produto correspondente no catálogo local — quantidade em carteiras, não em caixas"
-                        style={{ color: 'var(--red)', marginLeft: 4 }}
-                      >
-                        *
-                      </span>
-                    )}
-                  </td>
-                  <td>{linha.qtd_bruta_vhsys}</td>
-                  <td>{linha.qtd_caixas}</td>
-                  <td>{ultimaDoGrupo(dados.linhas, indice) ? linha.caixas_total_mes : ''}</td>
-                  <td>{formatarMes(linha.mes)}</td>
-                  <td>{formatoMoeda.format(linha.valor)}</td>
+          {dados.linhas.length === 0 ? (
+            <p style={{ color: 'var(--muted, #666)' }}>
+              Nada salvo ainda pra esses filtros. Clique em &quot;Sincronizar com o VHSYS&quot; pra trazer os dados.
+            </p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Produto</th>
+                  <th>Qtd. bruta (VHSYS)</th>
+                  <th>Qtd. caixas (SKU)</th>
+                  <th>Total caixas no mês</th>
+                  <th>Mês</th>
+                  <th>Valor</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {dados.linhas.map((linha, indice) => (
+                  <tr key={`${linha.cliente}::${linha.produto}::${linha.mes}`}>
+                    <td>{linha.cliente}</td>
+                    <td>
+                      {linha.produto}
+                      {linha.sem_conversao && (
+                        <span
+                          title="Sem produto correspondente no catálogo local — quantidade em carteiras, não em caixas"
+                          style={{ color: 'var(--red)', marginLeft: 4 }}
+                        >
+                          *
+                        </span>
+                      )}
+                    </td>
+                    <td>{linha.qtd_bruta_vhsys}</td>
+                    <td>{linha.qtd_caixas}</td>
+                    <td>{ultimaDoGrupo(dados.linhas, indice) ? linha.caixas_total_mes : ''}</td>
+                    <td>{formatarMes(linha.mes)}</td>
+                    <td>{formatoMoeda.format(linha.valor)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           {dados.linhas.some((linha) => linha.sem_conversao) && (
             <p style={{ marginTop: 12, color: 'var(--red)', fontSize: 13 }}>
               * produto sem correspondência no catálogo local — quantidade ficou em carteiras, não convertida para caixas.
