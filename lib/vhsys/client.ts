@@ -63,6 +63,7 @@ export class VhsysClient {
   ): Promise<T[]> {
     const result: T[] = []
     let offset = 0
+    let assinaturaPaginaAnterior: string | null = null
 
     // ponytail: não confia no campo `total`/`total_count` do VHSYS (às vezes vem
     // igual à contagem da página, o que fazia a paginação parar na 1ª página).
@@ -74,6 +75,19 @@ export class VhsysClient {
         offset,
       })
       const lote = page.data ?? []
+
+      // Se o VHSYS ignorar o `offset` (ou usar outro nome de parâmetro pra
+      // paginação), ele devolve a mesma página de novo em loop — aí "puxar
+      // tudo" na prática só traz o período mais recente repetido. Detecta
+      // isso comparando com a página anterior e para, em vez de gastar
+      // centenas de chamadas buscando a mesma coisa.
+      const assinaturaPagina = JSON.stringify(lote)
+      if (assinaturaPaginaAnterior !== null && assinaturaPagina === assinaturaPaginaAnterior) {
+        console.error('[vhsys-client] paginação travada (página repetida) em', path, 'offset', offset)
+        return result
+      }
+      assinaturaPaginaAnterior = assinaturaPagina
+
       result.push(...lote)
       if (lote.length < pageSize || offset > 200_000) {
         return result
