@@ -59,10 +59,13 @@ export async function GET(request: Request) {
   const supabase = await createServerSupabase()
   try {
     await requireVhsysAdmin(supabase)
-    const unidade = vhsysUnidadePorCodigo(new URL(request.url).searchParams.get('unidade') ?? '')
+    const url = new URL(request.url)
+    const unidade = vhsysUnidadePorCodigo(url.searchParams.get('unidade') ?? '')
     if (!unidade) {
       return Response.json({ error: 'unidade inválida' }, { status: 400 })
     }
+    const anoParam = url.searchParams.get('ano')
+    const ano = anoParam && /^\d{4}$/.test(anoParam) ? anoParam : null
 
     const { data: produtosRaw } = await supabase
       .from('btx_produtos')
@@ -105,8 +108,15 @@ export async function GET(request: Request) {
       }
     }
 
+    // Buscar os itens é 1 chamada extra por pedido — em unidade com muito
+    // histórico isso demora/estoura timeout. Filtrar por ano antes evita
+    // fazer essa busca cara pra pedidos que nem vão entrar no relatório.
+    const validosNoAno = ano
+      ? validos.filter((pedido) => isoDate(pedido.data_pedido ?? pedido.data_emissao)!.startsWith(ano))
+      : validos
+
     const porChave = new Map<string, LinhaRelatorio>()
-    for (const pedido of validos) {
+    for (const pedido of validosNoAno) {
       const cliente = String(pedido.nome_cliente ?? 'Sem cliente').trim() || 'Sem cliente'
       const data = isoDate(pedido.data_pedido ?? pedido.data_emissao)!
       const mes = data.slice(0, 7)
@@ -168,8 +178,10 @@ export async function GET(request: Request) {
       ))
 
     return Response.json({
-      total_pedidos_considerados: validos.length,
-      total_pedidos_ignorados: pedidos.length - validos.length,
+      ano_selecionado: ano,
+      total_pedidos_considerados: validosNoAno.length,
+      total_pedidos_ignorados: validos.length - validosNoAno.length + Object.values(motivosExclusao).reduce((a, b) => a + b, 0),
+      pedidos_fora_do_ano: validos.length - validosNoAno.length,
       motivos_exclusao: motivosExclusao,
       data_mais_antiga: dataMaisAntiga,
       data_mais_recente: dataMaisRecente,
