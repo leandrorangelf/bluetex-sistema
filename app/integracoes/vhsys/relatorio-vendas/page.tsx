@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context'
 import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface LinhaRelatorio {
   cliente: string
@@ -142,6 +142,16 @@ export default function RelatorioVendasVhsysPage() {
   const [erro, setErro] = useState('')
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error'>('idle')
   const [syncErro, setSyncErro] = useState('')
+
+  // "Buscar" só lê do nosso banco (rápido) — carrega sozinho ao abrir a
+  // página ou trocar unidade/ano. Os campos de texto (cliente/produto) só
+  // aplicam ao apertar Enter ou clicar em Buscar, pra não disparar uma
+  // requisição a cada letra digitada.
+  useEffect(() => {
+    if (profile?.role !== 'admin') return
+    buscar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.role, unidade, ano])
 
   function paramsBase() {
     const params = new URLSearchParams({ unidade })
