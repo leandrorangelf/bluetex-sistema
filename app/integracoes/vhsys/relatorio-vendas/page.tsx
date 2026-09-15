@@ -9,6 +9,7 @@ interface LinhaRelatorio {
   produto: string
   mes: string
   qtd_caixas: number
+  qtd_bruta_vhsys: number
   valor: number
   caixas_total_mes: number
   sem_conversao: boolean
@@ -46,10 +47,11 @@ function campoCsv(valor: string | number): string {
 }
 
 function exportarCsv(linhas: LinhaRelatorio[]) {
-  const cabecalho = ['Cliente', 'Produto', 'Qtd. caixas (SKU)', 'Total caixas no mês', 'Mês', 'Valor', 'Obs.']
+  const cabecalho = ['Cliente', 'Produto', 'Qtd. bruta (VHSYS)', 'Qtd. caixas (SKU)', 'Total caixas no mês', 'Mês', 'Valor', 'Obs.']
   const linhasCsv = linhas.map((linha, indice) => [
     linha.cliente,
     linha.produto,
+    linha.qtd_bruta_vhsys,
     linha.qtd_caixas,
     ultimaDoGrupo(linhas, indice) ? linha.caixas_total_mes : '',
     formatarMes(linha.mes),
@@ -149,6 +151,7 @@ export default function RelatorioVendasVhsysPage() {
               <tr>
                 <th>Cliente</th>
                 <th>Produto</th>
+                <th>Qtd. bruta (VHSYS)</th>
                 <th>Qtd. caixas (SKU)</th>
                 <th>Total caixas no mês</th>
                 <th>Mês</th>
@@ -170,6 +173,7 @@ export default function RelatorioVendasVhsysPage() {
                       </span>
                     )}
                   </td>
+                  <td>{linha.qtd_bruta_vhsys}</td>
                   <td>{linha.qtd_caixas}</td>
                   <td>{ultimaDoGrupo(dados.linhas, indice) ? linha.caixas_total_mes : ''}</td>
                   <td>{formatarMes(linha.mes)}</td>
