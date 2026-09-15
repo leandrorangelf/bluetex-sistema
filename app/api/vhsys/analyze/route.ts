@@ -3,14 +3,20 @@ import { analyzeVhsys } from '@/lib/vhsys/analyze'
 import { requireVhsysAdmin, VhsysAuthError } from '@/lib/vhsys/auth'
 import { VhsysClient } from '@/lib/vhsys/client'
 import { getVhsysConfig } from '@/lib/vhsys/config'
+import { vhsysUnidadePorCodigo } from '@/lib/vhsys/unidades'
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createServerSupabase()
 
   try {
     const { userId } = await requireVhsysAdmin(supabase)
-    const client = new VhsysClient(getVhsysConfig())
-    const id = await analyzeVhsys(supabase, userId, client)
+    const body = await request.json().catch(() => ({})) as { unidade?: string }
+    const unidade = vhsysUnidadePorCodigo(body.unidade ?? '')
+    if (!unidade) {
+      return Response.json({ error: 'Unidade VHSYS inválida.' }, { status: 400 })
+    }
+    const client = new VhsysClient(getVhsysConfig(unidade.codigo))
+    const id = await analyzeVhsys(supabase, userId, client, unidade.unidade)
     return Response.json({ id }, { status: 201 })
   } catch (error) {
     if (error instanceof VhsysAuthError) {

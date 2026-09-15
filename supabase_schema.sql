@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS btx_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   nome TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'unidade' CHECK (role IN ('admin','unidade')),
-  unidade TEXT CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -100,7 +100,7 @@ ON CONFLICT DO NOTHING;
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_fornecedores (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   nome TEXT NOT NULL, cnpj TEXT, telefone TEXT, email TEXT, observacoes TEXT,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -114,7 +114,7 @@ CREATE POLICY "btx_unidade_forn" ON btx_fornecedores FOR ALL USING (btx_get_my_r
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_clientes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   nome TEXT NOT NULL, cnpj TEXT, telefone TEXT, email TEXT, observacoes TEXT,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -128,7 +128,7 @@ CREATE POLICY "btx_unidade_cli" ON btx_clientes FOR ALL USING (btx_get_my_role()
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_categorias_despesas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   nome TEXT NOT NULL,
   grupo TEXT NOT NULL DEFAULT 'outros' CHECK (grupo IN ('fornecedores','impostos','funcionarios','custos_fixos','outros')),
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -143,7 +143,7 @@ CREATE POLICY "btx_unidade_cat" ON btx_categorias_despesas FOR ALL USING (btx_ge
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_estoque_inicial (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   produto_id UUID NOT NULL REFERENCES btx_produtos(id),
   mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
   ano INTEGER NOT NULL,
@@ -161,7 +161,7 @@ CREATE POLICY "btx_unidade_est" ON btx_estoque_inicial FOR ALL USING (btx_get_my
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_compras (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   fornecedor_id UUID REFERENCES btx_fornecedores(id),
   data_compra DATE NOT NULL,
   numero_nf TEXT,
@@ -198,7 +198,7 @@ CREATE POLICY "btx_unidade_comp_itens" ON btx_compras_itens FOR ALL USING (
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_vendas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   cliente_id UUID REFERENCES btx_clientes(id),
   data_venda DATE NOT NULL,
   numero_nf TEXT,
@@ -235,7 +235,7 @@ CREATE POLICY "btx_unidade_vend_itens" ON btx_vendas_itens FOR ALL USING (
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_despesas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   categoria_id UUID REFERENCES btx_categorias_despesas(id),
   fornecedor_id UUID REFERENCES btx_fornecedores(id),
   data_despesa DATE NOT NULL,
@@ -255,7 +255,7 @@ CREATE POLICY "btx_unidade_desp" ON btx_despesas FOR ALL USING (btx_get_my_role(
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_parcelas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   tipo TEXT NOT NULL CHECK (tipo IN ('pagar','receber')),
   origem TEXT NOT NULL CHECK (origem IN ('compra','venda','despesa','manual')),
   origem_id UUID,
@@ -278,7 +278,7 @@ CREATE POLICY "btx_unidade_parc" ON btx_parcelas FOR ALL USING (btx_get_my_role(
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_caixa_mensal (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
   ano INTEGER NOT NULL,
   saldo_inicial NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -311,7 +311,7 @@ CREATE POLICY "btx_unidade_caixa" ON btx_caixa_mensal FOR ALL USING (btx_get_my_
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS btx_ajustes_estoque (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM')),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   produto_id UUID NOT NULL REFERENCES btx_produtos(id),
   mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
   ano INTEGER NOT NULL,
@@ -440,7 +440,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS btx_parcelas_vhsys_uidx
 -- Tabelas de análise, saldo bancário e posição de estoque
 CREATE TABLE IF NOT EXISTS btx_vhsys_sincronizacoes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade = 'NEW BLUETEX MG'),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   marco_zero DATE NOT NULL DEFAULT '2026-08-01',
   status TEXT NOT NULL CHECK (status IN ('analisando','pronto','confirmando','concluido','falhou')),
   iniciado_por UUID REFERENCES auth.users(id),
@@ -468,7 +468,7 @@ CREATE TABLE IF NOT EXISTS btx_vhsys_sincronizacao_itens (
 
 CREATE TABLE IF NOT EXISTS btx_vhsys_saldos_bancarios (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade = 'NEW BLUETEX MG'),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   vhsys_banco_id TEXT NOT NULL,
   numero_banco TEXT NOT NULL,
   nome_banco TEXT NOT NULL,
@@ -489,7 +489,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS btx_vhsys_saldos_bancarios_banco_uidx
 
 CREATE TABLE IF NOT EXISTS btx_vhsys_estoque_atual (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  unidade TEXT NOT NULL CHECK (unidade = 'NEW BLUETEX MG'),
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
   produto_id UUID NOT NULL REFERENCES btx_produtos(id),
   vhsys_produto_id TEXT NOT NULL,
   quantidade_atual NUMERIC(14,4) NOT NULL,
@@ -516,24 +516,28 @@ CREATE POLICY "btx_admin_vhsys_saldos" ON btx_vhsys_saldos_bancarios
 CREATE POLICY "btx_admin_vhsys_estoque" ON btx_vhsys_estoque_atual
   FOR ALL USING (btx_get_my_role()='admin') WITH CHECK (btx_get_my_role()='admin');
 
--- Mapa VHSYS -> produto local. Produto VHSYS sem linha aqui (ou com produto_id
+-- Mapa VHSYS -> produto local, por unidade (cada unidade tem seu próprio
+-- catálogo/IDs no VHSYS). Produto VHSYS sem linha aqui (ou com produto_id
 -- nulo) é ignorado na importação — nada é criado automaticamente.
 CREATE TABLE IF NOT EXISTS btx_vhsys_produto_map (
-  vhsys_id_produto TEXT PRIMARY KEY,
+  unidade TEXT NOT NULL CHECK (unidade IN ('NEW BLUETEX MG','NEW BLUETEX SC','NEW BLUETEX AM','GB SP','GB CE','GB MA')),
+  vhsys_id_produto TEXT NOT NULL,
   cod_produto TEXT,
   desc_vhsys TEXT,
   produto_id UUID REFERENCES btx_produtos(id),
   ignorar BOOLEAN NOT NULL DEFAULT FALSE,
-  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (unidade, vhsys_id_produto)
 );
 ALTER TABLE btx_vhsys_produto_map ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "btx_admin_vhsys_produto_map" ON btx_vhsys_produto_map;
 CREATE POLICY "btx_admin_vhsys_produto_map" ON btx_vhsys_produto_map
   FOR ALL USING (btx_get_my_role()='admin') WITH CHECK (btx_get_my_role()='admin');
 
--- Resolve um produto VHSYS para o produto local mapeado. Retorna NULL quando
--- não há mapeamento ou o mapeamento manda ignorar (o chamador então pula o item).
-CREATE OR REPLACE FUNCTION btx_vhsys_upsert_produto(p_nome TEXT, p_vhsys_id TEXT)
+-- Resolve um produto VHSYS (de uma unidade) para o produto local mapeado.
+-- Retorna NULL quando não há mapeamento ou o mapeamento manda ignorar (o
+-- chamador então pula o item).
+CREATE OR REPLACE FUNCTION btx_vhsys_upsert_produto(p_nome TEXT, p_vhsys_id TEXT, p_unidade TEXT)
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -543,13 +547,7 @@ DECLARE
 BEGIN
   SELECT produto_id INTO v_id
   FROM btx_vhsys_produto_map
-  WHERE vhsys_id_produto = p_vhsys_id AND ignorar = FALSE;
-  IF v_id IS NULL THEN
-    RETURN NULL;
-  END IF;
-  UPDATE btx_produtos
-  SET vhsys_id_mg = p_vhsys_id, vhsys_synced_at = NOW()
-  WHERE id = v_id AND vhsys_id_mg IS DISTINCT FROM p_vhsys_id;
+  WHERE unidade = p_unidade AND vhsys_id_produto = p_vhsys_id AND ignorar = FALSE;
   RETURN v_id;
 END;
 $$;
@@ -565,6 +563,7 @@ SECURITY INVOKER
 AS $$
 DECLARE
   v_sync_status TEXT;
+  v_unidade TEXT;
   v_item RECORD;
   v_child JSONB;
   v_local_id UUID;
@@ -576,9 +575,9 @@ BEGIN
     RAISE EXCEPTION 'Domínio VHSYS inválido';
   END IF;
 
-  SELECT status INTO v_sync_status
+  SELECT status, unidade INTO v_sync_status, v_unidade
   FROM btx_vhsys_sincronizacoes
-  WHERE id = p_sincronizacao AND unidade = 'NEW BLUETEX MG'
+  WHERE id = p_sincronizacao
   FOR UPDATE;
 
   IF v_sync_status IS NULL OR v_sync_status NOT IN ('pronto','confirmando') THEN
@@ -637,8 +636,8 @@ BEGIN
           FROM btx_parcelas WHERE id = v_item.local_id;
         END IF;
       ELSIF p_dominio = 'estoque' THEN
-        UPDATE btx_produtos SET origem_sistema='vhsys', vhsys_id_mg=v_item.vhsys_id,
-          vhsys_synced_at=NOW() WHERE id=v_item.local_id;
+        UPDATE btx_produtos SET origem_sistema='vhsys', vhsys_synced_at=NOW()
+          WHERE id=v_item.local_id;
       END IF;
       v_local_id := v_item.local_id;
     END IF;
@@ -646,7 +645,7 @@ BEGIN
     IF p_dominio = 'estoque' THEN
       IF v_item.decisao = 'importar' THEN
         v_local_id := btx_vhsys_upsert_produto(
-          v_item.dados_normalizados->>'produto_nome', v_item.vhsys_id);
+          v_item.dados_normalizados->>'produto_nome', v_item.vhsys_id, v_unidade);
       END IF;
       IF v_local_id IS NULL THEN
         -- produto VHSYS não mapeado: ignora sem criar nada
@@ -657,7 +656,7 @@ BEGIN
         unidade, produto_id, vhsys_produto_id, quantidade_atual,
         consultado_em, sincronizacao_id
       ) VALUES (
-        'NEW BLUETEX MG', v_local_id, v_item.vhsys_id,
+        v_unidade, v_local_id, v_item.vhsys_id,
         COALESCE(NULLIF(v_item.dados_normalizados->>'quantidade_atual','')::NUMERIC,0),
         COALESCE(NULLIF(v_item.dados_normalizados->>'consultado_em','')::TIMESTAMPTZ,NOW()),
         p_sincronizacao
@@ -671,7 +670,7 @@ BEGIN
         unidade, vhsys_banco_id, numero_banco, nome_banco, saldo_atual,
         consultado_em, sincronizacao_id
       ) VALUES (
-        'NEW BLUETEX MG', v_item.vhsys_id,
+        v_unidade, v_item.vhsys_id,
         COALESCE(v_item.dados_normalizados->>'numero_banco','033'),
         COALESCE(v_item.dados_normalizados->>'nome_banco','Santander'),
         COALESCE(NULLIF(v_item.dados_normalizados->>'saldo_atual','')::NUMERIC,0),
@@ -688,7 +687,7 @@ BEGIN
       IF COALESCE(v_item.dados_normalizados->>'cliente_vhsys_id','') <> '' THEN
         INSERT INTO btx_clientes(unidade, nome, origem_sistema, vhsys_id, vhsys_synced_at)
         VALUES (
-          'NEW BLUETEX MG',
+          v_unidade,
           COALESCE(NULLIF(v_item.dados_normalizados->>'pessoa_nome',''),'Cliente VHSYS'),
           'vhsys', v_item.dados_normalizados->>'cliente_vhsys_id', NOW()
         )
@@ -700,7 +699,7 @@ BEGIN
         unidade, cliente_id, data_venda, numero_nf, valor_total, valor_st,
         observacoes, ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
-        'NEW BLUETEX MG', v_person_id,
+        v_unidade, v_person_id,
         (v_item.dados_normalizados->>'data')::DATE,
         v_item.dados_normalizados->>'numero_documento',
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_total','')::NUMERIC,0),
@@ -717,7 +716,7 @@ BEGIN
         COALESCE(v_item.dados_normalizados->'itens','[]'::JSONB)
       ) LOOP
         v_product_id := btx_vhsys_upsert_produto(
-          v_child->>'produto_nome', v_child->>'produto_vhsys_id');
+          v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
         CONTINUE WHEN v_product_id IS NULL;
         INSERT INTO btx_vendas_itens(venda_id,produto_id,qtd_carteiras,valor)
         VALUES (
@@ -732,7 +731,7 @@ BEGIN
       IF COALESCE(v_item.dados_normalizados->>'fornecedor_vhsys_id','') <> '' THEN
         INSERT INTO btx_fornecedores(unidade, nome, origem_sistema, vhsys_id, vhsys_synced_at)
         VALUES (
-          'NEW BLUETEX MG',
+          v_unidade,
           COALESCE(NULLIF(v_item.dados_normalizados->>'pessoa_nome',''),'Fornecedor VHSYS'),
           'vhsys', v_item.dados_normalizados->>'fornecedor_vhsys_id', NOW()
         )
@@ -744,7 +743,7 @@ BEGIN
         unidade, fornecedor_id, data_compra, numero_nf, valor_total, valor_st,
         observacoes, ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
-        'NEW BLUETEX MG', v_person_id,
+        v_unidade, v_person_id,
         (v_item.dados_normalizados->>'data')::DATE,
         v_item.dados_normalizados->>'numero_documento',
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_total','')::NUMERIC,0),
@@ -761,7 +760,7 @@ BEGIN
         COALESCE(v_item.dados_normalizados->'itens','[]'::JSONB)
       ) LOOP
         v_product_id := btx_vhsys_upsert_produto(
-          v_child->>'produto_nome', v_child->>'produto_vhsys_id');
+          v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
         CONTINUE WHEN v_product_id IS NULL;
         INSERT INTO btx_compras_itens(compra_id,produto_id,qtd_carteiras,valor)
         VALUES (
@@ -777,7 +776,7 @@ BEGIN
         numero_boleto, observacoes, data_pagamento, categoria_vhsys,
         ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
-        'NEW BLUETEX MG', CASE WHEN p_dominio='receber' THEN 'receber' ELSE 'pagar' END,
+        v_unidade, CASE WHEN p_dominio='receber' THEN 'receber' ELSE 'pagar' END,
         CASE WHEN p_dominio='pagar' AND (v_item.dados_normalizados->>'de_entrada')::boolean
           THEN 'compra' ELSE 'manual' END,
         1, (v_item.dados_normalizados->>'vencimento')::DATE,

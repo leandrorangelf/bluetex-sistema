@@ -28,10 +28,7 @@ export function buildAnalysisItems(
   results: DomainResult[],
   candidateMap: CandidateMap,
   mappedProductIds: Set<string> = new Set(),
-  knownBankIds: Set<string> = new Set(),
 ): AnalysisRow[] {
-  const bankCount = results.find((result) => result.domain === 'bancos')
-    ?.items.length ?? 0
   const rows: AnalysisRow[] = []
 
   for (const result of results) {
@@ -53,23 +50,19 @@ export function buildAnalysisItems(
       if (result.domain === 'estoque' && !mappedProductIds.has(item.externalId)) {
         continue
       }
-      let reconciled = reconcileItem(item, candidateMap[result.domain] ?? [])
+      const reconciled = reconcileItem(item, candidateMap[result.domain] ?? [])
       // Título já liquidado no VHSYS e nunca visto aqui: NÃO importa. O VHSYS
       // guarda cada reparcelamento/renegociação como um registro "pago" separado
       // — trazer todos triplicava o "entrou/pago no mês". Só entra o que já está
       // vinculado (aí atualizamos a baixa) ou o que ainda está em aberto.
       const liquidadoDesconhecido =
-        (result.domain === 'receber' || result.domain === 'pagar')
+        result.domain === 'receber'
         && item.data.liquidado === true
         && reconciled.classification === 'novo'
       if (liquidadoDesconhecido) continue
-      // saldo de banco já conhecido = só atualiza a foto, não é "lançamento novo"
-      if (result.domain === 'bancos' && knownBankIds.has(item.externalId)) {
-        reconciled = { ...reconciled, classification: 'ja_vinculado' }
-      }
       let decision: AnalysisRow['decisao'] = null
       if (reconciled.classification === 'novo') {
-        decision = result.domain === 'bancos' && bankCount > 1 ? null : 'importar'
+        decision = 'importar'
       } else if (
         reconciled.classification === 'ja_vinculado'
         || reconciled.classification === 'correspondencia_exata'
@@ -125,44 +118,37 @@ function toCandidate(
   }
 }
 
-async function loadMappedProductIds(supabase: SupabaseClient): Promise<Set<string>> {
+async function loadMappedProductIds(supabase: SupabaseClient, unidade: string): Promise<Set<string>> {
   const { data } = await supabase
     .from('btx_vhsys_produto_map')
     .select('vhsys_id_produto')
+    .eq('unidade', unidade)
     .eq('ignorar', false)
     .not('produto_id', 'is', null)
   return new Set((data ?? []).map((r) => String((r as { vhsys_id_produto: unknown }).vhsys_id_produto)))
 }
 
-async function loadKnownBankIds(supabase: SupabaseClient): Promise<Set<string>> {
-  const { data } = await supabase
-    .from('btx_vhsys_saldos_bancarios')
-    .select('vhsys_banco_id')
-  return new Set((data ?? []).map((r) => String((r as { vhsys_banco_id: unknown }).vhsys_banco_id)))
-}
-
-async function loadCandidates(supabase: SupabaseClient): Promise<CandidateMap> {
+async function loadCandidates(supabase: SupabaseClient, unidade: string): Promise<CandidateMap> {
   const [
     sales,
     purchases,
     receivable,
-    payable,
-    products,
+    productMap,
   ] = await Promise.all([
     supabase.from('btx_vendas')
       .select('id,vhsys_id,numero_nf,data_venda,valor_total,cliente:btx_clientes(nome,cnpj)')
-      .eq('unidade', 'NEW BLUETEX MG'),
+      .eq('unidade', unidade),
     supabase.from('btx_compras')
       .select('id,vhsys_id,numero_nf,data_compra,valor_total,fornecedor:btx_fornecedores(nome,cnpj)')
-      .eq('unidade', 'NEW BLUETEX MG'),
+      .eq('unidade', unidade),
     supabase.from('btx_parcelas')
       .select('id,vhsys_id,numero_boleto,vencimento,valor')
-      .eq('unidade', 'NEW BLUETEX MG').eq('tipo', 'receber'),
-    supabase.from('btx_parcelas')
-      .select('id,vhsys_id,numero_boleto,vencimento,valor')
-      .eq('unidade', 'NEW BLUETEX MG').eq('tipo', 'pagar'),
-    supabase.from('btx_produtos')
-      .select('id,vhsys_id_mg,nome'),
+      .eq('unidade', unidade).eq('tipo', 'receber'),
+    supabase.from('btx_vhsys_produto_map')
+      .select('produto_id,vhsys_id_produto,produto:btx_produtos(nome)')
+      .eq('unidade', unidade)
+      .eq('ignorar', false)
+      .not('produto_id', 'is', null),
   ])
 
   const ensure = (
@@ -191,21 +177,15 @@ async function loadCandidates(supabase: SupabaseClient): Promise<CandidateMap> {
       document: 'numero_boleto',
       date: 'vencimento',
     })),
-    pagar: ensure(payable.data, payable.error).map((row) => toCandidate(row, {
-      external: 'vhsys_id',
-      document: 'numero_boleto',
-      date: 'vencimento',
-    })),
-    estoque: ensure(products.data, products.error).map((row) => ({
-      id: String(row.id),
-      vhsys_id: row.vhsys_id_mg == null ? null : String(row.vhsys_id_mg),
+    estoque: ensure(productMap.data, productMap.error).map((row) => ({
+      id: String(row.produto_id),
+      vhsys_id: row.vhsys_id_produto == null ? null : String(row.vhsys_id_produto),
       numero_documento: null,
       documento_pessoa: null,
       data: null,
-      pessoa_nome: row.nome == null ? null : String(row.nome),
+      pessoa_nome: relationValue(row.produto, 'nome'),
       valor_total: 0,
     })),
-    bancos: [],
   }
 }
 
@@ -220,11 +200,12 @@ export async function analyzeVhsys(
   supabase: SupabaseClient,
   userId: string | null,
   client: VhsysClient,
+  unidade: string,
 ): Promise<string> {
   const { data: sync, error: createError } = await supabase
     .from('btx_vhsys_sincronizacoes')
     .insert({
-      unidade: 'NEW BLUETEX MG',
+      unidade,
       marco_zero: '2026-08-01',
       status: 'analisando',
       iniciado_por: userId,
@@ -235,13 +216,12 @@ export async function analyzeVhsys(
 
   const syncId = String(sync.id)
   try {
-    const [results, candidateMap, mappedProductIds, knownBankIds] = await Promise.all([
+    const [results, candidateMap, mappedProductIds] = await Promise.all([
       runDomainImporters(client),
-      loadCandidates(supabase),
-      loadMappedProductIds(supabase),
-      loadKnownBankIds(supabase),
+      loadCandidates(supabase, unidade),
+      loadMappedProductIds(supabase, unidade),
     ])
-    const rows = buildAnalysisItems(results, candidateMap, mappedProductIds, knownBankIds)
+    const rows = buildAnalysisItems(results, candidateMap, mappedProductIds)
     if (rows.length > 0) {
       const { error } = await supabase
         .from('btx_vhsys_sincronizacao_itens')

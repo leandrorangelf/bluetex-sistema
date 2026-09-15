@@ -3,6 +3,7 @@ import { analyzeVhsys } from './analyze'
 import { VhsysClient } from './client'
 import { getVhsysConfig } from './config'
 import { confirmVhsys, type SyncDecision } from './confirm'
+import { vhsysUnidadePorCodigo } from './unidades'
 
 interface ItemRow {
   id: string
@@ -27,9 +28,12 @@ export function autoDecisions(items: ItemRow[]): SyncDecision[] {
 export async function runAutoSync(
   supabase: SupabaseClient,
   userId: string | null,
+  codigoUnidade: string,
 ): Promise<{ syncId: string; domains: Record<string, string>; totalItens: number }> {
-  const client = new VhsysClient(getVhsysConfig())
-  const syncId = await analyzeVhsys(supabase, userId, client)
+  const unidade = vhsysUnidadePorCodigo(codigoUnidade)
+  if (!unidade) throw new Error('VHSYS_UNIDADE_INVALIDA')
+  const client = new VhsysClient(getVhsysConfig(codigoUnidade))
+  const syncId = await analyzeVhsys(supabase, userId, client, unidade.unidade)
 
   const { data: items, error } = await supabase
     .from('btx_vhsys_sincronizacao_itens')

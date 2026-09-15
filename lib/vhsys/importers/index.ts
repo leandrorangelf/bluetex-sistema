@@ -1,7 +1,7 @@
 import type { VhsysClient } from '../client'
-import { importBancos } from './bancos'
 import { importCompras } from './compras'
-import { importPagar, importReceber } from './financeiro'
+import { importEstoque } from './estoque'
+import { importReceber } from './financeiro'
 import type {
   DomainImporter,
   DomainResult,
@@ -9,14 +9,14 @@ import type {
 } from './shared'
 import { importVendas } from './vendas'
 
-// Espelho financeiro + estoque a partir da contagem de 08/09/2026
-// (VHSYS_ESTOQUE_ZERO_DATE). Estoque (foto do VHSYS) segue fora.
+// Escopo do VHSYS: só faturamento (vendas, compras, estoque) e os boletos a
+// receber gerados pela venda. Contas a pagar e saldo bancário são lançados
+// manualmente por cada unidade, fora do VHSYS.
 export const DEFAULT_IMPORTERS: [VhsysDomain, DomainImporter][] = [
   ['vendas', importVendas],
   ['compras', importCompras],
   ['receber', importReceber],
-  ['pagar', importPagar],
-  ['bancos', importBancos],
+  ['estoque', importEstoque],
 ]
 
 function sanitizedError(error: unknown): string {

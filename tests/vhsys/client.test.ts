@@ -104,6 +104,11 @@ describe('VhsysClient', () => {
 describe('getVhsysConfig', () => {
   it('rejeita ambiente incompleto sem revelar valores', async () => {
     const { getVhsysConfig } = await import('@/lib/vhsys/config')
-    expect(() => getVhsysConfig()).toThrow('Configuração VHSYS incompleta')
+    expect(() => getVhsysConfig('MG')).toThrow('VHSYS_CONFIG_INCOMPLETA')
+  })
+
+  it('rejeita código de unidade desconhecido', async () => {
+    const { getVhsysConfig } = await import('@/lib/vhsys/config')
+    expect(() => getVhsysConfig('XX')).toThrow('VHSYS_UNIDADE_INVALIDA')
   })
 })

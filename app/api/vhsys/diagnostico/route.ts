@@ -3,13 +3,17 @@ import { requireVhsysAdmin, VhsysAuthError } from '@/lib/vhsys/auth'
 import { VhsysClient } from '@/lib/vhsys/client'
 import { getVhsysConfig } from '@/lib/vhsys/config'
 import { avaliarFinanceiro } from '@/lib/vhsys/importers/financeiro'
+import { vhsysUnidadePorCodigo } from '@/lib/vhsys/unidades'
 
 // Compara o VHSYS com o que está no nosso sistema e explica o que não veio.
-// GET /api/vhsys/diagnostico  (admin, somente leitura)
+// Contas a pagar não sincroniza mais (lançamento manual), mas o diagnóstico
+// segue disponível como leitura pura, para conferência pontual.
+// GET /api/vhsys/diagnostico?unidade=MG  (admin, somente leitura)
 
 async function analisarDominio(
   client: VhsysClient,
   supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  unidade: string,
   domain: 'receber' | 'pagar',
 ) {
   const path = domain === 'receber' ? '/contas-receber' : '/contas-pagar'
@@ -19,6 +23,7 @@ async function analisarDominio(
   const { data: locais } = await supabase
     .from('btx_parcelas')
     .select('vhsys_id,status,valor')
+    .eq('unidade', unidade)
     .eq('tipo', domain)
     .eq('origem_sistema', 'vhsys')
   const locaisPorId = new Map(
@@ -48,14 +53,18 @@ async function analisarDominio(
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createServerSupabase()
   try {
     await requireVhsysAdmin(supabase)
-    const client = new VhsysClient(getVhsysConfig())
+    const unidade = vhsysUnidadePorCodigo(new URL(request.url).searchParams.get('unidade') ?? '')
+    if (!unidade) {
+      return Response.json({ error: 'unidade inválida' }, { status: 400 })
+    }
+    const client = new VhsysClient(getVhsysConfig(unidade.codigo))
     const [receber, pagar] = await Promise.all([
-      analisarDominio(client, supabase, 'receber'),
-      analisarDominio(client, supabase, 'pagar'),
+      analisarDominio(client, supabase, unidade.unidade, 'receber'),
+      analisarDominio(client, supabase, unidade.unidade, 'pagar'),
     ])
     return Response.json({ receber, pagar })
   } catch (error) {

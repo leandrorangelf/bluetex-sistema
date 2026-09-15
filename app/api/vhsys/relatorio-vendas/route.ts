@@ -4,6 +4,7 @@ import { VhsysClient } from '@/lib/vhsys/client'
 import { getVhsysConfig } from '@/lib/vhsys/config'
 import { isoDate, money } from '@/lib/vhsys/normalizers'
 import { melhorMatch, tokens, type LocalProduto } from '@/lib/vhsys/produto-match'
+import { vhsysUnidadePorCodigo } from '@/lib/vhsys/unidades'
 
 // Relatório de vendas por cliente/produto/mês direto da API do VHSYS, todo o
 // histórico (sem o filtro de marco zero usado no fluxo de sincronização).
@@ -50,10 +51,14 @@ function buscarFator(desc: string, locais: ProdutoLocal[]): number | null {
   return match ? (locais.find((p) => p.id === match.id)?.fator_conversao ?? null) : null
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createServerSupabase()
   try {
     await requireVhsysAdmin(supabase)
+    const unidade = vhsysUnidadePorCodigo(new URL(request.url).searchParams.get('unidade') ?? '')
+    if (!unidade) {
+      return Response.json({ error: 'unidade inválida' }, { status: 400 })
+    }
 
     const { data: produtosRaw } = await supabase
       .from('btx_produtos')
@@ -71,7 +76,7 @@ export async function GET() {
     })
     const fatorPorDescricao = new Map<string, number | null>()
 
-    const client = new VhsysClient(getVhsysConfig())
+    const client = new VhsysClient(getVhsysConfig(unidade.codigo))
     const pedidos = await client.list<Record<string, unknown>>('/pedidos')
     const validos = pedidos.filter(pedidoValido)
 
@@ -145,6 +150,7 @@ export async function GET() {
       return Response.json({ error: error.message }, { status: error.status })
     }
     const code = error instanceof Error ? error.message : 'VHSYS_ERRO'
+    console.error('[relatorio-vendas]', code, error)
     return Response.json({ error: code }, { status: 502 })
   }
 }

@@ -71,32 +71,6 @@ describe('importadores VHSYS', () => {
     }))
   })
 
-  it('retorna somente contas Santander ativas', async () => {
-    const client = {
-      list: vi.fn().mockResolvedValue([
-        {
-          id_banco_cad: 1,
-          numero_banco: '033',
-          status_banco: 'Ativo',
-          nome_banco_cad: 'Santander',
-          saldo_atual: '50.10',
-        },
-        {
-          id_banco_cad: 2,
-          numero_banco: '001',
-          status_banco: 'Ativo',
-          saldo_atual: '99.00',
-        },
-      ]),
-    }
-    const { importBancos } = await import('@/lib/vhsys/importers/bancos')
-
-    const result = await importBancos(client as never)
-
-    expect(result).toHaveLength(1)
-    expect(result[0].data.saldo_atual).toBe(50.1)
-  })
-
   it('usa a posição atual dos produtos ativos como estoque', async () => {
     const client = {
       list: vi.fn().mockResolvedValue([
