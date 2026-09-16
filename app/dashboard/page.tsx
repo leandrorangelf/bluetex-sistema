@@ -132,28 +132,47 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
 
 // Saldo início do mês + recebido − pago = saldo novo, os quatro números
 // que fecham a conta do mês (só realizado, não entra "a receber" projetado).
-function Waterfall({ resumo }: { resumo: ResumoUnidade }) {
-  const tile = (label: string, valor: number, cor: string) => (
-    <div style={{ background: 'var(--surface, #fff)', padding: '14px 18px' }}>
-      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)', marginBottom: 6 }}>{label}</div>
+// O saldo início é editável quando dá pra identificar uma unidade única —
+// os outros três decorrem dos lançamentos, então a conta sempre fecha.
+function Waterfall({ resumo, onEditarSaldo }: { resumo: ResumoUnidade; onEditarSaldo?: () => void }) {
+  const tile = (label: string, valor: number, cor: string, onEdit?: () => void) => (
+    <div style={{ background: 'var(--surface, #fff)', padding: '14px 18px', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>{label}</div>
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            title="Editar saldo do mês"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: 0, lineHeight: 1 }}
+          >✎</button>
+        )}
+      </div>
       <div className="mono" style={{ fontSize: 19, fontWeight: 600, color: cor }}>{formatMoeda(valor)}</div>
     </div>
   )
+  const divergeDoBanco = resumo.saldoBancarioReferencia != null && Math.abs(resumo.saldoBancarioReferencia - resumo.saldoHoje) >= 0.01
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1,
-      background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 10,
-      overflow: 'hidden', marginBottom: 20,
-    }}>
-      {tile('Saldo início do mês', resumo.saldoInicioMes, 'var(--navy)')}
-      {tile('+ Recebido no mês', resumo.totalEntrou, 'var(--green)')}
-      {tile('− Pago no mês', resumo.totalPagou, 'var(--red)')}
-      {tile('Saldo novo', resumo.saldoHoje, 'var(--navy)')}
+    <div style={{ marginBottom: 20 }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1,
+        background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 10,
+        overflow: 'hidden',
+      }}>
+        {tile('Saldo início do mês', resumo.saldoInicioMes, 'var(--navy)', onEditarSaldo)}
+        {tile('+ Recebido no mês', resumo.totalEntrou, 'var(--green)')}
+        {tile('− Pago no mês', resumo.totalPagou, 'var(--red)')}
+        {tile('Saldo novo', resumo.saldoHoje, 'var(--navy)')}
+      </div>
+      {divergeDoBanco && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+          Extrato do banco (referência): {formatMoeda(resumo.saldoBancarioReferencia!)} — diferente do saldo calculado acima. Confira os lançamentos ou ajuste o saldo do mês.
+        </div>
+      )}
     </div>
   )
 }
 
-interface ItemLancamento { id: string; descricao: string; vencimento: string; valor: number; categoria: string }
+interface ItemLancamento { id: string; descricao: string; data: string; valor: number; categoria: string }
 
 function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; total: number; itens: ItemLancamento[] }[] {
   const mapa = new Map<string, ItemLancamento[]>()
@@ -166,7 +185,7 @@ function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; tota
     .map(([categoria, lista]) => ({
       categoria,
       total: lista.reduce((s, i) => s + i.valor, 0),
-      itens: lista.sort((a, b) => a.vencimento.localeCompare(b.vencimento)),
+      itens: lista.sort((a, b) => a.data.localeCompare(b.data)),
     }))
     .sort((a, b) => b.total - a.total)
 }
@@ -177,10 +196,10 @@ function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; tota
 function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade; onClickItem: (c: ContaPagar | ContaReceber) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const recebido = agruparPorCategoria(
-    resumo.contasReceber.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, vencimento: c.vencimento, valor: c.valor, categoria: c.categoria })),
+    resumo.contasReceber.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, data: c.dataPagamento ?? c.vencimento, valor: c.valor, categoria: c.categoria })),
   )
   const pago = agruparPorCategoria(
-    resumo.contasPagar.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, vencimento: c.vencimento, valor: c.valor, categoria: c.categoria })),
+    resumo.contasPagar.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, data: c.dataPagamento ?? c.vencimento, valor: c.valor, categoria: c.categoria })),
   )
   const porId = new Map([...resumo.contasReceber, ...resumo.contasPagar].map(c => [c.id, c]))
 
@@ -212,8 +231,8 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
                 style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px 7px 26px', fontSize: 12, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
               >
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 6 }}>{formatData(item.data)}</span>
                   {item.descricao}
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(item.vencimento)}</span>
                 </span>
                 <span className="mono" style={{ flexShrink: 0, color: cor }}>{formatMoeda(item.valor)}</span>
               </div>
@@ -266,25 +285,24 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0 10px' }}>
         <span style={{ color: 'var(--text-muted)' }}>Saldo hoje</span>
         <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
       </div>
-      {resumo.gruposPagar.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem contas a pagar</div>
-      ) : resumo.gruposPagar.map(g => (
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Ainda a pagar</div>
+      {/* só grupos com algo ainda em aberto — o que já foi pago aparece em "Pago no mês" lá em cima, sem repetir aqui */}
+      {resumo.gruposPagar.filter(g => g.subtotal > 0).length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem contas em aberto</div>
+      ) : resumo.gruposPagar.filter(g => g.subtotal > 0).map(g => (
         <div key={g.grupo}>
           <button
             onClick={() => toggle(g.grupo)}
             style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
           >
             <span style={{ fontSize: 12, fontWeight: 600 }}>{abertos.has(g.grupo) ? '▾' : '▸'} {g.label}</span>
-            <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>
-              {formatMoeda(g.subtotal)}
-              {g.pago > 0 && <span style={{ fontWeight: 400, color: 'var(--red)', fontSize: 11 }}> · {formatMoeda(g.pago)} pago</span>}
-            </span>
+            <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{formatMoeda(g.subtotal)}</span>
           </button>
-          {abertos.has(g.grupo) && g.contas.map(c => (
+          {abertos.has(g.grupo) && g.contas.filter(c => !c.paga).map(c => (
             <div
               key={c.id}
               role="button"
@@ -294,10 +312,10 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
               <div style={{ fontSize: 11, color: 'var(--red)' }}>
-                {c.paga ? '✓ ' : c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
+                <span className="mono">{formatData(c.vencimento)}</span>{' '}
+                {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
                 {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
                 {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(c.vencimento)}</span>
               </div>
               <span className="mono" style={{ fontSize: 12, color: 'var(--red)' }}>{formatMoeda(c.valor)}</span>
             </div>
@@ -378,6 +396,51 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
   )
 }
 
+// Edita o saldo início do mês (btx_caixa_mensal.saldo_inicial) da unidade/mês
+// selecionados. Recebido e pago já são calculados pelos lançamentos, então
+// só esse número precisa de ajuste manual pra a conta fechar certo.
+function ModalSaldo({ aberto, unidade, ano, mes, saldoAtual, onClose, onGravou }: {
+  aberto: boolean; unidade: string; ano: number; mes: number; saldoAtual: number
+  onClose: () => void; onGravou: () => void
+}) {
+  const sb = useMemo(() => createClient(), [])
+  const [valor, setValor] = useState(0)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { if (aberto) setValor(saldoAtual) }, [aberto, saldoAtual])
+
+  async function salvar() {
+    setSaving(true)
+    await sb.from('btx_caixa_mensal').upsert(
+      { unidade, ano, mes, saldo_inicial: valor, updated_at: new Date().toISOString() },
+      { onConflict: 'unidade,mes,ano' },
+    )
+    setSaving(false)
+    onGravou()
+  }
+
+  return (
+    <Modal
+      open={aberto}
+      onClose={onClose}
+      title={`Saldo início do mês — ${getMesAnoLabel(mes, ano)}`}
+      size="sm"
+      footer={<>
+        <button className="btn btn-secondary" disabled={saving} onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary" disabled={saving} onClick={salvar}>Salvar</button>
+      </>}
+    >
+      <div className="form-group">
+        <label className="form-label">Saldo em caixa no dia 1º do mês (R$)</label>
+        <input className="form-input" type="number" step="0.01" value={valor} onChange={e => setValor(Number(e.target.value))} />
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        Recebido e pago no mês somam a partir daqui — ajuste esse número pra o saldo novo fechar certo.
+      </p>
+    </Modal>
+  )
+}
+
 export default function DashboardPage() {
   const { profile, unidadeAtiva } = useAuth()
   const sb = useMemo(() => createClient(), [])
@@ -389,6 +452,7 @@ export default function DashboardPage() {
   const [estoque, setEstoque] = useState<LinhaEstoque[]>([])
   const [loading, setLoading] = useState(true)
   const [contaAberta, setContaAberta] = useState<ContaPagar | ContaReceber | null>(null)
+  const [editandoSaldo, setEditandoSaldo] = useState(false)
   const hojeStr = new Date().toISOString().slice(0, 10)
 
   const carregar = useCallback(async () => {
@@ -453,6 +517,18 @@ export default function DashboardPage() {
         onGravou={() => { setContaAberta(null); carregar() }}
       />
 
+      {abaUnica && nomeUnica && (
+        <ModalSaldo
+          aberto={editandoSaldo}
+          unidade={nomeUnica}
+          ano={ano}
+          mes={mes}
+          saldoAtual={abaUnica.saldoInicioMes}
+          onClose={() => setEditandoSaldo(false)}
+          onGravou={() => { setEditandoSaldo(false); carregar() }}
+        />
+      )}
+
       {loading ? <div className="empty-state">Carregando...</div>
       : veTudo && aba === 'consolidado' ? (
         !consolidado || unidadesComDados.length === 0 ? <div className="empty-state">Sem dados.</div> : (
@@ -483,7 +559,7 @@ export default function DashboardPage() {
           {abaUnica.parcelasVencidas > 0 && (
             <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {abaUnica.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
           )}
-          <Waterfall resumo={abaUnica} />
+          <Waterfall resumo={abaUnica} onEditarSaldo={profile?.role === 'diretoria' ? undefined : () => setEditandoSaldo(true)} />
           <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
           <div>
             <ColunaUnidade
