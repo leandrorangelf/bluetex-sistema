@@ -193,6 +193,23 @@ export default function RelatorioVendasVhsysPage() {
       .catch(() => {})
   }
 
+  // Lista de produtos pro seletor: os que aparecem no resultado atual +
+  // os já excluídos (que não aparecem mais no resultado, mas continuam
+  // precisando estar na lista pra dar pra desmarcar/reincluir).
+  const produtosDisponiveis = [...new Set([
+    ...(dados?.linhas.map((l) => l.produto) ?? []),
+    ...produtosExcluidos.map((p) => p.valor),
+  ])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  function alternarExclusaoProduto(produto: string, excluir: boolean) {
+    if (excluir) {
+      excluirProduto(produto)
+    } else {
+      const existente = produtosExcluidos.find((p) => p.valor === produto)
+      if (existente) removerExclusao(existente.id)
+    }
+  }
+
   function paramsBase() {
     const params = new URLSearchParams({ unidade })
     if (ano !== 'todos') params.set('ano', ano)
@@ -283,6 +300,40 @@ export default function RelatorioVendasVhsysPage() {
           </select>
         </div>
         <div>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Produtos</label>
+          <details style={{ position: 'relative' }}>
+            <summary className="input" style={{ cursor: 'pointer', listStyle: 'none', maxWidth: 200 }}>
+              {produtosExcluidos.length > 0
+                ? `${produtosDisponiveis.length - produtosExcluidos.length} de ${produtosDisponiveis.length} incluídos`
+                : 'Todos incluídos'}
+            </summary>
+            <div
+              style={{
+                position: 'absolute', zIndex: 10, marginTop: 4, background: 'var(--bg, #fff)',
+                border: '1px solid var(--border, #ddd)', borderRadius: 6, padding: 8,
+                maxHeight: 260, overflowY: 'auto', minWidth: 240, boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+              }}
+            >
+              {produtosDisponiveis.length === 0 && (
+                <span style={{ fontSize: 13, color: 'var(--muted, #666)' }}>Nenhum produto ainda</span>
+              )}
+              {produtosDisponiveis.map((produto) => {
+                const excluido = produtosExcluidos.some((p) => p.valor === produto)
+                return (
+                  <label key={produto} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '2px 0' }}>
+                    <input
+                      type="checkbox"
+                      checked={!excluido}
+                      onChange={(e) => alternarExclusaoProduto(produto, !e.target.checked)}
+                    />
+                    {produto}
+                  </label>
+                )
+              })}
+            </div>
+          </details>
+        </div>
+        <div>
           <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Ano</label>
           <select className="input" value={ano} onChange={(e) => setAno(e.target.value)} style={{ maxWidth: 200 }}>
             {ANOS_DISPONIVEIS.map((a) => (
@@ -335,30 +386,6 @@ export default function RelatorioVendasVhsysPage() {
 
       {syncState === 'error' && <div className="alert alert-red" style={{ marginBottom: 16 }}>Falha ao sincronizar: {syncErro}</div>}
 
-      {produtosExcluidos.length > 0 && (
-        <div className="card" style={{ marginBottom: 16, fontSize: 13 }}>
-          <strong>Produtos excluídos do relatório nessa unidade:</strong>{' '}
-          {produtosExcluidos.map((p) => (
-            <span
-              key={p.id}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8,
-                background: 'var(--bg-muted, #f0f0f0)', borderRadius: 4, padding: '2px 8px',
-              }}
-            >
-              {p.valor}
-              <button
-                onClick={() => removerExclusao(p.id)}
-                title="Voltar a incluir esse produto no relatório"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red)', fontWeight: 700 }}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
       {state === 'loading' && <div className="card">Carregando…</div>}
       {state === 'error' && <div className="alert alert-red">{erro}</div>}
 
@@ -390,7 +417,6 @@ export default function RelatorioVendasVhsysPage() {
                   <th>Total caixas no mês</th>
                   <th>Mês</th>
                   <th>Valor</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -413,15 +439,6 @@ export default function RelatorioVendasVhsysPage() {
                     <td>{ultimaDoGrupo(dados.linhas, indice) ? linha.caixas_total_mes : ''}</td>
                     <td>{formatarMes(linha.mes)}</td>
                     <td>{formatoMoeda.format(linha.valor)}</td>
-                    <td>
-                      <button
-                        onClick={() => excluirProduto(linha.produto)}
-                        title={`Excluir "${linha.produto}" do relatório dessa unidade (produto que não se trabalha mais)`}
-                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted, #999)', fontSize: 12 }}
-                      >
-                        excluir produto
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
