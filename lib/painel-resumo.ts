@@ -153,7 +153,9 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
       catReceber.push({ categoria, valor: valorExibido, paga })
       contasReceber.push({
         id: p.id,
-        descricao: p.observacoes?.trim() || `Recebimento (parc. ${p.numero_parcela})`,
+        descricao: p.observacoes?.trim()
+          ? `${p.observacoes.trim()} · parc. ${p.numero_parcela}`
+          : `Recebimento (parc. ${p.numero_parcela})`,
         vencimento: p.vencimento,
         valor: valorExibido,
         unidade: input.unidade,
