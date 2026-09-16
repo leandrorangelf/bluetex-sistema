@@ -7,6 +7,8 @@ import { vhsysUnidadePorCodigo } from '@/lib/vhsys/unidades'
 // histórico (sem o filtro de marco zero usado no fluxo de sincronização).
 // Somente leitura: não grava nada no banco nem passa pelos triggers de
 // estoque. Uso: GET /api/vhsys/relatorio-vendas?unidade=CODIGO&ano=YYYY (admin).
+export const maxDuration = 800
+
 export async function GET(request: Request) {
   const supabase = await createServerSupabase()
   try {

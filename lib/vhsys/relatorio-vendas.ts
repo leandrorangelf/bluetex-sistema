@@ -70,6 +70,7 @@ export async function buscarRelatorioVendas(
   supabase: SupabaseClient,
   unidade: VhsysUnidade,
   ano: string | null,
+  mes: string | null = null,
 ): Promise<ResultadoRelatorioVendas> {
   const { data: produtosRaw } = await supabase
     .from('btx_produtos')
@@ -113,14 +114,19 @@ export async function buscarRelatorioVendas(
   }
 
   // Buscar os itens é 1 chamada extra por pedido — em unidade com muito
-  // histórico isso demora/estoura timeout. Filtrar por ano antes evita
-  // fazer essa busca cara pra pedidos que nem vão entrar no relatório.
+  // histórico isso demora/estoura timeout (a função serverless tem um
+  // limite de tempo). Filtrar por ano (e opcionalmente por mês, pra
+  // unidade muito grande) antes evita fazer essa busca cara pra pedidos
+  // que nem vão entrar no relatório.
   const validosNoAno = ano
     ? validos.filter((pedido) => isoDate(pedido.data_pedido ?? pedido.data_emissao)!.startsWith(ano))
     : validos
+  const validosNoPeriodo = mes
+    ? validosNoAno.filter((pedido) => isoDate(pedido.data_pedido ?? pedido.data_emissao)!.startsWith(mes))
+    : validosNoAno
 
   const porChave = new Map<string, LinhaRelatorioVendas>()
-  for (const pedido of validosNoAno) {
+  for (const pedido of validosNoPeriodo) {
     const cliente = String(pedido.nome_cliente ?? 'Sem cliente').trim() || 'Sem cliente'
     const data = isoDate(pedido.data_pedido ?? pedido.data_emissao)!
     const mes = data.slice(0, 7)
@@ -164,10 +170,10 @@ export async function buscarRelatorioVendas(
 
   return {
     anoSelecionado: ano,
-    totalPedidosConsiderados: validosNoAno.length,
+    totalPedidosConsiderados: validosNoPeriodo.length,
     totalPedidosIgnorados:
-      validos.length - validosNoAno.length + Object.values(motivosExclusao).reduce((a, b) => a + b, 0),
-    pedidosForaDoAno: validos.length - validosNoAno.length,
+      validos.length - validosNoPeriodo.length + Object.values(motivosExclusao).reduce((a, b) => a + b, 0),
+    pedidosForaDoAno: validos.length - validosNoPeriodo.length,
     motivosExclusao,
     dataMaisAntiga,
     dataMaisRecente,
