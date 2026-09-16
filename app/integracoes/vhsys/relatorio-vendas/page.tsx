@@ -143,6 +143,7 @@ export default function RelatorioVendasVhsysPage() {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error'>('idle')
   const [syncErro, setSyncErro] = useState('')
   const [mesSincronizar, setMesSincronizar] = useState('')
+  const [produtosExcluidos, setProdutosExcluidos] = useState<{ id: string; valor: string }[]>([])
 
   // A busca só lê do nosso banco (rápido, não chama o VHSYS) — carrega
   // sozinha sempre que unidade/ano/filtro mudam. Os campos de texto têm uma
@@ -154,6 +155,43 @@ export default function RelatorioVendasVhsysPage() {
     return () => clearTimeout(atraso)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.role, unidade, ano, filtroCliente, filtroProduto])
+
+  useEffect(() => {
+    if (profile?.role !== 'admin') return
+    buscarExclusoes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.role, unidade])
+
+  function buscarExclusoes() {
+    fetch(`/api/vhsys/relatorio-vendas/exclusoes?unidade=${encodeURIComponent(unidade)}`)
+      .then((response) => response.json())
+      .then((body: { produtos_excluidos?: { id: string; valor: string }[] }) => {
+        setProdutosExcluidos(body.produtos_excluidos ?? [])
+      })
+      .catch(() => {})
+  }
+
+  function excluirProduto(produto: string) {
+    fetch('/api/vhsys/relatorio-vendas/exclusoes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unidade, produto }),
+    })
+      .then(() => {
+        buscarExclusoes()
+        buscar()
+      })
+      .catch(() => {})
+  }
+
+  function removerExclusao(id: string) {
+    fetch(`/api/vhsys/relatorio-vendas/exclusoes?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      .then(() => {
+        buscarExclusoes()
+        buscar()
+      })
+      .catch(() => {})
+  }
 
   function paramsBase() {
     const params = new URLSearchParams({ unidade })
@@ -297,6 +335,30 @@ export default function RelatorioVendasVhsysPage() {
 
       {syncState === 'error' && <div className="alert alert-red" style={{ marginBottom: 16 }}>Falha ao sincronizar: {syncErro}</div>}
 
+      {produtosExcluidos.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, fontSize: 13 }}>
+          <strong>Produtos excluídos do relatório nessa unidade:</strong>{' '}
+          {produtosExcluidos.map((p) => (
+            <span
+              key={p.id}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8,
+                background: 'var(--bg-muted, #f0f0f0)', borderRadius: 4, padding: '2px 8px',
+              }}
+            >
+              {p.valor}
+              <button
+                onClick={() => removerExclusao(p.id)}
+                title="Voltar a incluir esse produto no relatório"
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red)', fontWeight: 700 }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {state === 'loading' && <div className="card">Carregando…</div>}
       {state === 'error' && <div className="alert alert-red">{erro}</div>}
 
@@ -328,6 +390,7 @@ export default function RelatorioVendasVhsysPage() {
                   <th>Total caixas no mês</th>
                   <th>Mês</th>
                   <th>Valor</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -350,6 +413,15 @@ export default function RelatorioVendasVhsysPage() {
                     <td>{ultimaDoGrupo(dados.linhas, indice) ? linha.caixas_total_mes : ''}</td>
                     <td>{formatarMes(linha.mes)}</td>
                     <td>{formatoMoeda.format(linha.valor)}</td>
+                    <td>
+                      <button
+                        onClick={() => excluirProduto(linha.produto)}
+                        title={`Excluir "${linha.produto}" do relatório dessa unidade (produto que não se trabalha mais)`}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted, #999)', fontSize: 12 }}
+                      >
+                        excluir produto
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
