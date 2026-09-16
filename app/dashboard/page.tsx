@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
@@ -130,58 +130,109 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
   })
 }
 
-function FaixaResumo({ resumo }: { resumo: ResumoUnidade }) {
-  const par = (label: string, valor: number, cor?: string) => (
-    <div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-      <div className="mono" style={{ fontSize: 14, fontWeight: 700, color: cor }}>{formatMoeda(valor)}</div>
+// Saldo início do mês + recebido − pago = saldo novo, os quatro números
+// que fecham a conta do mês (só realizado, não entra "a receber" projetado).
+function Waterfall({ resumo }: { resumo: ResumoUnidade }) {
+  const tile = (label: string, valor: number, cor: string) => (
+    <div style={{ background: 'var(--surface, #fff)', padding: '14px 18px' }}>
+      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)', marginBottom: 6 }}>{label}</div>
+      <div className="mono" style={{ fontSize: 19, fontWeight: 600, color: cor }}>{formatMoeda(valor)}</div>
     </div>
   )
   return (
-    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '12px 0', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
-      {par('Saldo', resumo.saldoHoje, resumo.saldoHoje < 0 ? 'var(--red)' : undefined)}
-      {par('A receber', resumo.aReceberMes)}
-      {par('A pagar', resumo.totalDespesas, 'var(--red)')}
-      {par('Resultado', resumo.resultado, resumo.resultado >= 0 ? 'var(--green)' : 'var(--red)')}
+    <div style={{
+      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1,
+      background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 10,
+      overflow: 'hidden', marginBottom: 20,
+    }}>
+      {tile('Saldo início do mês', resumo.saldoInicioMes, 'var(--navy)')}
+      {tile('+ Recebido no mês', resumo.totalEntrou, 'var(--green)')}
+      {tile('− Pago no mês', resumo.totalPagou, 'var(--red)')}
+      {tile('Saldo novo', resumo.saldoHoje, 'var(--navy)')}
     </div>
   )
 }
 
-function PrestacaoContas({ resumo }: { resumo: ResumoUnidade }) {
-  const bloco = (titulo: string, linhas: typeof resumo.entradasPorCategoria, corTotal: string, totalPago: number) => (
-    <div className="card" style={{ flex: 1, minWidth: 280 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <strong style={{ fontSize: 13 }}>{titulo}</strong>
-        <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: corTotal }}>{formatMoeda(totalPago)}</span>
+interface ItemLancamento { id: string; descricao: string; vencimento: string; valor: number; categoria: string }
+
+function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; total: number; itens: ItemLancamento[] }[] {
+  const mapa = new Map<string, ItemLancamento[]>()
+  for (const item of itens) {
+    const lista = mapa.get(item.categoria) ?? []
+    lista.push(item)
+    mapa.set(item.categoria, lista)
+  }
+  return [...mapa.entries()]
+    .map(([categoria, lista]) => ({
+      categoria,
+      total: lista.reduce((s, i) => s + i.valor, 0),
+      itens: lista.sort((a, b) => a.vencimento.localeCompare(b.vencimento)),
+    }))
+    .sort((a, b) => b.total - a.total)
+}
+
+// Duas colunas (recebido/pago), cada categoria é um <details> — abre/fecha
+// sem JS de estado, só a maior categoria de cada lado vem aberta por
+// padrão. Botões no topo forçam expandir/recolher tudo de uma vez.
+function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade; onClickItem: (c: ContaPagar | ContaReceber) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const recebido = agruparPorCategoria(
+    resumo.contasReceber.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, vencimento: c.vencimento, valor: c.valor, categoria: c.categoria })),
+  )
+  const pago = agruparPorCategoria(
+    resumo.contasPagar.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, vencimento: c.vencimento, valor: c.valor, categoria: c.categoria })),
+  )
+  const porId = new Map([...resumo.contasReceber, ...resumo.contasPagar].map(c => [c.id, c]))
+
+  const painel = (titulo: string, grupos: ReturnType<typeof agruparPorCategoria>, total: number, cor: string, corBg: string) => (
+    <div className="card" style={{ flex: 1, minWidth: 320, padding: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '14px 18px', background: corBg, borderBottom: '1px solid var(--border)' }}>
+        <strong style={{ fontSize: 13.5 }}>{titulo}</strong>
+        <span className="mono" style={{ fontSize: 15, fontWeight: 700, color: cor }}>{formatMoeda(total)}</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '4px 12px', fontSize: 12 }}>
-        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Categoria</span>
-        <span style={{ color: 'var(--text-muted)', fontSize: 10, textAlign: 'right' }}>Realizado</span>
-        <span style={{ color: 'var(--text-muted)', fontSize: 10, textAlign: 'right' }}>Previsto</span>
-        {linhas.length === 0 && <span style={{ gridColumn: '1/-1', color: 'var(--text-muted)', padding: '6px 0' }}>Nada no mês.</span>}
-        {linhas.map(l => (
-          <div key={l.categoria} style={{ display: 'contents' }}>
-            <span style={{ borderTop: '1px solid var(--border)', paddingTop: 4 }}>{l.categoria}</span>
-            <span className="mono" style={{ textAlign: 'right', borderTop: '1px solid var(--border)', paddingTop: 4 }}>{l.realizado ? formatMoeda(l.realizado) : '—'}</span>
-            <span className="mono" style={{ textAlign: 'right', borderTop: '1px solid var(--border)', paddingTop: 4, color: 'var(--text-muted)' }}>{l.previsto ? formatMoeda(l.previsto) : '—'}</span>
-          </div>
+      <div style={{ padding: 10, display: 'grid', gap: 8 }}>
+        {grupos.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: 12, padding: '4px 4px' }}>Nada no mês.</span>}
+        {grupos.map((g, i) => (
+          <details key={g.categoria} open={i === 0} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            <summary style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+              padding: '9px 12px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', background: 'var(--bg, #f6f5f2)',
+              listStyle: 'none',
+            }}>
+              <span>{g.categoria} <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{g.itens.length} lançamento{g.itens.length === 1 ? '' : 's'}</span></span>
+              <span className="mono">{formatMoeda(g.total)}</span>
+            </summary>
+            {g.itens.map(item => (
+              <div
+                key={item.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => { const c = porId.get(item.id); if (c) onClickItem(c) }}
+                onKeyDown={e => { if (e.key === 'Enter') { const c = porId.get(item.id); if (c) onClickItem(c) } }}
+                style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px 7px 26px', fontSize: 12, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {item.descricao}
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(item.vencimento)}</span>
+                </span>
+                <span className="mono" style={{ flexShrink: 0, color: cor }}>{formatMoeda(item.valor)}</span>
+              </div>
+            ))}
+          </details>
         ))}
       </div>
     </div>
   )
+
   return (
-    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
-      {bloco('Entrou no mês', resumo.entradasPorCategoria, 'var(--green)', resumo.totalEntrou)}
-      {bloco('Pago no mês', resumo.saidasPorCategoria, 'var(--red)', resumo.totalPagou)}
-      <div className="card" style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Saldo disponível</div>
-          <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: resumo.saldoHoje < 0 ? 'var(--red)' : 'var(--navy)' }}>{formatMoeda(resumo.saldoHoje)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Projeção (saldo + a receber − a pagar)</div>
-          <div className="mono" style={{ fontSize: 15, fontWeight: 700, color: resumo.resultado >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatMoeda(resumo.resultado)}</div>
-        </div>
+    <div ref={containerRef}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => containerRef.current?.querySelectorAll('details').forEach(d => { d.open = true })}>▾ Expandir tudo</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => containerRef.current?.querySelectorAll('details').forEach(d => { d.open = false })}>▸ Recolher tudo</button>
+      </div>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
+        {painel('Recebido no mês', recebido, resumo.totalEntrou, 'var(--green)', 'var(--green-bg, #e9f5ef)')}
+        {painel('Pago no mês', pago, resumo.totalPagou, 'var(--red)', 'var(--red-bg, #fbeae9)')}
       </div>
     </div>
   )
@@ -397,8 +448,8 @@ export default function DashboardPage() {
             {consolidado.parcelasVencidas > 0 && (
               <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {consolidado.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
             )}
-            <FaixaResumo resumo={consolidado} />
-            <PrestacaoContas resumo={consolidado} />
+            <Waterfall resumo={consolidado} />
+            <CategoriasColapsaveis resumo={consolidado} onClickItem={setContaAberta} />
             <div className="grid-3">
               {unidadesComDados.map(u => (
                 <ColunaUnidade
@@ -420,9 +471,9 @@ export default function DashboardPage() {
           {abaUnica.parcelasVencidas > 0 && (
             <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {abaUnica.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
           )}
-          <FaixaResumo resumo={abaUnica} />
-          <PrestacaoContas resumo={abaUnica} />
-          <div style={{ maxWidth: 560 }}>
+          <Waterfall resumo={abaUnica} />
+          <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
+          <div>
             <ColunaUnidade
               resumo={abaUnica}
               nome={nomeUnica}

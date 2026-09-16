@@ -3,12 +3,12 @@ import { GRUPOS_CATEGORIA, type GrupoCategoria } from '../types/index.ts'
 
 export interface ContaPagar {
   id: string; descricao: string; vencimento: string; valor: number
-  grupo: GrupoCategoria; unidade: string; vencida: boolean; proxima: boolean
+  grupo: GrupoCategoria; categoria: string; unidade: string; vencida: boolean; proxima: boolean
   paga: boolean; gerenciadoPorVhsys: boolean
 }
 export interface ContaReceber {
   id: string; descricao: string; vencimento: string; valor: number
-  unidade: string; vencida: boolean; proxima: boolean; paga: boolean
+  categoria: string; unidade: string; vencida: boolean; proxima: boolean; paga: boolean
   gerenciadoPorVhsys: boolean
 }
 export interface GrupoPagar {
@@ -22,7 +22,7 @@ export interface LinhaCategoria {
   categoria: string; realizado: number; previsto: number
 }
 export interface ResumoUnidade {
-  saldoHoje: number; aReceberMes: number
+  saldoHoje: number; saldoInicioMes: number; aReceberMes: number
   contasPagar: ContaPagar[]; gruposPagar: GrupoPagar[]
   contasReceber: ContaReceber[]
   entradasPorCategoria: LinhaCategoria[]
@@ -158,6 +158,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
           : `Recebimento (parc. ${p.numero_parcela})`,
         vencimento: p.vencimento,
         valor: valorExibido,
+        categoria,
         unidade: input.unidade,
         vencida,
         proxima: !vencida && !paga && p.vencimento <= limiteProxima,
@@ -173,6 +174,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
       vencimento: p.vencimento,
       valor: valorExibido,
       grupo,
+      categoria,
       unidade: input.unidade,
       vencida,
       proxima: !vencida && !paga && p.vencimento <= limiteProxima,
@@ -188,6 +190,9 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
 
   return {
     saldoHoje,
+    // saldo antes dos lançamentos realizados deste mês — dá pra fechar a
+    // conta: saldo início + recebido no mês − pago no mês = saldo hoje.
+    saldoInicioMes: saldoHoje - entradas.realizado + saidas.realizado,
     aReceberMes,
     contasPagar,
     gruposPagar,
@@ -220,6 +225,7 @@ export function consolidarResumos(resumos: ResumoUnidade[]): ResumoUnidade {
   const soma = (f: (r: ResumoUnidade) => number) => resumos.reduce((s, r) => s + f(r), 0)
   return {
     saldoHoje: soma(r => r.saldoHoje),
+    saldoInicioMes: soma(r => r.saldoInicioMes),
     aReceberMes: soma(r => r.aReceberMes),
     contasPagar,
     gruposPagar: montarGrupos(contasPagar),
