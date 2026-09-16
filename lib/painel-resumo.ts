@@ -2,12 +2,12 @@ import { calcularSaldoRealizado, type ParcelaFinanceira, type PagamentoParcela }
 import { GRUPOS_CATEGORIA, type GrupoCategoria } from '../types/index.ts'
 
 export interface ContaPagar {
-  id: string; descricao: string; observacoes: string; vencimento: string; valor: number
+  id: string; descricao: string; observacoes: string; vencimento: string; dataPagamento: string | null; valor: number
   grupo: GrupoCategoria; categoria: string; unidade: string; vencida: boolean; proxima: boolean
   paga: boolean; gerenciadoPorVhsys: boolean
 }
 export interface ContaReceber {
-  id: string; descricao: string; observacoes: string; vencimento: string; valor: number
+  id: string; descricao: string; observacoes: string; vencimento: string; dataPagamento: string | null; valor: number
   categoria: string; unidade: string; vencida: boolean; proxima: boolean; paga: boolean
   gerenciadoPorVhsys: boolean
 }
@@ -29,14 +29,18 @@ export interface ResumoUnidade {
   saidasPorCategoria: LinhaCategoria[]
   totalEntrou: number; totalPagou: number
   totalDespesas: number; resultado: number; parcelasVencidas: number
+  // saldo real do extrato bancário (VHSYS), só como referência pra conferir
+  // contra o saldo calculado — não é mais usado pra calcular nada aqui,
+  // porque o saldo do mês (editável) é que tem que fechar a conta.
+  saldoBancarioReferencia: number | null
 }
 export interface EntradaResumo {
   unidade: string; ano: number; mes: number; hoje: string
   saldoBase: number; competenciaBase: string
   parcelas: ParcelaFinanceira[]; pagamentos: PagamentoParcela[]
   grupoPorDespesa: Map<string, GrupoCategoria>
-  // saldo real do banco (VHSYS). Quando presente, vira o "saldo hoje" direto —
-  // não recalcula por lançamento, porque o extrato já reflete tudo que foi pago.
+  // saldo real do banco (VHSYS), só pra exibir como referência — ver
+  // saldoBancarioReferencia no retorno.
   saldoBancario?: number | null
 }
 
@@ -113,14 +117,15 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
   }
   const restante = (p: ParcelaFinanceira) => Number(p.valor) - (pagoPorParcela.get(p.id) ?? 0)
 
-  const saldoHoje = input.saldoBancario != null
-    ? Number(input.saldoBancario)
-    : Number(input.saldoBase) + calcularSaldoRealizado({
-      hoje: input.hoje,
-      competenciaInicio: input.competenciaBase,
-      parcelas: input.parcelas,
-      pagamentos: input.pagamentos,
-    })
+  // saldo do mês (editável) + o que já foi realizado desde então = saldo hoje.
+  // Sempre calculado assim, pra fechar a conta por construção — o extrato do
+  // banco (saldoBancarioReferencia) fica só como referência pra conferir.
+  const saldoHoje = Number(input.saldoBase) + calcularSaldoRealizado({
+    hoje: input.hoje,
+    competenciaInicio: input.competenciaBase,
+    parcelas: input.parcelas,
+    pagamentos: input.pagamentos,
+  })
 
   const dentro = (d: string | null | undefined) =>
     d != null && d >= inicioMes && d <= fimMes
@@ -158,6 +163,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
           : `Recebimento (parc. ${p.numero_parcela})`,
         observacoes: p.observacoes?.trim() ?? '',
         vencimento: p.vencimento,
+        dataPagamento: paga ? p.data_pagamento : null,
         valor: valorExibido,
         categoria,
         unidade: input.unidade,
@@ -174,6 +180,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
       descricao: p.observacoes?.trim() || `${capitalizar(p.origem)} (parc. ${p.numero_parcela})`,
       observacoes: p.observacoes?.trim() ?? '',
       vencimento: p.vencimento,
+      dataPagamento: paga ? p.data_pagamento : null,
       valor: valorExibido,
       grupo,
       categoria,
@@ -206,6 +213,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
     totalDespesas,
     resultado: saldoHoje + aReceberMes - totalDespesas,
     parcelasVencidas: contasPagar.filter(c => c.vencida).length,
+    saldoBancarioReferencia: input.saldoBancario ?? null,
   }
 }
 
@@ -239,5 +247,6 @@ export function consolidarResumos(resumos: ResumoUnidade[]): ResumoUnidade {
     totalDespesas: soma(r => r.totalDespesas),
     resultado: soma(r => r.resultado),
     parcelasVencidas: soma(r => r.parcelasVencidas),
+    saldoBancarioReferencia: resumos.every(r => r.saldoBancarioReferencia != null) ? soma(r => r.saldoBancarioReferencia ?? 0) : null,
   }
 }
