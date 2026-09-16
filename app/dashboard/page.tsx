@@ -195,7 +195,6 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
   const [abertos, setAbertos] = useState<Set<string>>(
     () => new Set(expandidoInicial ? resumo.gruposPagar.map(g => g.grupo) : [])
   )
-  const [receberAberto, setReceberAberto] = useState(expandidoInicial)
   const toggle = (g: string) => setAbertos(prev => {
     const n = new Set(prev)
     n.has(g) ? n.delete(g) : n.add(g)
@@ -220,32 +219,6 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
         <span style={{ color: 'var(--text-muted)' }}>Saldo hoje</span>
         <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
       </div>
-      <button
-        onClick={() => setReceberAberto(v => !v)}
-        style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)', marginBottom: 8, background: 'none', border: 'none', borderBottomStyle: 'solid', cursor: resumo.contasReceber.length ? 'pointer' : 'default', font: 'inherit', color: 'inherit' }}
-      >
-        <span style={{ color: 'var(--text-muted)' }}>{resumo.contasReceber.length > 0 ? (receberAberto ? '▾ ' : '▸ ') : ''}A receber</span>
-        <span className="mono">{formatMoeda(resumo.aReceberMes)}</span>
-      </button>
-      {receberAberto && resumo.contasReceber.map(c => (
-        <div
-          key={c.id}
-          role="button"
-          tabIndex={0}
-          onClick={() => onClickConta(c)}
-          onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
-          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-        >
-          <div style={{ fontSize: 11, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : c.proxima ? 'var(--amber)' : 'var(--text)' }}>
-            {c.paga ? '✓ ' : c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
-            {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
-            {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(c.vencimento)}</span>
-          </div>
-          <span className="mono" style={{ fontSize: 12, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : 'var(--text)' }}>{formatMoeda(c.valor)}</span>
-        </div>
-      ))}
-
       {resumo.gruposPagar.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem contas a pagar</div>
       ) : resumo.gruposPagar.map(g => (
@@ -257,7 +230,7 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
             <span style={{ fontSize: 12, fontWeight: 600 }}>{abertos.has(g.grupo) ? '▾' : '▸'} {g.label}</span>
             <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>
               {formatMoeda(g.subtotal)}
-              {g.pago > 0 && <span style={{ fontWeight: 400, color: 'var(--green)', fontSize: 11 }}> · {formatMoeda(g.pago)} pago</span>}
+              {g.pago > 0 && <span style={{ fontWeight: 400, color: 'var(--red)', fontSize: 11 }}> · {formatMoeda(g.pago)} pago</span>}
             </span>
           </button>
           {abertos.has(g.grupo) && g.contas.map(c => (
@@ -269,13 +242,13 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
               onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
-              <div style={{ fontSize: 11, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : c.proxima ? 'var(--amber)' : 'var(--text)' }}>
+              <div style={{ fontSize: 11, color: 'var(--red)' }}>
                 {c.paga ? '✓ ' : c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
                 {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
                 {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{formatData(c.vencimento)}</span>
               </div>
-              <span className="mono" style={{ fontSize: 12, color: c.paga ? 'var(--green)' : c.vencida ? 'var(--red)' : 'var(--text)' }}>{formatMoeda(c.valor)}</span>
+              <span className="mono" style={{ fontSize: 12, color: 'var(--red)' }}>{formatMoeda(c.valor)}</span>
             </div>
           ))}
         </div>
