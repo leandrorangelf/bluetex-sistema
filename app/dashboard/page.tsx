@@ -319,10 +319,11 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
   const sb = useMemo(() => createClient(), [])
   const [venc, setVenc] = useState('')
   const [val, setVal] = useState(0)
+  const [obs, setObs] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (conta) { setVenc(conta.vencimento); setVal(conta.valor) }
+    if (conta) { setVenc(conta.vencimento); setVal(conta.valor); setObs(conta.observacoes) }
   }, [conta])
 
   if (!conta) return null
@@ -346,7 +347,7 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
       ) : (
         <>
           <button className="btn btn-danger" disabled={saving} onClick={() => run({ status: 'cancelado' })}>Cancelar conta</button>
-          <button className="btn btn-secondary" disabled={saving} onClick={() => run({ vencimento: venc, valor: val })}>Salvar alteração</button>
+          <button className="btn btn-secondary" disabled={saving} onClick={() => run({ vencimento: venc, valor: val, observacoes: obs.trim() || null })}>Salvar alteração</button>
           <button className="btn btn-primary" disabled={saving} onClick={() => run({ status: 'pago', data_pagamento: hoje() })}>Marcar pago</button>
         </>
       )}
@@ -361,6 +362,17 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
       <div className="form-group">
         <label className="form-label">Valor (R$)</label>
         <input className="form-input" type="number" step="0.01" value={val} disabled={travado} onChange={e => setVal(Number(e.target.value))} />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Descrição / observação</label>
+        <textarea
+          className="form-input"
+          rows={3}
+          placeholder="Ex.: nome do cliente, fornecedor, motivo do pagamento..."
+          value={obs}
+          disabled={travado}
+          onChange={e => setObs(e.target.value)}
+        />
       </div>
     </Modal>
   )

@@ -2,12 +2,12 @@ import { calcularSaldoRealizado, type ParcelaFinanceira, type PagamentoParcela }
 import { GRUPOS_CATEGORIA, type GrupoCategoria } from '../types/index.ts'
 
 export interface ContaPagar {
-  id: string; descricao: string; vencimento: string; valor: number
+  id: string; descricao: string; observacoes: string; vencimento: string; valor: number
   grupo: GrupoCategoria; categoria: string; unidade: string; vencida: boolean; proxima: boolean
   paga: boolean; gerenciadoPorVhsys: boolean
 }
 export interface ContaReceber {
-  id: string; descricao: string; vencimento: string; valor: number
+  id: string; descricao: string; observacoes: string; vencimento: string; valor: number
   categoria: string; unidade: string; vencida: boolean; proxima: boolean; paga: boolean
   gerenciadoPorVhsys: boolean
 }
@@ -156,6 +156,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
         descricao: p.observacoes?.trim()
           ? `${p.observacoes.trim()} · parc. ${p.numero_parcela}`
           : `Recebimento (parc. ${p.numero_parcela})`,
+        observacoes: p.observacoes?.trim() ?? '',
         vencimento: p.vencimento,
         valor: valorExibido,
         categoria,
@@ -171,6 +172,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
     contasPagar.push({
       id: p.id,
       descricao: p.observacoes?.trim() || `${capitalizar(p.origem)} (parc. ${p.numero_parcela})`,
+      observacoes: p.observacoes?.trim() ?? '',
       vencimento: p.vencimento,
       valor: valorExibido,
       grupo,
