@@ -142,6 +142,7 @@ export default function RelatorioVendasVhsysPage() {
   const [erro, setErro] = useState('')
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error'>('idle')
   const [syncErro, setSyncErro] = useState('')
+  const [mesSincronizar, setMesSincronizar] = useState('')
 
   // A busca só lê do nosso banco (rápido, não chama o VHSYS) — carrega
   // sozinha sempre que unidade/ano/filtro mudam. Os campos de texto têm uma
@@ -168,7 +169,7 @@ export default function RelatorioVendasVhsysPage() {
     if (filtroProduto.trim()) params.set('produto', filtroProduto.trim())
     fetch(`/api/vhsys/relatorio-vendas/historico?${params.toString()}`)
       .then(async (response) => {
-        const body = await response.json() as RespostaHistorico & { error?: string }
+        const body = await lerResposta(response) as RespostaHistorico & { error?: string }
         if (!response.ok) throw new Error(body.error ?? 'Falha ao buscar histórico.')
         setDados(body)
         setState('done')
@@ -179,12 +180,32 @@ export default function RelatorioVendasVhsysPage() {
       })
   }
 
+  // Nem todo erro vem como JSON — timeout da função (>300s numa unidade com
+  // muito histórico) devolve uma página de erro em texto puro do Vercel.
+  async function lerResposta(response: Response): Promise<unknown> {
+    const texto = await response.text()
+    try {
+      return JSON.parse(texto)
+    } catch {
+      if (!response.ok) {
+        throw new Error(
+          response.status === 504 || /timeout/i.test(texto)
+            ? 'O servidor demorou demais pra responder (unidade com muito histórico). Tente sincronizar por mês, em vez do ano inteiro.'
+            : `Falha inesperada do servidor (status ${response.status}).`,
+        )
+      }
+      throw new Error('Resposta inesperada do servidor.')
+    }
+  }
+
   function sincronizar() {
     setSyncState('syncing')
     setSyncErro('')
-    fetch(`/api/vhsys/relatorio-vendas/sincronizar?${paramsBase().toString()}`, { method: 'POST' })
+    const params = paramsBase()
+    if (mesSincronizar) params.set('mes', mesSincronizar)
+    fetch(`/api/vhsys/relatorio-vendas/sincronizar?${params.toString()}`, { method: 'POST' })
       .then(async (response) => {
-        const body = await response.json() as { error?: string }
+        const body = await lerResposta(response) as { error?: string }
         if (!response.ok) throw new Error(body.error ?? 'Falha ao sincronizar.')
         setSyncState('idle')
         buscar()
@@ -251,6 +272,23 @@ export default function RelatorioVendasVhsysPage() {
             placeholder="ex.: gudang red"
             style={{ maxWidth: 220 }}
           />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Sincronizar só o mês</label>
+          <select
+            className="input"
+            value={mesSincronizar}
+            onChange={(e) => setMesSincronizar(e.target.value)}
+            disabled={ano === 'todos'}
+            title={ano === 'todos' ? 'Escolha um ano específico pra sincronizar só um mês' : undefined}
+            style={{ maxWidth: 200 }}
+          >
+            <option value="">Ano inteiro</option>
+            {ano !== 'todos' && Array.from({ length: 12 }, (_, i) => {
+              const m = String(i + 1).padStart(2, '0')
+              return <option key={m} value={`${ano}-${m}`}>{formatarMes(`${ano}-${m}`)}</option>
+            })}
+          </select>
         </div>
         <button className="btn" onClick={sincronizar} disabled={syncState === 'syncing'}>
           {syncState === 'syncing' ? 'Sincronizando com o VHSYS…' : 'Sincronizar com o VHSYS'}

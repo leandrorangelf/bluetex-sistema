@@ -3,12 +3,19 @@ import { requireVhsysAdmin, VhsysAuthError } from '@/lib/vhsys/auth'
 import { buscarRelatorioVendas } from '@/lib/vhsys/relatorio-vendas'
 import { vhsysUnidadePorCodigo } from '@/lib/vhsys/unidades'
 
+// Unidade com muito histórico (ex.: GB SP) pode passar dos 300s padrão da
+// função — busca os itens pedido a pedido. 800s é o teto do plano Pro com
+// Fluid Compute; ainda assim, pra unidade muito grande, sincronizar por mês
+// (parâmetro `mes`) é mais seguro que o ano inteiro de uma vez.
+export const maxDuration = 800
+
 // Busca o histórico de vendas no VHSYS e grava agregado (cliente/produto/mês)
 // em btx_vhsys_vendas_historico — separado de btx_vendas de propósito, não
 // aciona nenhum trigger de estoque. Substitui por completo o que já estava
-// salvo pra essa unidade+ano (ou pra unidade inteira, com ano=todos), pra
-// refletir cancelamentos/edições feitas no VHSYS desde a última sincronização.
-// POST /api/vhsys/relatorio-vendas/sincronizar?unidade=CODIGO&ano=YYYY|todos (admin)
+// salvo pra esse escopo (ano+mês, só ano, ou a unidade inteira com
+// ano=todos), pra refletir cancelamentos/edições feitas no VHSYS desde a
+// última sincronização.
+// POST /api/vhsys/relatorio-vendas/sincronizar?unidade=CODIGO&ano=YYYY|todos&mes=YYYY-MM (admin)
 export async function POST(request: Request) {
   const supabase = await createServerSupabase()
   try {
@@ -20,14 +27,18 @@ export async function POST(request: Request) {
     }
     const anoParam = url.searchParams.get('ano')
     const ano = anoParam && /^\d{4}$/.test(anoParam) ? anoParam : null
+    const mesParam = url.searchParams.get('mes')
+    const mes = mesParam && /^\d{4}-\d{2}$/.test(mesParam) ? mesParam : null
 
-    const resultado = await buscarRelatorioVendas(supabase, unidade, ano)
+    const resultado = await buscarRelatorioVendas(supabase, unidade, ano, mes)
 
     let deleteQuery = supabase
       .from('btx_vhsys_vendas_historico')
       .delete()
       .eq('unidade_codigo', unidade.codigo)
-    if (ano) {
+    if (mes) {
+      deleteQuery = deleteQuery.eq('mes', mes)
+    } else if (ano) {
       deleteQuery = deleteQuery.like('mes', `${ano}-%`)
     }
     const { error: deleteError } = await deleteQuery
