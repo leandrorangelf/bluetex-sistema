@@ -21,6 +21,14 @@ export async function GET(request: Request) {
     const cliente = url.searchParams.get('cliente')?.trim() || null
     const produto = url.searchParams.get('produto')?.trim() || null
 
+    const { data: exclusoesRaw, error: exclusoesError } = await supabase
+      .from('btx_vhsys_relatorio_exclusoes')
+      .select('valor')
+      .eq('unidade_codigo', unidade.codigo)
+      .eq('tipo', 'produto')
+    if (exclusoesError) throw new Error('SUPABASE_QUERY_FALHOU')
+    const produtosExcluidos = new Set((exclusoesRaw ?? []).map((r) => (r as { valor: string }).valor))
+
     let query = supabase
       .from('btx_vhsys_vendas_historico')
       .select('cliente,produto,mes,qtd_caixas,qtd_bruta_vhsys,valor,sem_conversao,sincronizado_em')
@@ -33,11 +41,14 @@ export async function GET(request: Request) {
     const { data, error } = await query
     if (error) throw new Error('SUPABASE_QUERY_FALHOU')
 
-    const linhas = (data ?? []) as {
+    // Filtra produto excluído antes de somar qualquer total — senão o
+    // "número geral" continuaria inflado pelo que a unidade não trabalha
+    // mais, só que escondido da tabela.
+    const linhas = ((data ?? []) as {
       cliente: string; produto: string; mes: string
       qtd_caixas: number; qtd_bruta_vhsys: number; valor: number; sem_conversao: boolean
       sincronizado_em: string
-    }[]
+    }[]).filter((linha) => !produtosExcluidos.has(linha.produto))
 
     const totalPorClienteMes = new Map<string, number>()
     for (const linha of linhas) {
