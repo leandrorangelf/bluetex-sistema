@@ -43,7 +43,7 @@ export default function ParcelasPagarPage() {
   const [pagarRow, setPagarRow] = useState<Parcela | null>(null)
   const [pagarSaving, setPagarSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
-  const [formEdit, setFormEdit] = useState<{ vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix' }>({ vencimento: '', valor: 0, forma_pagamento: 'boleto' })
+  const [formEdit, setFormEdit] = useState<{ data_lancamento: string; vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix' }>({ data_lancamento: '', vencimento: '', valor: 0, forma_pagamento: 'boleto' })
   const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -65,7 +65,7 @@ export default function ParcelasPagarPage() {
     if (!isVhsysManaged(row) && (row.status === 'pendente' || row.status === 'parcial')) {
       setPagarRow(row)
     } else {
-      setFormEdit({ vencimento: row.vencimento, valor: row.valor, forma_pagamento: row.forma_pagamento ?? 'boleto' })
+      setFormEdit({ data_lancamento: row.data_lancamento, vencimento: row.vencimento, valor: row.valor, forma_pagamento: row.forma_pagamento ?? 'boleto' })
       setNota(row.nota_interna ?? '')
       setVerId(row.id)
     }
@@ -152,7 +152,7 @@ export default function ParcelasPagarPage() {
   async function salvarEdit() {
     if (!verRow || isVhsysManaged(verRow)) return
     setSaving(true)
-    await sb.from('btx_parcelas').update({ vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento }).eq('id', verRow.id)
+    await sb.from('btx_parcelas').update({ data_lancamento: formEdit.data_lancamento, vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento }).eq('id', verRow.id)
     await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
     setSaving(false); setVerId(null); load()
   }
@@ -172,7 +172,7 @@ export default function ParcelasPagarPage() {
   }
 
   function abrirVer(r: Parcela) {
-    setFormEdit({ vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? 'boleto' })
+    setFormEdit({ data_lancamento: r.data_lancamento, vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? 'boleto' })
     setNota(r.nota_interna ?? '')
     setVerId(r.id)
   }
@@ -236,16 +236,18 @@ export default function ParcelasPagarPage() {
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o pagamento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
+          <thead><tr><th>Lançamento</th><th>Vencimento</th><th>Pago em</th><th>Origem</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={9} className="empty-state">Carregando...</td></tr>
-            : visiveis.length === 0 ? <tr><td colSpan={9} className="empty-state">Nenhuma conta.</td></tr>
+            {loading ? <tr><td colSpan={11} className="empty-state">Carregando...</td></tr>
+            : visiveis.length === 0 ? <tr><td colSpan={11} className="empty-state">Nenhuma conta.</td></tr>
             : visiveis.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
               const pago = somaPagos(r)
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
+                  <td className="mono">{formatData(r.data_lancamento)}</td>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
+                  <td className="mono">{r.status === 'pago' ? formatData(r.data_pagamento) : '—'}</td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
                   <td className="mono">{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                   <td>{labelFormaPagamento(r.forma_pagamento)}</td>
@@ -299,6 +301,10 @@ export default function ParcelasPagarPage() {
           <div className="form-group">
             <label className="form-label">Origem</label>
             <div>{origemMap.get(verRow.id) ?? '—'}</div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Data do lançamento</label>
+            <input className="form-input" type="date" value={formEdit.data_lancamento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, data_lancamento: e.target.value }))} />
           </div>
           <div className="form-group">
             <label className="form-label">Vencimento</label>

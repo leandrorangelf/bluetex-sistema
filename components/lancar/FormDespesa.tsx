@@ -49,6 +49,7 @@ export default function FormDespesa({ unidade, categorias, onResult }: Props) {
       numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor,
       numero_boleto: p.numero_boleto || null, observacoes: p.observacoes || null,
       forma_pagamento: p.forma_pagamento,
+      data_lancamento: p.data_lancamento,
     })))
     setSaving(false)
     if (e2) { onResult({ tipo: 'erro', texto: 'Despesa criada mas falhou ao gerar parcelas. Confira em Parcelas a Pagar.' }); return }

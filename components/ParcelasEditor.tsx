@@ -1,9 +1,10 @@
 'use client'
-import { formatData } from '@/lib/utils'
+import { hoje } from '@/lib/utils'
 import type { TipoParcela } from '@/types'
 
 export interface ParcelaForm {
   numero_parcela: number
+  data_lancamento: string
   vencimento: string
   valor: number
   numero_boleto: string
@@ -23,7 +24,7 @@ const FORMAS_PAGAMENTO = [
   { value: 'pix', label: 'PIX' },
 ] as const
 
-const EMPTY_PARCELA: ParcelaForm = { numero_parcela: 1, vencimento: '', valor: 0, numero_boleto: '', observacoes: '', forma_pagamento: 'boleto' }
+const EMPTY_PARCELA: ParcelaForm = { numero_parcela: 1, data_lancamento: hoje(), vencimento: '', valor: 0, numero_boleto: '', observacoes: '', forma_pagamento: 'boleto' }
 
 export default function ParcelasEditor({ parcelas, onChange, tipo }: Props) {
   function add() {
@@ -57,6 +58,10 @@ export default function ParcelasEditor({ parcelas, onChange, tipo }: Props) {
           </div>
           <div className="grid-2">
             <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Data do lançamento</label>
+              <input className="form-input" type="date" value={p.data_lancamento} onChange={e => update(i, 'data_lancamento', e.target.value)} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Vencimento</label>
               <input className="form-input" type="date" value={p.vencimento} onChange={e => update(i, 'vencimento', e.target.value)} />
             </div>
@@ -65,7 +70,7 @@ export default function ParcelasEditor({ parcelas, onChange, tipo }: Props) {
               <input className="form-input" type="number" step="0.01" min={0} value={p.valor} onChange={e => update(i, 'valor', Number(e.target.value))} />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Tipo</label>
+              <label className="form-label">Tipo de pagamento</label>
               <select className="form-select" value={p.forma_pagamento} onChange={e => update(i, 'forma_pagamento', e.target.value)}>
                 {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
               </select>

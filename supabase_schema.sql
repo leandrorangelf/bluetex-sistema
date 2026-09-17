@@ -271,6 +271,9 @@ CREATE TABLE IF NOT EXISTS btx_parcelas (
 );
 -- Como o dinheiro entra/sai: boleto, espécie (dinheiro) ou PIX.
 ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS forma_pagamento TEXT CHECK (forma_pagamento IN ('boleto','especie','pix'));
+-- Data em que a despesa/venda/compra foi lançada — distinta do vencimento
+-- (quando vence) e da data_pagamento (quando foi de fato paga/recebida).
+ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS data_lancamento DATE NOT NULL DEFAULT CURRENT_DATE;
 ALTER TABLE btx_parcelas ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "btx_admin_all_parc" ON btx_parcelas FOR ALL USING (btx_get_my_role()='admin');
 CREATE POLICY "btx_unidade_parc" ON btx_parcelas FOR ALL USING (btx_get_my_role()='unidade' AND unidade=btx_get_my_unidade());
@@ -624,6 +627,7 @@ BEGIN
         UPDATE btx_parcelas SET origem_sistema='vhsys', vhsys_id=v_item.vhsys_id,
           vhsys_synced_at=NOW(), status=v_status,
           forma_pagamento=COALESCE(NULLIF(v_item.dados_normalizados->>'forma_pagamento',''), forma_pagamento),
+          data_lancamento=COALESCE(NULLIF(v_item.dados_normalizados->>'data','')::DATE, data_lancamento),
           data_pagamento = CASE WHEN v_status='pago' THEN COALESCE(
             NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
             data_pagamento, CURRENT_DATE
@@ -777,7 +781,7 @@ BEGIN
       INSERT INTO btx_parcelas(
         unidade, tipo, origem, numero_parcela, vencimento, valor, status,
         numero_boleto, observacoes, data_pagamento, categoria_vhsys, forma_pagamento,
-        ativo, origem_sistema, vhsys_id, vhsys_synced_at
+        data_lancamento, ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
         v_unidade, CASE WHEN p_dominio='receber' THEN 'receber' ELSE 'pagar' END,
         CASE WHEN p_dominio='pagar' AND (v_item.dados_normalizados->>'de_entrada')::boolean
@@ -790,6 +794,7 @@ BEGIN
         NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
         UPPER(NULLIF(v_item.dados_normalizados->>'categoria','')),
         NULLIF(v_item.dados_normalizados->>'forma_pagamento',''),
+        COALESCE(NULLIF(v_item.dados_normalizados->>'data','')::DATE, (v_item.dados_normalizados->>'vencimento')::DATE),
         TRUE, 'vhsys', v_item.vhsys_id, NOW()
       )
       ON CONFLICT (unidade, tipo, vhsys_id) WHERE vhsys_id IS NOT NULL
@@ -799,6 +804,7 @@ BEGIN
         data_pagamento=COALESCE(EXCLUDED.data_pagamento, btx_parcelas.data_pagamento),
         categoria_vhsys=EXCLUDED.categoria_vhsys,
         forma_pagamento=COALESCE(EXCLUDED.forma_pagamento, btx_parcelas.forma_pagamento),
+        data_lancamento=COALESCE(EXCLUDED.data_lancamento, btx_parcelas.data_lancamento),
         ativo=TRUE, vhsys_synced_at=NOW()
       RETURNING id INTO v_local_id;
 
