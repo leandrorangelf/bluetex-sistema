@@ -8,6 +8,11 @@ export function formatData(d: string | null): string {
   return `${day}/${m}/${y}`
 }
 
+export const LABEL_FORMA_PAGAMENTO: Record<string, string> = { boleto: 'Boleto', especie: 'Espécie', pix: 'PIX' }
+export function labelFormaPagamento(v: string | null | undefined): string {
+  return v ? (LABEL_FORMA_PAGAMENTO[v] ?? v) : '—'
+}
+
 export function converterParaUnidadeMaior(qtdBase: number, fatorConversao: number): string {
   const qtd = qtdBase / fatorConversao
   return qtd % 1 === 0 ? qtd.toString() : qtd.toFixed(2)

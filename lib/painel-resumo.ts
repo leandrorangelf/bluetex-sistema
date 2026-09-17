@@ -4,12 +4,12 @@ import { GRUPOS_CATEGORIA, type GrupoCategoria } from '../types/index.ts'
 export interface ContaPagar {
   id: string; descricao: string; observacoes: string; vencimento: string; dataPagamento: string | null; valor: number
   grupo: GrupoCategoria; categoria: string; unidade: string; vencida: boolean; proxima: boolean
-  paga: boolean; gerenciadoPorVhsys: boolean
+  paga: boolean; gerenciadoPorVhsys: boolean; formaPagamento: 'boleto' | 'especie' | 'pix' | null
 }
 export interface ContaReceber {
   id: string; descricao: string; observacoes: string; vencimento: string; dataPagamento: string | null; valor: number
   categoria: string; unidade: string; vencida: boolean; proxima: boolean; paga: boolean
-  gerenciadoPorVhsys: boolean
+  gerenciadoPorVhsys: boolean; formaPagamento: 'boleto' | 'especie' | 'pix' | null
 }
 export interface GrupoPagar {
   grupo: GrupoCategoria; label: string
@@ -166,6 +166,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
         dataPagamento: paga ? p.data_pagamento : null,
         valor: valorExibido,
         categoria,
+        formaPagamento: p.forma_pagamento ?? null,
         unidade: input.unidade,
         vencida,
         proxima: !vencida && !paga && p.vencimento <= limiteProxima,
@@ -184,6 +185,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
       valor: valorExibido,
       grupo,
       categoria,
+      formaPagamento: p.forma_pagamento ?? null,
       unidade: input.unidade,
       vencida,
       proxima: !vencida && !paga && p.vencimento <= limiteProxima,
