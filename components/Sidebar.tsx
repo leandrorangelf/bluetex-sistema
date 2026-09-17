@@ -39,8 +39,8 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Seletor de unidade — admin e diretoria */}
-      {(profile?.role === 'admin' || profile?.role === 'diretoria') && (
+      {/* Seletor de unidade — admin (diretoria já troca de unidade pelas abas do Painel) */}
+      {profile?.role === 'admin' && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
             Unidade Ativa
@@ -65,10 +65,10 @@ export default function Sidebar() {
       {/* Nav */}
       <nav style={{ flex: 1, paddingTop: 8 }}>
         {NAV.map((item, i) => {
+          if (profile?.role === 'diretoria' && ('section' in item || item.href !== '/dashboard')) return null
           if ('section' in item) return (
             <div key={i} className="nav-section">{item.section}</div>
           )
-          if (item.href === '/lancar' && profile?.role === 'diretoria') return null
           if ('adminOnly' in item && item.adminOnly && profile?.role !== 'admin') return null
           const active = path === item.href || path.startsWith(item.href + '/')
           return (

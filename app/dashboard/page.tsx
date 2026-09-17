@@ -58,7 +58,7 @@ function caixas(base: number, fator: number): string {
 
 function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: LinhaEstoque[]; unidade: string }) {
   return (
-    <Link href="/estoque-atual" className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+    <Link href="/estoque-atual" className="card card-accent card-hover" style={{ textDecoration: 'none', color: 'inherit', display: 'block', '--accent-cor': 'var(--brand)' } as React.CSSProperties}>
       <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{titulo} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>· estoque em caixas</span></div>
       {linhas.map(l => {
         const v = l.saldos[unidade] ?? 0
@@ -241,7 +241,7 @@ function CardRecebiveis({ resumo, onClickConta }: { resumo: ResumoUnidade; onCli
   )
 
   return (
-    <div className="card" style={{ marginBottom: 20 }}>
+    <div className="card card-accent" style={{ marginBottom: 20, '--accent-cor': 'var(--green)' } as React.CSSProperties}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>A receber — na rua</div>
         <span className="mono" style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{formatMoeda(r.total)}</span>
@@ -362,7 +362,7 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
   })
 
   return (
-    <div className="card">
+    <div className="card card-accent" style={{ '--accent-cor': 'var(--red)' } as React.CSSProperties}>
       <div
         onClick={onClickHeader}
         title={nome}
@@ -665,7 +665,7 @@ export default function DashboardPage() {
           <Waterfall resumo={abaUnica} onEditarSaldo={profile?.role === 'diretoria' ? undefined : () => setEditandoSaldo(true)} />
           <CardRecebiveis resumo={abaUnica} onClickConta={setContaAberta} />
           <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
-          <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
             <ColunaUnidade
               resumo={abaUnica}
               nome={nomeUnica}
@@ -674,15 +674,18 @@ export default function DashboardPage() {
               mostrarTagUnidade={false}
               onClickConta={setContaAberta}
             />
+            {estoque.filter(l => Object.keys(l.saldos).length > 0).length > 0 && (
+              <CardEstoque titulo={SHORT[nomeUnica] ?? nomeUnica} linhas={estoque.filter(l => Object.keys(l.saldos).length > 0)} unidade={nomeUnica} />
+            )}
           </div>
         </>
       )}
 
-      {!loading && (
+      {!loading && veTudo && aba === 'consolidado' && (
         <SecaoEstoque
           linhas={estoque}
           unidades={unidadesComDados}
-          unidadeUnica={veTudo ? (aba === 'consolidado' ? null : aba) : (unidadeAtiva ?? null)}
+          unidadeUnica={null}
         />
       )}
     </div>
