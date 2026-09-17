@@ -144,33 +144,29 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
 // O saldo início é editável quando dá pra identificar uma unidade única —
 // os outros três decorrem dos lançamentos, então a conta sempre fecha.
 function Waterfall({ resumo, onEditarSaldo }: { resumo: ResumoUnidade; onEditarSaldo?: () => void }) {
-  const tile = (label: string, valor: number, cor: string, onEdit?: () => void) => (
-    <div style={{ background: 'var(--surface, #fff)', padding: '14px 18px', position: 'relative' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>{label}</div>
+  const tile = (label: string, valor: number, cor: string, bg: string, onEdit?: () => void) => (
+    <div style={{ background: bg, padding: '16px 18px', position: 'relative', borderRadius: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: cor, opacity: 0.75 }}>{label}</div>
         {onEdit && (
           <button
             onClick={onEdit}
             title="Editar saldo do mês"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: 0, lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: cor, opacity: 0.6, fontSize: 12, padding: 0, lineHeight: 1 }}
           >✎</button>
         )}
       </div>
-      <div className="mono" style={{ fontSize: 19, fontWeight: 600, color: cor }}>{formatMoeda(valor)}</div>
+      <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: cor }}>{formatMoeda(valor)}</div>
     </div>
   )
   const divergeDoBanco = resumo.saldoBancarioReferencia != null && Math.abs(resumo.saldoBancarioReferencia - resumo.saldoHoje) >= 0.01
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1,
-        background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 10,
-        overflow: 'hidden',
-      }}>
-        {tile('Saldo início do mês', resumo.saldoInicioMes, 'var(--navy)', onEditarSaldo)}
-        {tile('+ Recebido no mês', resumo.totalEntrou, 'var(--green)')}
-        {tile('− Pago no mês', resumo.totalPagou, 'var(--red)')}
-        {tile('Saldo novo', resumo.saldoHoje, 'var(--navy)')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        {tile('Saldo início do mês', resumo.saldoInicioMes, 'var(--brand)', 'var(--brand-light)', onEditarSaldo)}
+        {tile('+ Recebido no mês', resumo.totalEntrou, 'var(--green)', 'var(--green-light)')}
+        {tile('− Pago no mês', resumo.totalPagou, 'var(--red)', 'var(--red-light)')}
+        {tile('Saldo novo', resumo.saldoHoje, '#fff', 'var(--navy)')}
       </div>
       {divergeDoBanco && (
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
@@ -362,26 +358,26 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
   })
 
   return (
-    <div className="card card-accent" style={{ '--accent-cor': 'var(--red)' } as React.CSSProperties}>
+    <div className="card card-accent" style={{ padding: 14, fontSize: 12, '--accent-cor': 'var(--red)' } as React.CSSProperties}>
       <div
         onClick={onClickHeader}
         title={nome}
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, cursor: onClickHeader ? 'pointer' : 'default' }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, cursor: onClickHeader ? 'pointer' : 'default' }}
       >
-        <div style={{ fontSize: 13, fontWeight: 700 }}>{short}</div>
+        <div style={{ fontSize: 12, fontWeight: 700 }}>{short}</div>
         <div>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 6 }}>Resultado de caixa</span>
-          <span className={`mono ${resumo.resultado >= 0 ? 'text-green' : 'text-red'}`} style={{ fontWeight: 700, fontSize: 13 }}>{formatMoeda(resumo.resultado)}</span>
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginRight: 6 }}>Resultado</span>
+          <span className={`mono ${resumo.resultado >= 0 ? 'text-green' : 'text-red'}`} style={{ fontWeight: 700, fontSize: 12 }}>{formatMoeda(resumo.resultado)}</span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0 10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '3px 0 8px' }}>
         <span style={{ color: 'var(--text-muted)' }}>Saldo hoje</span>
         <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Ainda a pagar</div>
       {resumo.gruposPagar.filter(g => g.subtotal > 0).length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '62px 58px 1fr auto', gap: 8, padding: '0 0 2px 14px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '54px 46px 1fr auto', gap: 8, padding: '0 0 2px 14px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
           <span>Venc.</span><span>Tipo</span><span>Descrição</span><span style={{ textAlign: 'right' }}>Valor</span>
         </div>
       )}
@@ -404,7 +400,7 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
               tabIndex={0}
               onClick={() => onClickConta(c)}
               onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
-              style={{ display: 'grid', gridTemplateColumns: '62px 58px 1fr auto', alignItems: 'center', gap: 8, padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+              style={{ display: 'grid', gridTemplateColumns: '54px 46px 1fr auto', alignItems: 'center', gap: 8, padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{formatData(c.vencimento)}</span>
               <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{c.formaPagamento ? labelFormaPagamento(c.formaPagamento) : '—'}</span>
@@ -665,7 +661,7 @@ export default function DashboardPage() {
           <Waterfall resumo={abaUnica} onEditarSaldo={profile?.role === 'diretoria' ? undefined : () => setEditandoSaldo(true)} />
           <CardRecebiveis resumo={abaUnica} onClickConta={setContaAberta} />
           <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.75fr) minmax(0, 1.25fr)', gap: 16, alignItems: 'start' }}>
             <ColunaUnidade
               resumo={abaUnica}
               nome={nomeUnica}
