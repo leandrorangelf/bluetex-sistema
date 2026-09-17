@@ -74,6 +74,7 @@ export default function FormMovimento({ tipo, unidade, onResult }: Props) {
         numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor,
         numero_boleto: p.numero_boleto || null, observacoes: p.observacoes || null,
         forma_pagamento: p.forma_pagamento,
+        data_lancamento: p.data_lancamento,
       })))
       if (e3) { setSaving(false); onResult({ tipo: 'erro', texto: 'Não foi possível salvar o lançamento.' }); return }
     }

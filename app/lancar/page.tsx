@@ -105,7 +105,9 @@ function FormReceber({ sb, unidade, clientes, saving, setSaving, onResult }: For
   const [clienteId, setClienteId] = useState('')
   const [descricao, setDescricao] = useState('')
   const [valor, setValor] = useState(0)
+  const [dataLancamento, setDataLancamento] = useState(hoje())
   const [data, setData] = useState(hoje())
+  const [formaPagamento, setFormaPagamento] = useState<'boleto' | 'especie' | 'pix'>('boleto')
   const [parcelar, setParcelar] = useState(false)
   const [n, setN] = useState(2)
 
@@ -118,11 +120,12 @@ function FormReceber({ sb, unidade, clientes, saving, setSaving, onResult }: For
     const { error } = await sb.from('btx_parcelas').insert(parcelas.map(p => ({
       unidade, tipo: 'receber', origem: 'manual', origem_id: null,
       numero_parcela: p.numero_parcela, vencimento: p.vencimento, valor: p.valor, observacoes: obs,
+      data_lancamento: dataLancamento, forma_pagamento: formaPagamento,
     })))
     setSaving(false)
     if (error) { onResult({ tipo: 'erro', texto: 'Não foi possível lançar o recebimento.' }); return }
     onResult({ tipo: 'ok', texto: `Recebimento lançado (${parcelas.length} parcela(s)).` })
-    setClienteId(''); setDescricao(''); setValor(0); setData(hoje()); setParcelar(false); setN(2)
+    setClienteId(''); setDescricao(''); setValor(0); setDataLancamento(hoje()); setData(hoje()); setFormaPagamento('boleto'); setParcelar(false); setN(2)
   }
 
   return (
@@ -134,10 +137,20 @@ function FormReceber({ sb, unidade, clientes, saving, setSaving, onResult }: For
         </select></div>
       <div className="form-group"><label className="form-label">Descrição *</label>
         <input className="form-input" value={descricao} onChange={e => setDescricao(e.target.value)} /></div>
-      <div className="form-group"><label className="form-label">Valor (R$) *</label>
-        <input className="form-input" type="number" step="0.01" min={0} value={valor} onChange={e => setValor(Number(e.target.value))} /></div>
-      <div className="form-group"><label className="form-label">Data prevista *</label>
-        <input className="form-input" type="date" value={data} onChange={e => setData(e.target.value)} /></div>
+      <div className="grid-2">
+        <div className="form-group"><label className="form-label">Valor (R$) *</label>
+          <input className="form-input" type="number" step="0.01" min={0} value={valor} onChange={e => setValor(Number(e.target.value))} /></div>
+        <div className="form-group"><label className="form-label">Tipo de pagamento *</label>
+          <select className="form-select" value={formaPagamento} onChange={e => setFormaPagamento(e.target.value as typeof formaPagamento)}>
+            <option value="boleto">Boleto</option>
+            <option value="especie">Espécie</option>
+            <option value="pix">PIX</option>
+          </select></div>
+        <div className="form-group"><label className="form-label">Data do lançamento *</label>
+          <input className="form-input" type="date" value={dataLancamento} onChange={e => setDataLancamento(e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">Data prevista (vencimento) *</label>
+          <input className="form-input" type="date" value={data} onChange={e => setData(e.target.value)} /></div>
+      </div>
       <ParcelarCampos parcelar={parcelar} setParcelar={setParcelar} n={n} setN={setN} />
       <button className="btn btn-primary" onClick={salvar} disabled={saving} style={{ marginTop: 8 }}>{saving ? 'Salvando…' : 'Lançar recebimento'}</button>
     </>

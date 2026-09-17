@@ -11,6 +11,7 @@ export interface ParcelaFinanceira {
   origem: string
   origem_id: string | null
   numero_parcela: number
+  data_lancamento?: string
   vencimento: string
   valor: number
   status: StatusMovimento

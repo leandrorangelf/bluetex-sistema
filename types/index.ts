@@ -92,7 +92,7 @@ export interface Despesa {
 export type FormaPagamento = 'boleto' | 'especie' | 'pix'
 export interface Parcela {
   id: string; unidade: Unidade; tipo: TipoParcela; origem: OrigemParcela; origem_id: string | null
-  numero_parcela: number; vencimento: string; valor: number; status: StatusParcela
+  numero_parcela: number; data_lancamento: string; vencimento: string; valor: number; status: StatusParcela
   numero_boleto: string | null; data_pagamento: string | null; observacoes: string | null
   ativo: boolean; created_at: string
   origem_sistema?: OrigemSistema; vhsys_id?: string | null; vhsys_synced_at?: string | null
