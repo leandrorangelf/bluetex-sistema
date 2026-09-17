@@ -11,6 +11,7 @@ import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoqu
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
 import RelatorioMovimentosEstoque from '@/components/estoque/RelatorioMovimentosEstoque'
+import CalendarioEstoque from '@/components/estoque/CalendarioEstoque'
 import HistoricoAuditoriaEstoque from '@/components/estoque/HistoricoAuditoriaEstoque'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -34,6 +35,7 @@ export default function EstoqueAtualPage() {
   const [auditoria, setAuditoria] = useState<AuditoriaEstoque[]>([])
   const [nomesUsuarios, setNomesUsuarios] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'movimentos' | 'auditoria'>('movimentos')
+  const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null)
   const [aba, setAba] = useState<'saldo' | 'entradas'>('saldo')
   const [ajusteModal, setAjusteModal] = useState(false)
   const [ajusteForm, setAjusteForm] = useState(AJUSTE_VAZIO)
@@ -61,8 +63,8 @@ export default function EstoqueAtualPage() {
     const consultas = await Promise.all([
       sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome'),
       sb.from('btx_estoque_inicial').select('id,produto_id,mes,ano,qtd_carteiras').eq('unidade', unidade),
-      sb.from('btx_compras').select('id,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('unidade', unidade).eq('ativo', true),
-      sb.from('btx_vendas').select('id,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras)').eq('unidade', unidade).eq('ativo', true),
+      sb.from('btx_compras').select('id,data_compra,numero_nf,fornecedor:btx_fornecedores(nome),itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('unidade', unidade).eq('ativo', true),
+      sb.from('btx_vendas').select('id,data_venda,numero_nf,cliente:btx_clientes(nome),itens:btx_vendas_itens(id,produto_id,qtd_carteiras)').eq('unidade', unidade).eq('ativo', true),
       sb.from('btx_ajustes_estoque').select('*').eq('unidade', unidade).eq('ativo', true),
     ])
     if (consultas.some(resultado => resultado.error)) {
@@ -96,6 +98,7 @@ export default function EstoqueAtualPage() {
   }, [veTudo, sb, unidade])
 
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { setDiaSelecionado(null) }, [mes, ano, produtoId, unidade])
 
   const painel = useMemo(() => calcularEstoque({
     ano,
@@ -204,12 +207,13 @@ export default function EstoqueAtualPage() {
         : error && !ajusteModal ? <div className="alert alert-red stock-error"><span>{error}</span><button className="btn btn-secondary btn-sm" onClick={loadData}>Tentar novamente</button></div>
         : <>
           <ResumoEstoque resumo={painel.resumo} />
+          <CalendarioEstoque ano={ano} mes={mes} movimentos={painel.movimentos} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />
           <TabelaSaldosEstoque saldos={painel.saldos} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
           <div className="stock-tabs" role="tablist">
             <button className={tab === 'movimentos' ? 'active' : ''} onClick={() => setTab('movimentos')} role="tab" aria-selected={tab === 'movimentos'}>Movimentações</button>
             {veTudo && <button className={tab === 'auditoria' ? 'active' : ''} onClick={() => setTab('auditoria')} role="tab" aria-selected={tab === 'auditoria'}>Histórico de alterações</button>}
           </div>
-          {tab === 'movimentos' ? <RelatorioMovimentosEstoque movimentos={painel.movimentos} onEditAjuste={isDiretoria ? undefined : editarAjuste} onRemoveAjuste={isDiretoria ? undefined : setConfirmId} />
+          {tab === 'movimentos' ? <RelatorioMovimentosEstoque movimentos={diaSelecionado ? painel.movimentos.filter(m => m.data === diaSelecionado) : painel.movimentos} onEditAjuste={isDiretoria ? undefined : editarAjuste} onRemoveAjuste={isDiretoria ? undefined : setConfirmId} />
             : veTudo ? <HistoricoAuditoriaEstoque registros={auditoria} nomesUsuarios={nomesUsuarios} /> : null}
         </>}
       </>}

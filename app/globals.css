@@ -578,6 +578,22 @@ td.cell-actions { white-space: nowrap; }
 .stock-loading { padding: 42px; text-align: center; color: var(--text-muted); }
 .stock-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
+.stock-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 14px; }
+.stock-calendar-dow { text-align: center; font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--text-muted); padding-bottom: 4px; }
+.stock-calendar-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px;
+  min-height: 58px; padding: 6px 2px; border: 1px solid transparent; border-radius: 8px;
+  background: var(--bg); font: inherit; cursor: default;
+}
+.stock-calendar-cell-empty { background: transparent; }
+.stock-calendar-daynum { font-size: 11px; font-weight: 700; color: var(--text-muted); font-family: var(--mono); }
+.stock-calendar-cell-hasmov { cursor: pointer; background: var(--surface); border-color: var(--border); }
+.stock-calendar-cell-hasmov:hover { border-color: var(--navy-mid); }
+.stock-calendar-cell-active { border-color: var(--red); box-shadow: 0 0 0 2px rgba(204,34,34,0.12); }
+.stock-calendar-pill { font: 700 9px var(--mono); padding: 1px 5px; border-radius: 999px; line-height: 1.5; }
+.stock-calendar-pill-in { background: #e5f6ef; color: #14714f; }
+.stock-calendar-pill-out { background: #fce8e8; color: #a42626; }
+
 @media (max-width: 900px) {
   .stock-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stock-unit-filter { margin-left: 0; }
@@ -594,5 +610,8 @@ td.cell-actions { white-space: nowrap; }
   .stock-summary-card strong { font-size: 21px; }
   .stock-panel-heading { align-items: flex-start; padding: 14px; }
   .stock-tabs { display: grid; grid-template-columns: 1fr 1fr; justify-self: stretch; }
+  .stock-calendar { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; padding: 8px; }
+  .stock-calendar-cell { min-height: 46px; }
+  .stock-calendar-pill { font-size: 8px; padding: 0 3px; }
 }
 
