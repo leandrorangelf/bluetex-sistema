@@ -8,6 +8,7 @@ export interface ParcelaForm {
   valor: number
   numero_boleto: string
   observacoes: string
+  forma_pagamento: 'boleto' | 'especie' | 'pix'
 }
 
 interface Props {
@@ -16,7 +17,13 @@ interface Props {
   tipo: TipoParcela
 }
 
-const EMPTY_PARCELA: ParcelaForm = { numero_parcela: 1, vencimento: '', valor: 0, numero_boleto: '', observacoes: '' }
+const FORMAS_PAGAMENTO = [
+  { value: 'boleto', label: 'Boleto' },
+  { value: 'especie', label: 'Espécie' },
+  { value: 'pix', label: 'PIX' },
+] as const
+
+const EMPTY_PARCELA: ParcelaForm = { numero_parcela: 1, vencimento: '', valor: 0, numero_boleto: '', observacoes: '', forma_pagamento: 'boleto' }
 
 export default function ParcelasEditor({ parcelas, onChange, tipo }: Props) {
   function add() {
@@ -58,10 +65,16 @@ export default function ParcelasEditor({ parcelas, onChange, tipo }: Props) {
               <input className="form-input" type="number" step="0.01" min={0} value={p.valor} onChange={e => update(i, 'valor', Number(e.target.value))} />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Tipo</label>
+              <select className="form-select" value={p.forma_pagamento} onChange={e => update(i, 'forma_pagamento', e.target.value)}>
+                {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Nº Boleto/Doc</label>
               <input className="form-input" value={p.numero_boleto} onChange={e => update(i, 'numero_boleto', e.target.value)} />
             </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
+            <div className="form-group" style={{ marginBottom: 0, gridColumn: '1/-1' }}>
               <label className="form-label">Observações</label>
               <input className="form-input" value={p.observacoes} onChange={e => update(i, 'observacoes', e.target.value)} />
             </div>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
-import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos } from '@/lib/utils'
+import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos, labelFormaPagamento } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber } from '@/lib/painel-resumo'
 import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
@@ -99,7 +99,7 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
   const competenciaSel = chaveCompetencia(ano, mes)
   const [basesRes, parcelasRes, despesasRes, saldoRes] = await Promise.all([
     sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
-    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes,origem_sistema,categoria_vhsys').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
+    sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes,origem_sistema,categoria_vhsys,forma_pagamento').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
     sb.from('btx_despesas').select('id, categoria:btx_categorias_despesas(grupo)').eq('unidade', unidade).eq('ativo', true),
     sb.from('btx_vhsys_saldos_bancarios').select('saldo_atual,consultado_em').eq('unidade', unidade).order('consultado_em', { ascending: false }).limit(1),
   ])
@@ -172,7 +172,7 @@ function Waterfall({ resumo, onEditarSaldo }: { resumo: ResumoUnidade; onEditarS
   )
 }
 
-interface ItemLancamento { id: string; descricao: string; data: string; valor: number; categoria: string }
+interface ItemLancamento { id: string; descricao: string; data: string; valor: number; categoria: string; formaPagamento: 'boleto' | 'especie' | 'pix' | null }
 
 function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; total: number; itens: ItemLancamento[] }[] {
   const mapa = new Map<string, ItemLancamento[]>()
@@ -196,10 +196,10 @@ function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; tota
 function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade; onClickItem: (c: ContaPagar | ContaReceber) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const recebido = agruparPorCategoria(
-    resumo.contasReceber.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, data: c.dataPagamento ?? c.vencimento, valor: c.valor, categoria: c.categoria })),
+    resumo.contasReceber.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, data: c.dataPagamento ?? c.vencimento, valor: c.valor, categoria: c.categoria, formaPagamento: c.formaPagamento })),
   )
   const pago = agruparPorCategoria(
-    resumo.contasPagar.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, data: c.dataPagamento ?? c.vencimento, valor: c.valor, categoria: c.categoria })),
+    resumo.contasPagar.filter(c => c.paga).map(c => ({ id: c.id, descricao: c.descricao, data: c.dataPagamento ?? c.vencimento, valor: c.valor, categoria: c.categoria, formaPagamento: c.formaPagamento })),
   )
   const porId = new Map([...resumo.contasReceber, ...resumo.contasPagar].map(c => [c.id, c]))
 
@@ -232,6 +232,9 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
               >
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 6 }}>{formatData(item.data)}</span>
+                  {item.formaPagamento && (
+                    <span className="badge badge-gray" style={{ marginRight: 6, fontSize: 9, padding: '2px 5px' }}>{labelFormaPagamento(item.formaPagamento)}</span>
+                  )}
                   {item.descricao}
                 </span>
                 <span className="mono" style={{ flexShrink: 0, color: cor }}>{formatMoeda(item.valor)}</span>
@@ -313,6 +316,7 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
             >
               <div style={{ fontSize: 11, color: 'var(--red)' }}>
                 <span className="mono">{formatData(c.vencimento)}</span>{' '}
+                {c.formaPagamento && <span className="badge badge-gray" style={{ marginRight: 6, fontSize: 9, padding: '2px 5px' }}>{labelFormaPagamento(c.formaPagamento)}</span>}
                 {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
                 {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
                 {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
@@ -331,8 +335,8 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
   )
 }
 
-function ModalConta({ conta, onClose, onGravou, readOnly }: {
-  conta: ContaPagar | ContaReceber | null; onClose: () => void; onGravou: () => void; readOnly: boolean
+function ModalConta({ conta, onClose, onGravou, readOnly, podeExcluir }: {
+  conta: ContaPagar | ContaReceber | null; onClose: () => void; onGravou: () => void; readOnly: boolean; podeExcluir: boolean
 }) {
   const sb = useMemo(() => createClient(), [])
   const [venc, setVenc] = useState('')
@@ -369,7 +373,7 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
         </>
       ) : (
         <>
-          <button className="btn btn-danger" disabled={saving} onClick={() => run({ status: 'cancelado' })}>Cancelar conta</button>
+          {podeExcluir && <button className="btn btn-danger" disabled={saving} onClick={() => run({ status: 'cancelado' })}>Cancelar conta</button>}
           <button className="btn btn-secondary" disabled={saving} onClick={() => run({ vencimento: venc, valor: val, observacoes: obs.trim() || null })}>Salvar alteração</button>
           <Link href={hrefBaixa} className="btn btn-primary" onClick={onClose}>Dar baixa / pagamento →</Link>
         </>
@@ -518,6 +522,7 @@ export default function DashboardPage() {
       <ModalConta
         conta={contaAberta}
         readOnly={profile?.role === 'diretoria'}
+        podeExcluir={profile?.role === 'admin'}
         onClose={() => setContaAberta(null)}
         onGravou={() => { setContaAberta(null); carregar() }}
       />

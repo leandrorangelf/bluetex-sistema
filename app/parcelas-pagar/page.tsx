@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { formatMoeda, formatData, hoje, mesAtual, anoAtual, getMesAnoLabel } from '@/lib/utils'
+import { formatMoeda, formatData, hoje, mesAtual, anoAtual, getMesAnoLabel, labelFormaPagamento } from '@/lib/utils'
 import { saldoRestante, listarPagamentos, registrarPagamento, excluirPagamento, sincronizarParcela, type PagamentoRow } from '@/lib/pagamentos'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -28,6 +28,7 @@ export default function ParcelasPagarPage() {
   const abrirId = searchParams.get('abrir')
   const abrirTratado = useRef(false)
   const isDiretoria = profile?.role === 'diretoria'
+  const isAdmin = profile?.role === 'admin'
   const [rows, setRows] = useState<Parcela[]>([])
   const [pagMap, setPagMap] = useState<Map<string, PagamentoRow[]>>(new Map())
   const [origemMap, setOrigemMap] = useState<Map<string, string>>(new Map())
@@ -42,7 +43,7 @@ export default function ParcelasPagarPage() {
   const [pagarRow, setPagarRow] = useState<Parcela | null>(null)
   const [pagarSaving, setPagarSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
-  const [formEdit, setFormEdit] = useState({ vencimento: '', valor: 0 })
+  const [formEdit, setFormEdit] = useState<{ vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix' }>({ vencimento: '', valor: 0, forma_pagamento: 'boleto' })
   const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -64,7 +65,7 @@ export default function ParcelasPagarPage() {
     if (!isVhsysManaged(row) && (row.status === 'pendente' || row.status === 'parcial')) {
       setPagarRow(row)
     } else {
-      setFormEdit({ vencimento: row.vencimento, valor: row.valor })
+      setFormEdit({ vencimento: row.vencimento, valor: row.valor, forma_pagamento: row.forma_pagamento ?? 'boleto' })
       setNota(row.nota_interna ?? '')
       setVerId(row.id)
     }
@@ -151,7 +152,7 @@ export default function ParcelasPagarPage() {
   async function salvarEdit() {
     if (!verRow || isVhsysManaged(verRow)) return
     setSaving(true)
-    await sb.from('btx_parcelas').update({ vencimento: formEdit.vencimento, valor: formEdit.valor }).eq('id', verRow.id)
+    await sb.from('btx_parcelas').update({ vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento }).eq('id', verRow.id)
     await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
     setSaving(false); setVerId(null); load()
   }
@@ -171,7 +172,7 @@ export default function ParcelasPagarPage() {
   }
 
   function abrirVer(r: Parcela) {
-    setFormEdit({ vencimento: r.vencimento, valor: r.valor })
+    setFormEdit({ vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? 'boleto' })
     setNota(r.nota_interna ?? '')
     setVerId(r.id)
   }
@@ -235,10 +236,10 @@ export default function ParcelasPagarPage() {
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o pagamento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
+          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={8} className="empty-state">Carregando...</td></tr>
-            : visiveis.length === 0 ? <tr><td colSpan={8} className="empty-state">Nenhuma conta.</td></tr>
+            {loading ? <tr><td colSpan={9} className="empty-state">Carregando...</td></tr>
+            : visiveis.length === 0 ? <tr><td colSpan={9} className="empty-state">Nenhuma conta.</td></tr>
             : visiveis.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
               const pago = somaPagos(r)
@@ -247,6 +248,7 @@ export default function ParcelasPagarPage() {
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
                   <td className="mono">{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
+                  <td>{labelFormaPagamento(r.forma_pagamento)}</td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono num">{pago > 0 ? formatMoeda(pago) : '—'}</td>
                   <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
@@ -261,7 +263,7 @@ export default function ParcelasPagarPage() {
                       <div className="row-actions">
                         {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setPagarRow(r)}>Pagar</button>}
                         <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>
+                        {isAdmin && <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>}
                       </div>
                     )}
                   </td>
@@ -307,6 +309,14 @@ export default function ParcelasPagarPage() {
             <input className="form-input mono" type="number" step="0.01" value={formEdit.valor} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, valor: Number(e.target.value) }))} />
           </div>
           <div className="form-group">
+            <label className="form-label">Tipo de pagamento</label>
+            <select className="form-select" value={formEdit.forma_pagamento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, forma_pagamento: e.target.value as typeof f.forma_pagamento }))}>
+              <option value="boleto">Boleto</option>
+              <option value="especie">Espécie</option>
+              <option value="pix">PIX</option>
+            </select>
+          </div>
+          <div className="form-group">
             <label className="form-label">Nota interna</label>
             <textarea className="form-input" rows={2} value={nota} onChange={e => setNota(e.target.value)} placeholder="Anotação sua, não sincroniza com o VHSYS" />
           </div>
@@ -316,11 +326,11 @@ export default function ParcelasPagarPage() {
               : pagosDe(verRow).map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '4px 0' }}>
                   <span className="mono">{formatData(p.data_pagamento)} · {formatMoeda(p.valor)}{p.observacoes ? ` · ${p.observacoes}` : ''}</span>
-                  {!isVhsysManaged(verRow) && <button className="btn btn-danger btn-sm" disabled={saving} onClick={() => onExcluirPagamento(p, verRow)}>excluir</button>}
+                  {!isVhsysManaged(verRow) && isAdmin && <button className="btn btn-danger btn-sm" disabled={saving} onClick={() => onExcluirPagamento(p, verRow)}>excluir</button>}
                 </div>
               ))}
           </div>
-          {!isVhsysManaged(verRow) && verRow.status !== 'cancelado' && (
+          {!isVhsysManaged(verRow) && isAdmin && verRow.status !== 'cancelado' && (
             <button className="btn btn-secondary btn-sm" onClick={cancelarConta} disabled={saving}>Cancelar conta</button>
           )}
         </Modal>

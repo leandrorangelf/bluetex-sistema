@@ -89,6 +89,7 @@ export interface Despesa {
   observacoes: string | null; ativo: boolean; created_at: string
   categoria?: CategoriaDespesa; fornecedor?: Fornecedor
 }
+export type FormaPagamento = 'boleto' | 'especie' | 'pix'
 export interface Parcela {
   id: string; unidade: Unidade; tipo: TipoParcela; origem: OrigemParcela; origem_id: string | null
   numero_parcela: number; vencimento: string; valor: number; status: StatusParcela
@@ -96,6 +97,7 @@ export interface Parcela {
   ativo: boolean; created_at: string
   origem_sistema?: OrigemSistema; vhsys_id?: string | null; vhsys_synced_at?: string | null
   nota_interna?: string | null
+  forma_pagamento?: FormaPagamento | null
 }
 export interface PagamentoParcela {
   id: string; parcela_id: string; valor: number; data_pagamento: string

@@ -213,7 +213,7 @@ export default function EstoqueAtualPage() {
             <button className={tab === 'movimentos' ? 'active' : ''} onClick={() => setTab('movimentos')} role="tab" aria-selected={tab === 'movimentos'}>Movimentações</button>
             {veTudo && <button className={tab === 'auditoria' ? 'active' : ''} onClick={() => setTab('auditoria')} role="tab" aria-selected={tab === 'auditoria'}>Histórico de alterações</button>}
           </div>
-          {tab === 'movimentos' ? <RelatorioMovimentosEstoque movimentos={diaSelecionado ? painel.movimentos.filter(m => m.data === diaSelecionado) : painel.movimentos} onEditAjuste={isDiretoria ? undefined : editarAjuste} onRemoveAjuste={isDiretoria ? undefined : setConfirmId} />
+          {tab === 'movimentos' ? <RelatorioMovimentosEstoque movimentos={diaSelecionado ? painel.movimentos.filter(m => m.data === diaSelecionado) : painel.movimentos} onEditAjuste={isDiretoria ? undefined : editarAjuste} onRemoveAjuste={isAdmin ? setConfirmId : undefined} />
             : veTudo ? <HistoricoAuditoriaEstoque registros={auditoria} nomesUsuarios={nomesUsuarios} /> : null}
         </>}
       </>}
@@ -257,7 +257,7 @@ export default function EstoqueAtualPage() {
 // ponytail: abas Entradas/Saídas — lista de consulta copiada de /compras e /vendas (entrega 1)
 function ListaEntradas() {
   const { profile, unidadeAtiva } = useAuth()
-  const isDiretoria = profile?.role === 'diretoria'
+  const isAdmin = profile?.role === 'admin'
   const [rows, setRows] = useState<Compra[]>([])
   const [loading, setLoading] = useState(true)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -299,7 +299,7 @@ function ListaEntradas() {
                 <td className="mono num">{formatMoeda((r as unknown as { valor_st?: number }).valor_st ?? 0)}</td>
                 <td className="mono num">{formatMoeda(r.valor_total)}</td>
                 <td className="cell-actions">
-                  {!isDiretoria && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
+                  {isAdmin && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
                 </td>
               </tr>
             ))}

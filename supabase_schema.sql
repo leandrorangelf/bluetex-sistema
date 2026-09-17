@@ -269,6 +269,8 @@ CREATE TABLE IF NOT EXISTS btx_parcelas (
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Como o dinheiro entra/sai: boleto, espécie (dinheiro) ou PIX.
+ALTER TABLE btx_parcelas ADD COLUMN IF NOT EXISTS forma_pagamento TEXT CHECK (forma_pagamento IN ('boleto','especie','pix'));
 ALTER TABLE btx_parcelas ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "btx_admin_all_parc" ON btx_parcelas FOR ALL USING (btx_get_my_role()='admin');
 CREATE POLICY "btx_unidade_parc" ON btx_parcelas FOR ALL USING (btx_get_my_role()='unidade' AND unidade=btx_get_my_unidade());
@@ -621,6 +623,7 @@ BEGIN
         v_status := COALESCE(NULLIF(v_item.dados_normalizados->>'status',''), 'pendente');
         UPDATE btx_parcelas SET origem_sistema='vhsys', vhsys_id=v_item.vhsys_id,
           vhsys_synced_at=NOW(), status=v_status,
+          forma_pagamento=COALESCE(NULLIF(v_item.dados_normalizados->>'forma_pagamento',''), forma_pagamento),
           data_pagamento = CASE WHEN v_status='pago' THEN COALESCE(
             NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
             data_pagamento, CURRENT_DATE
@@ -773,7 +776,7 @@ BEGIN
     ELSIF p_dominio IN ('receber','pagar') AND v_item.decisao = 'importar' THEN
       INSERT INTO btx_parcelas(
         unidade, tipo, origem, numero_parcela, vencimento, valor, status,
-        numero_boleto, observacoes, data_pagamento, categoria_vhsys,
+        numero_boleto, observacoes, data_pagamento, categoria_vhsys, forma_pagamento,
         ativo, origem_sistema, vhsys_id, vhsys_synced_at
       ) VALUES (
         v_unidade, CASE WHEN p_dominio='receber' THEN 'receber' ELSE 'pagar' END,
@@ -786,6 +789,7 @@ BEGIN
         UPPER(v_item.dados_normalizados->>'observacoes'),
         NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
         UPPER(NULLIF(v_item.dados_normalizados->>'categoria','')),
+        NULLIF(v_item.dados_normalizados->>'forma_pagamento',''),
         TRUE, 'vhsys', v_item.vhsys_id, NOW()
       )
       ON CONFLICT (unidade, tipo, vhsys_id) WHERE vhsys_id IS NOT NULL
@@ -794,6 +798,7 @@ BEGIN
         observacoes=EXCLUDED.observacoes, origem=EXCLUDED.origem,
         data_pagamento=COALESCE(EXCLUDED.data_pagamento, btx_parcelas.data_pagamento),
         categoria_vhsys=EXCLUDED.categoria_vhsys,
+        forma_pagamento=COALESCE(EXCLUDED.forma_pagamento, btx_parcelas.forma_pagamento),
         ativo=TRUE, vhsys_synced_at=NOW()
       RETURNING id INTO v_local_id;
 
@@ -817,6 +822,51 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+-- ------------------------------------------------------------
+-- Bloqueio de exclusão pra quem não é admin + log de edições de parcelas
+-- ------------------------------------------------------------
+-- auth.uid() vem NULL em conexão sem JWT de usuário (service role, SQL direto
+-- via dashboard/MCP, jobs de sistema) — esses contextos já são de confiança
+-- (só quem tem a credencial do projeto chega neles), então não bloqueia.
+-- Só bloqueia quando existe um usuário autenticado e ele não é admin.
+CREATE OR REPLACE FUNCTION btx_bloquear_exclusao()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL OR btx_get_my_role() = 'admin' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'Apenas o administrador pode excluir registros.';
+  END IF;
+
+  IF NEW.ativo = FALSE AND OLD.ativo = TRUE THEN
+    RAISE EXCEPTION 'Apenas o administrador pode excluir registros.';
+  END IF;
+
+  IF TG_TABLE_NAME = 'btx_parcelas' AND NEW.status = 'cancelado' AND OLD.status <> 'cancelado' THEN
+    RAISE EXCEPTION 'Apenas o administrador pode cancelar contas.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER btx_bloquear_exclusao_parcelas BEFORE UPDATE OR DELETE ON btx_parcelas
+  FOR EACH ROW EXECUTE FUNCTION btx_bloquear_exclusao();
+CREATE TRIGGER btx_bloquear_exclusao_vendas BEFORE UPDATE OR DELETE ON btx_vendas
+  FOR EACH ROW EXECUTE FUNCTION btx_bloquear_exclusao();
+CREATE TRIGGER btx_bloquear_exclusao_compras BEFORE UPDATE OR DELETE ON btx_compras
+  FOR EACH ROW EXECUTE FUNCTION btx_bloquear_exclusao();
+CREATE TRIGGER btx_bloquear_exclusao_ajustes_estoque BEFORE UPDATE OR DELETE ON btx_ajustes_estoque
+  FOR EACH ROW EXECUTE FUNCTION btx_bloquear_exclusao();
+
+-- Log de edições: btx_parcelas passa a ser auditada na mesma tabela que já
+-- audita estoque/compras/vendas (btx_auditoria_estoque — nome antigo, mas já
+-- serve como log geral de alterações do sistema).
+CREATE TRIGGER btx_auditoria_parcelas AFTER INSERT OR UPDATE OR DELETE ON btx_parcelas
+  FOR EACH ROW EXECUTE FUNCTION btx_auditar_estoque();
 
 -- ============================================================
 -- FIM DO SCHEMA

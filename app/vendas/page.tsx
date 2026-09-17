@@ -60,7 +60,7 @@ export default function VendasPage() {
 
 function ListaVendas({ unidade }: { unidade?: string }) {
   const { profile, unidadeAtiva } = useAuth()
-  const isDiretoria = profile?.role === 'diretoria'
+  const isAdmin = profile?.role === 'admin'
   const [rows, setRows] = useState<Venda[]>([])
   const [loading, setLoading] = useState(true)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -117,7 +117,7 @@ function ListaVendas({ unidade }: { unidade?: string }) {
                 <td className="mono num">{formatMoeda(r.valor_total)}</td>
                 <td className="cell-actions">
                   {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span>
-                  : !isDiretoria && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
+                  : isAdmin && <div className="row-actions"><button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button></div>}
                 </td>
               </tr>
             ))}

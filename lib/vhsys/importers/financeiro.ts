@@ -59,6 +59,16 @@ const CAMPOS_PAGAR: Campos = {
   categoria: ['categoria_pag', 'categoria', 'nome_categoria'],
 }
 
+// normaliza a forma de pagamento do VHSYS pro nosso vocabulário fechado
+function normalizarFormaPagamento(valor: unknown): 'boleto' | 'especie' | 'pix' | null {
+  const texto = String(valor ?? '').trim().toLocaleLowerCase('pt-BR')
+  if (!texto) return null
+  if (texto.includes('pix')) return 'pix'
+  if (texto.includes('boleto')) return 'boleto'
+  if (texto.includes('dinheiro') || texto.includes('especie') || texto.includes('espécie')) return 'especie'
+  return null
+}
+
 // motivo pelo qual uma linha do VHSYS não entra — null = entra
 function motivoExclusao(row: Record<string, unknown>, c: Campos): string | null {
   const vencimento = isoDate(first(row, c.vencimento))
@@ -140,6 +150,8 @@ function importar(rows: Record<string, unknown>[], c: Campos): ImportedItem[] {
         de_entrada: deEntrada,
         categoria: String(first(row, c.categoria) ?? '').trim(),
         link_boleto: String(row.link_boleto ?? ''),
+        forma_pagamento: normalizarFormaPagamento(row.forma_pagamento)
+          ?? (row.link_boleto ? 'boleto' : null),
       },
     }]
   })
