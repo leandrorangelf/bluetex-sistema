@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos, labelFormaPagamento } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
-import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber } from '@/lib/painel-resumo'
-import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
+import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber, type VendaInfo } from '@/lib/painel-resumo'
+import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
 import { UNIDADES, type Unidade, type GrupoCategoria, type Produto, type AjusteEstoque } from '@/types'
 import Modal from '@/components/Modal'
 
@@ -122,10 +122,19 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
     grupoPorDespesa.set(d.id, d.categoria?.grupo ?? 'outros')
   }
 
+  const vendaIds = [...new Set(parcelas.filter(p => p.tipo === 'receber' && p.origem === 'venda' && p.origem_id).map(p => p.origem_id as string))]
+  const vendaInfoPorId = new Map<string, VendaInfo>()
+  if (vendaIds.length) {
+    const { data: vendas } = await sb.from('btx_vendas').select('id,numero_nf,cliente:btx_clientes(nome)').in('id', vendaIds)
+    for (const v of (vendas ?? []) as unknown as { id: string; numero_nf: string | null; cliente: RelacaoNomeEstoque }[]) {
+      vendaInfoPorId.set(v.id, { cliente: nomeRelacaoEstoque(v.cliente) ?? null, numeroNf: v.numero_nf })
+    }
+  }
+
   return calcularResumoUnidade({
     unidade, ano, mes, hoje: hojeStr,
     saldoBase: Number(baseVigente?.saldo_inicial ?? 0),
-    competenciaBase, parcelas, pagamentos, grupoPorDespesa,
+    competenciaBase, parcelas, pagamentos, grupoPorDespesa, vendaInfoPorId,
     saldoBancario,
   })
 }
@@ -172,6 +181,83 @@ function Waterfall({ resumo, onEditarSaldo }: { resumo: ResumoUnidade; onEditarS
   )
 }
 
+// Todos os recebíveis em aberto (vencidos + a vencer), independente do mês —
+// "quanto tenho na rua". Lista colapsável, agrupada em vencidos/a vencer.
+function CardRecebiveis({ resumo, onClickConta }: { resumo: ResumoUnidade; onClickConta: (c: ContaPagar | ContaReceber) => void }) {
+  const { recebiveisEmAberto: r } = resumo
+  const [abertoVencido, setAbertoVencido] = useState(true)
+  const [abertoAVencer, setAbertoAVencer] = useState(false)
+  const vencidas = r.contas.filter(c => c.vencida)
+  const aVencer = r.contas.filter(c => !c.vencida)
+
+  const grupo = (titulo: string, cor: string, total: number, contas: ContaReceber[], aberto: boolean, toggle: () => void) => (
+    <div>
+      <button
+        onClick={toggle}
+        style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{aberto ? '▾' : '▸'} {titulo} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({contas.length})</span></span>
+        <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: cor }}>{formatMoeda(total)}</span>
+      </button>
+      {aberto && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}>
+          <thead>
+            <tr style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
+              <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 6px 4px 14px' }}>Data</th>
+              <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 6px' }}>Descrição</th>
+              <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 6px' }}>NF</th>
+              <th style={{ textAlign: 'center', fontWeight: 600, padding: '4px 6px' }}>Parcela</th>
+              <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 6px' }}>Tipo de pagto</th>
+              <th style={{ textAlign: 'right', fontWeight: 600, padding: '4px 14px 4px 6px' }}>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {contas.map(c => (
+              <tr
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onClickConta(c)}
+                onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
+                style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}
+              >
+                <td className="mono" style={{ padding: '5px 6px 5px 14px', color: cor, whiteSpace: 'nowrap' }}>{formatData(c.vencimento)}</td>
+                <td style={{ padding: '5px 6px', color: cor }}>
+                  {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
+                  {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
+                </td>
+                <td className="mono" style={{ padding: '5px 6px', whiteSpace: 'nowrap' }}>{c.numeroNf ?? '—'}</td>
+                <td className="mono" style={{ padding: '5px 6px', textAlign: 'center' }}>{c.numeroParcela}</td>
+                <td style={{ padding: '5px 6px' }}>
+                  {c.formaPagamento && <span className="badge badge-gray" style={{ fontSize: 9, padding: '2px 5px' }}>{labelFormaPagamento(c.formaPagamento)}</span>}
+                </td>
+                <td className="mono" style={{ padding: '5px 14px 5px 6px', textAlign: 'right', color: cor }}>{formatMoeda(c.valor)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>A receber — na rua</div>
+        <span className="mono" style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{formatMoeda(r.total)}</span>
+      </div>
+      {r.contas.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem recebíveis em aberto</div>
+      ) : (
+        <>
+          {vencidas.length > 0 && grupo('Vencidos', 'var(--red)', r.vencido, vencidas, abertoVencido, () => setAbertoVencido(v => !v))}
+          {aVencer.length > 0 && grupo('A vencer', 'var(--navy)', r.aVencer, aVencer, abertoAVencer, () => setAbertoAVencer(v => !v))}
+        </>
+      )}
+    </div>
+  )
+}
+
 interface ItemLancamento { id: string; descricao: string; data: string; valor: number; categoria: string; formaPagamento: 'boleto' | 'especie' | 'pix' | null }
 
 function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; total: number; itens: ItemLancamento[] }[] {
@@ -211,6 +297,11 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
       </div>
       <div style={{ padding: 10, display: 'grid', gap: 8 }}>
         {grupos.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: 12, padding: '4px 4px' }}>Nada no mês.</span>}
+        {grupos.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '62px 64px 1fr auto', gap: 8, padding: '0 12px', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
+            <span>Data</span><span>Tipo</span><span>Descrição</span><span style={{ textAlign: 'right' }}>Valor</span>
+          </div>
+        )}
         {grupos.map((g, i) => (
           <details key={g.categoria} open={i === 0} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
             <summary style={{
@@ -228,16 +319,12 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
                 tabIndex={0}
                 onClick={() => { const c = porId.get(item.id); if (c) onClickItem(c) }}
                 onKeyDown={e => { if (e.key === 'Enter') { const c = porId.get(item.id); if (c) onClickItem(c) } }}
-                style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px 7px 26px', fontSize: 12, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                style={{ display: 'grid', gridTemplateColumns: '62px 64px 1fr auto', alignItems: 'center', gap: 8, padding: '7px 12px', fontSize: 12, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
               >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 6 }}>{formatData(item.data)}</span>
-                  {item.formaPagamento && (
-                    <span className="badge badge-gray" style={{ marginRight: 6, fontSize: 9, padding: '2px 5px' }}>{labelFormaPagamento(item.formaPagamento)}</span>
-                  )}
-                  {item.descricao}
-                </span>
-                <span className="mono" style={{ flexShrink: 0, color: cor }}>{formatMoeda(item.valor)}</span>
+                <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{formatData(item.data)}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{item.formaPagamento ? labelFormaPagamento(item.formaPagamento) : '—'}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.descricao}</span>
+                <span className="mono" style={{ color: cor }}>{formatMoeda(item.valor)}</span>
               </div>
             ))}
           </details>
@@ -293,6 +380,11 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
         <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Ainda a pagar</div>
+      {resumo.gruposPagar.filter(g => g.subtotal > 0).length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '62px 58px 1fr auto', gap: 8, padding: '0 0 2px 14px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
+          <span>Venc.</span><span>Tipo</span><span>Descrição</span><span style={{ textAlign: 'right' }}>Valor</span>
+        </div>
+      )}
       {/* só grupos com algo ainda em aberto — o que já foi pago aparece em "Pago no mês" lá em cima, sem repetir aqui */}
       {resumo.gruposPagar.filter(g => g.subtotal > 0).length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem contas em aberto</div>
@@ -312,15 +404,15 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
               tabIndex={0}
               onClick={() => onClickConta(c)}
               onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+              style={{ display: 'grid', gridTemplateColumns: '62px 58px 1fr auto', alignItems: 'center', gap: 8, padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
-              <div style={{ fontSize: 11, color: 'var(--red)' }}>
-                <span className="mono">{formatData(c.vencimento)}</span>{' '}
-                {c.formaPagamento && <span className="badge badge-gray" style={{ marginRight: 6, fontSize: 9, padding: '2px 5px' }}>{labelFormaPagamento(c.formaPagamento)}</span>}
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{formatData(c.vencimento)}</span>
+              <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{c.formaPagamento ? labelFormaPagamento(c.formaPagamento) : '—'}</span>
+              <span style={{ fontSize: 11, color: 'var(--red)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
                 {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
                 {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
-              </div>
+              </span>
               <span className="mono" style={{ fontSize: 12, color: 'var(--red)' }}>{formatMoeda(c.valor)}</span>
             </div>
           ))}
@@ -547,6 +639,7 @@ export default function DashboardPage() {
               <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {consolidado.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
             )}
             <Waterfall resumo={consolidado} />
+            <CardRecebiveis resumo={consolidado} onClickConta={setContaAberta} />
             <CategoriasColapsaveis resumo={consolidado} onClickItem={setContaAberta} />
             <div className="grid-3">
               {unidadesComDados.map(u => (
@@ -570,6 +663,7 @@ export default function DashboardPage() {
             <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {abaUnica.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
           )}
           <Waterfall resumo={abaUnica} onEditarSaldo={profile?.role === 'diretoria' ? undefined : () => setEditandoSaldo(true)} />
+          <CardRecebiveis resumo={abaUnica} onClickConta={setContaAberta} />
           <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
           <div>
             <ColunaUnidade
