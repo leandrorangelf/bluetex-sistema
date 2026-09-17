@@ -297,6 +297,11 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
       </div>
       <div style={{ padding: 10, display: 'grid', gap: 8 }}>
         {grupos.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: 12, padding: '4px 4px' }}>Nada no mês.</span>}
+        {grupos.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '62px 64px 1fr auto', gap: 8, padding: '0 12px', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
+            <span>Data</span><span>Tipo</span><span>Descrição</span><span style={{ textAlign: 'right' }}>Valor</span>
+          </div>
+        )}
         {grupos.map((g, i) => (
           <details key={g.categoria} open={i === 0} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
             <summary style={{
@@ -314,16 +319,12 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
                 tabIndex={0}
                 onClick={() => { const c = porId.get(item.id); if (c) onClickItem(c) }}
                 onKeyDown={e => { if (e.key === 'Enter') { const c = porId.get(item.id); if (c) onClickItem(c) } }}
-                style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px 7px 26px', fontSize: 12, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                style={{ display: 'grid', gridTemplateColumns: '62px 64px 1fr auto', alignItems: 'center', gap: 8, padding: '7px 12px', fontSize: 12, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
               >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 6 }}>{formatData(item.data)}</span>
-                  {item.formaPagamento && (
-                    <span className="badge badge-gray" style={{ marginRight: 6, fontSize: 9, padding: '2px 5px' }}>{labelFormaPagamento(item.formaPagamento)}</span>
-                  )}
-                  {item.descricao}
-                </span>
-                <span className="mono" style={{ flexShrink: 0, color: cor }}>{formatMoeda(item.valor)}</span>
+                <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{formatData(item.data)}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{item.formaPagamento ? labelFormaPagamento(item.formaPagamento) : '—'}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.descricao}</span>
+                <span className="mono" style={{ color: cor }}>{formatMoeda(item.valor)}</span>
               </div>
             ))}
           </details>
@@ -379,6 +380,11 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
         <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Ainda a pagar</div>
+      {resumo.gruposPagar.filter(g => g.subtotal > 0).length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '62px 58px 1fr auto', gap: 8, padding: '0 0 2px 14px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
+          <span>Venc.</span><span>Tipo</span><span>Descrição</span><span style={{ textAlign: 'right' }}>Valor</span>
+        </div>
+      )}
       {/* só grupos com algo ainda em aberto — o que já foi pago aparece em "Pago no mês" lá em cima, sem repetir aqui */}
       {resumo.gruposPagar.filter(g => g.subtotal > 0).length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Sem contas em aberto</div>
@@ -398,15 +404,15 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
               tabIndex={0}
               onClick={() => onClickConta(c)}
               onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+              style={{ display: 'grid', gridTemplateColumns: '62px 58px 1fr auto', alignItems: 'center', gap: 8, padding: '5px 0 5px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
             >
-              <div style={{ fontSize: 11, color: 'var(--red)' }}>
-                <span className="mono">{formatData(c.vencimento)}</span>{' '}
-                {c.formaPagamento && <span className="badge badge-gray" style={{ marginRight: 6, fontSize: 9, padding: '2px 5px' }}>{labelFormaPagamento(c.formaPagamento)}</span>}
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{formatData(c.vencimento)}</span>
+              <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{c.formaPagamento ? labelFormaPagamento(c.formaPagamento) : '—'}</span>
+              <span style={{ fontSize: 11, color: 'var(--red)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
                 {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
                 {mostrarTagUnidade && <span style={{ fontSize: 10, marginLeft: 6, color: 'var(--text-muted)' }}>{short}</span>}
-              </div>
+              </span>
               <span className="mono" style={{ fontSize: 12, color: 'var(--red)' }}>{formatMoeda(c.valor)}</span>
             </div>
           ))}
