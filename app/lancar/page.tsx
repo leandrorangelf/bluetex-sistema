@@ -143,7 +143,7 @@ function FormReceber({ sb, unidade, clientes, saving, setSaving, onResult }: For
         <div className="form-group"><label className="form-label">Tipo de pagamento *</label>
           <select className="form-select" value={formaPagamento} onChange={e => setFormaPagamento(e.target.value as typeof formaPagamento)}>
             <option value="boleto">Boleto</option>
-            <option value="especie">Espécie</option>
+            <option value="especie">Dinheiro</option>
             <option value="pix">PIX</option>
           </select></div>
         <div className="form-group"><label className="form-label">Data do lançamento *</label>

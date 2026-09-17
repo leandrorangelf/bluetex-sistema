@@ -20,7 +20,7 @@ interface Props {
 
 const FORMAS_PAGAMENTO = [
   { value: 'boleto', label: 'Boleto' },
-  { value: 'especie', label: 'Espécie' },
+  { value: 'especie', label: 'Dinheiro' },
   { value: 'pix', label: 'PIX' },
 ] as const
 
