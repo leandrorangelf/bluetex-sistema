@@ -318,7 +318,7 @@ export default function ParcelasPagarPage() {
             <label className="form-label">Tipo de pagamento</label>
             <select className="form-select" value={formEdit.forma_pagamento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, forma_pagamento: e.target.value as typeof f.forma_pagamento }))}>
               <option value="boleto">Boleto</option>
-              <option value="especie">Espécie</option>
+              <option value="especie">Dinheiro</option>
               <option value="pix">PIX</option>
             </select>
           </div>

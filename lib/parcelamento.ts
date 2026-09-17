@@ -31,3 +31,14 @@ export function gerarParcelas(valorTotal: number, primeiroVencimento: string, n:
     valor: i === 0 ? primeira : base,
   }))
 }
+
+// Despesa recorrente (aluguel, condomínio, internet...): mesmo valor todo
+// mês, sem dividir — diferente de gerarParcelas, que reparte um total entre
+// parcelas.
+export function gerarParcelasRecorrentes(valorMensal: number, primeiroVencimento: string, n: number): ParcelaGerada[] {
+  return Array.from({ length: n }, (_, i) => ({
+    numero_parcela: i + 1,
+    vencimento: vencimentoNoMes(primeiroVencimento, i),
+    valor: round2(valorMensal),
+  }))
+}
