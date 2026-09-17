@@ -19,6 +19,8 @@ const NAV = [
   { href: '/categorias', label: 'Categorias' },
   { section: 'Integrações' },
   { href: '/integracoes/vhsys', label: 'Integração VHSYS', adminOnly: true },
+  { section: 'Administração' },
+  { href: '/auditoria', label: 'Log de Edições', adminOnly: true },
 ]
 
 export default function Sidebar() {
