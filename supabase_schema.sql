@@ -632,7 +632,7 @@ BEGIN
           INSERT INTO btx_pagamentos_parcela(parcela_id, valor, data_pagamento, observacoes)
           SELECT id, valor,
             COALESCE(NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE, CURRENT_DATE),
-            'Baixa automática via VHSYS'
+            'BAIXA AUTOMÁTICA VIA VHSYS'
           FROM btx_parcelas WHERE id = v_item.local_id;
         END IF;
       ELSIF p_dominio = 'estoque' THEN
@@ -672,7 +672,7 @@ BEGIN
       ) VALUES (
         v_unidade, v_item.vhsys_id,
         COALESCE(v_item.dados_normalizados->>'numero_banco','033'),
-        COALESCE(v_item.dados_normalizados->>'nome_banco','Santander'),
+        COALESCE(UPPER(v_item.dados_normalizados->>'nome_banco'),'SANTANDER'),
         COALESCE(NULLIF(v_item.dados_normalizados->>'saldo_atual','')::NUMERIC,0),
         COALESCE(NULLIF(v_item.dados_normalizados->>'consultado_em','')::TIMESTAMPTZ,NOW()),
         p_sincronizacao
@@ -688,7 +688,7 @@ BEGIN
         INSERT INTO btx_clientes(unidade, nome, origem_sistema, vhsys_id, vhsys_synced_at)
         VALUES (
           v_unidade,
-          COALESCE(NULLIF(v_item.dados_normalizados->>'pessoa_nome',''),'Cliente VHSYS'),
+          UPPER(COALESCE(NULLIF(v_item.dados_normalizados->>'pessoa_nome',''),'Cliente VHSYS')),
           'vhsys', v_item.dados_normalizados->>'cliente_vhsys_id', NOW()
         )
         ON CONFLICT (unidade, vhsys_id) WHERE vhsys_id IS NOT NULL
@@ -701,10 +701,10 @@ BEGIN
       ) VALUES (
         v_unidade, v_person_id,
         (v_item.dados_normalizados->>'data')::DATE,
-        v_item.dados_normalizados->>'numero_documento',
+        UPPER(v_item.dados_normalizados->>'numero_documento'),
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_total','')::NUMERIC,0),
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_st','')::NUMERIC,0),
-        'Importado do VHSYS', TRUE, 'vhsys', v_item.vhsys_id, NOW()
+        'IMPORTADO DO VHSYS', TRUE, 'vhsys', v_item.vhsys_id, NOW()
       )
       ON CONFLICT (unidade, vhsys_id) WHERE vhsys_id IS NOT NULL
       DO UPDATE SET cliente_id=EXCLUDED.cliente_id, data_venda=EXCLUDED.data_venda,
@@ -732,7 +732,7 @@ BEGIN
         INSERT INTO btx_fornecedores(unidade, nome, origem_sistema, vhsys_id, vhsys_synced_at)
         VALUES (
           v_unidade,
-          COALESCE(NULLIF(v_item.dados_normalizados->>'pessoa_nome',''),'Fornecedor VHSYS'),
+          UPPER(COALESCE(NULLIF(v_item.dados_normalizados->>'pessoa_nome',''),'Fornecedor VHSYS')),
           'vhsys', v_item.dados_normalizados->>'fornecedor_vhsys_id', NOW()
         )
         ON CONFLICT (unidade, vhsys_id) WHERE vhsys_id IS NOT NULL
@@ -745,10 +745,10 @@ BEGIN
       ) VALUES (
         v_unidade, v_person_id,
         (v_item.dados_normalizados->>'data')::DATE,
-        v_item.dados_normalizados->>'numero_documento',
+        UPPER(v_item.dados_normalizados->>'numero_documento'),
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_total','')::NUMERIC,0),
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_st','')::NUMERIC,0),
-        'Importado do VHSYS', TRUE, 'vhsys', v_item.vhsys_id, NOW()
+        'IMPORTADO DO VHSYS', TRUE, 'vhsys', v_item.vhsys_id, NOW()
       )
       ON CONFLICT (unidade, vhsys_id) WHERE vhsys_id IS NOT NULL
       DO UPDATE SET fornecedor_id=EXCLUDED.fornecedor_id, data_compra=EXCLUDED.data_compra,
@@ -782,10 +782,10 @@ BEGIN
         1, (v_item.dados_normalizados->>'vencimento')::DATE,
         COALESCE(NULLIF(v_item.dados_normalizados->>'valor_total','')::NUMERIC,0),
         COALESCE(NULLIF(v_item.dados_normalizados->>'status',''),'pendente'),
-        v_item.dados_normalizados->>'numero_documento',
-        v_item.dados_normalizados->>'observacoes',
+        UPPER(v_item.dados_normalizados->>'numero_documento'),
+        UPPER(v_item.dados_normalizados->>'observacoes'),
         NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE,
-        NULLIF(v_item.dados_normalizados->>'categoria',''),
+        UPPER(NULLIF(v_item.dados_normalizados->>'categoria','')),
         TRUE, 'vhsys', v_item.vhsys_id, NOW()
       )
       ON CONFLICT (unidade, tipo, vhsys_id) WHERE vhsys_id IS NOT NULL
@@ -803,7 +803,7 @@ BEGIN
         INSERT INTO btx_pagamentos_parcela(parcela_id, valor, data_pagamento, observacoes)
         SELECT id, valor,
           COALESCE(NULLIF(v_item.dados_normalizados->>'data_pagamento','')::DATE, CURRENT_DATE),
-          'Baixa automática via VHSYS'
+          'BAIXA AUTOMÁTICA VIA VHSYS'
         FROM btx_parcelas WHERE id = v_local_id;
       END IF;
     END IF;
