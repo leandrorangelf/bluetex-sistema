@@ -365,7 +365,7 @@ function ModalConta({ conta, onClose, onGravou, readOnly, podeExcluir }: {
       open={!!conta}
       onClose={onClose}
       title={conta.descricao}
-      size="sm"
+      size="md"
       footer={travado ? (
         <>
           <button className="btn btn-secondary" onClick={onClose}>Fechar</button>
