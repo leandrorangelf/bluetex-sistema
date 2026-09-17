@@ -3,7 +3,7 @@ import type { AjusteEstoque, Produto } from '@/types'
 export type TipoMovimentoEstoque = 'entrada' | 'saida'
 export type OrigemMovimentoEstoque = 'compra' | 'venda' | 'ajuste'
 
-type RelacaoNomeEstoque = { nome: string } | { nome: string }[] | null | undefined
+export type RelacaoNomeEstoque = { nome: string } | { nome: string }[] | null | undefined
 export function nomeRelacaoEstoque(r: RelacaoNomeEstoque): string | undefined {
   return (Array.isArray(r) ? r[0]?.nome : r?.nome) || undefined
 }

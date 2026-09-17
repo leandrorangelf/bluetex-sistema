@@ -10,7 +10,11 @@ export interface ContaReceber {
   id: string; descricao: string; observacoes: string; vencimento: string; dataPagamento: string | null; valor: number
   categoria: string; unidade: string; vencida: boolean; proxima: boolean; paga: boolean
   gerenciadoPorVhsys: boolean; formaPagamento: 'boleto' | 'especie' | 'pix' | null
+  numeroParcela: number; numeroNf: string | null
 }
+// Info da venda de origem (cliente, NF) pra exibir em colunas próprias na
+// lista de recebíveis, em vez de embutir tudo na descrição.
+export interface VendaInfo { cliente: string | null; numeroNf: string | null }
 export interface GrupoPagar {
   grupo: GrupoCategoria; label: string
   subtotal: number  // ainda a pagar
@@ -21,10 +25,16 @@ export interface GrupoPagar {
 export interface LinhaCategoria {
   categoria: string; realizado: number; previsto: number
 }
+// Recebíveis em aberto (pendente/parcial), independente do mês selecionado —
+// "quanto tenho na rua": tudo que ainda vai entrar, vencido ou a vencer.
+export interface RecebiveisEmAberto {
+  total: number; vencido: number; aVencer: number; contas: ContaReceber[]
+}
 export interface ResumoUnidade {
   saldoHoje: number; saldoInicioMes: number; aReceberMes: number
   contasPagar: ContaPagar[]; gruposPagar: GrupoPagar[]
   contasReceber: ContaReceber[]
+  recebiveisEmAberto: RecebiveisEmAberto
   entradasPorCategoria: LinhaCategoria[]
   saidasPorCategoria: LinhaCategoria[]
   totalEntrou: number; totalPagou: number
@@ -39,6 +49,9 @@ export interface EntradaResumo {
   saldoBase: number; competenciaBase: string
   parcelas: ParcelaFinanceira[]; pagamentos: PagamentoParcela[]
   grupoPorDespesa: Map<string, GrupoCategoria>
+  // cliente/NF da venda de origem, por origem_id — só pra parcelas de receber
+  // vindas de venda (ver VendaInfo).
+  vendaInfoPorId?: Map<string, VendaInfo>
   // saldo real do banco (VHSYS), só pra exibir como referência — ver
   // saldoBancarioReferencia no retorno.
   saldoBancario?: number | null
@@ -60,6 +73,18 @@ function capitalizar(s: string): string {
 const GRUPO_LABEL: Record<GrupoCategoria, string> = {
   fornecedores: 'Fornecedores', impostos: 'Impostos', funcionarios: 'Funcionários',
   custos_fixos: 'Custos fixos', outros: 'Outros',
+}
+
+// Descrição (cliente/observação) e NF de uma parcela de receber: quando vem
+// de venda, usa cliente/numero_nf da venda; senão, observação/numero_boleto.
+function infoReceber(
+  p: ParcelaFinanceira, vendaInfoPorId?: Map<string, VendaInfo>,
+): { descricao: string; numeroNf: string | null } {
+  if (p.origem === 'venda' && p.origem_id) {
+    const info = vendaInfoPorId?.get(p.origem_id)
+    return { descricao: info?.cliente?.trim() || '—', numeroNf: info?.numeroNf?.trim() || null }
+  }
+  return { descricao: p.observacoes?.trim() || 'Recebimento', numeroNf: p.numero_boleto ?? null }
 }
 
 function categoriaDe(p: ParcelaFinanceira, grupo: GrupoCategoria): string {
@@ -158,9 +183,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
       catReceber.push({ categoria, valor: valorExibido, paga })
       contasReceber.push({
         id: p.id,
-        descricao: p.observacoes?.trim()
-          ? `${p.observacoes.trim()} · parc. ${p.numero_parcela}`
-          : `Recebimento (parc. ${p.numero_parcela})`,
+        ...infoReceber(p, input.vendaInfoPorId),
         observacoes: p.observacoes?.trim() ?? '',
         vencimento: p.vencimento,
         dataPagamento: paga ? p.data_pagamento : null,
@@ -172,6 +195,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
         proxima: !vencida && !paga && p.vencimento <= limiteProxima,
         paga,
         gerenciadoPorVhsys,
+        numeroParcela: p.numero_parcela,
       })
       continue
     }
@@ -194,6 +218,44 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
     })
   }
 
+  // Recebíveis em aberto (boletos e outros) — vencidos + a vencer, olhando
+  // TODAS as parcelas de receber ainda não pagas, sem restringir ao mês.
+  const recebiveisAbertosContas: ContaReceber[] = []
+  let recebivelVencido = 0
+  let recebivelAVencer = 0
+  for (const p of input.parcelas) {
+    if (p.tipo !== 'receber' || !p.ativo || p.status === 'pago' || p.status === 'cancelado') continue
+    const valorRestante = restante(p)
+    if (valorRestante <= 0) continue
+    const vencida = p.vencimento < input.hoje
+    const categoria = categoriaDe(p, 'outros')
+    recebiveisAbertosContas.push({
+      id: p.id,
+      ...infoReceber(p, input.vendaInfoPorId),
+      observacoes: p.observacoes?.trim() ?? '',
+      vencimento: p.vencimento,
+      dataPagamento: null,
+      valor: valorRestante,
+      categoria,
+      formaPagamento: p.forma_pagamento ?? null,
+      unidade: input.unidade,
+      vencida,
+      proxima: !vencida && p.vencimento <= limiteProxima,
+      paga: false,
+      gerenciadoPorVhsys: p.origem_sistema === 'vhsys',
+      numeroParcela: p.numero_parcela,
+    })
+    if (vencida) recebivelVencido += valorRestante
+    else recebivelAVencer += valorRestante
+  }
+  recebiveisAbertosContas.sort((a, b) => a.vencimento.localeCompare(b.vencimento))
+  const recebiveisEmAberto: RecebiveisEmAberto = {
+    total: recebivelVencido + recebivelAVencer,
+    vencido: recebivelVencido,
+    aVencer: recebivelAVencer,
+    contas: recebiveisAbertosContas,
+  }
+
   const gruposPagar = montarGrupos(contasPagar)
   const totalDespesas = contasPagar.filter(c => !c.paga).reduce((s, c) => s + c.valor, 0)
   const entradas = agruparPorCategoria(catReceber)
@@ -208,6 +270,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
     contasPagar,
     gruposPagar,
     contasReceber,
+    recebiveisEmAberto,
     entradasPorCategoria: entradas.linhas,
     saidasPorCategoria: saidas.linhas,
     totalEntrou: entradas.realizado,
@@ -242,6 +305,12 @@ export function consolidarResumos(resumos: ResumoUnidade[]): ResumoUnidade {
     contasPagar,
     gruposPagar: montarGrupos(contasPagar),
     contasReceber,
+    recebiveisEmAberto: {
+      contas: resumos.flatMap(r => r.recebiveisEmAberto.contas).sort((a, b) => a.vencimento.localeCompare(b.vencimento)),
+      vencido: soma(r => r.recebiveisEmAberto.vencido),
+      aVencer: soma(r => r.recebiveisEmAberto.aVencer),
+      total: soma(r => r.recebiveisEmAberto.total),
+    },
     entradasPorCategoria: mesclarCategorias(resumos.map(r => r.entradasPorCategoria)),
     saidasPorCategoria: mesclarCategorias(resumos.map(r => r.saidasPorCategoria)),
     totalEntrou: soma(r => r.totalEntrou),
