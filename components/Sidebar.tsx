@@ -31,7 +31,7 @@ export default function Sidebar() {
       <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <Logo tamanho="sm" cor="claro" />
         {unidadeAtiva && (
-          <div style={{ fontSize: 11, color: '#CC2222', fontWeight: 600, marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--brand-on-dark)', fontWeight: 600, marginTop: 8 }}>
             {unidadeAtiva}
           </div>
         )}
