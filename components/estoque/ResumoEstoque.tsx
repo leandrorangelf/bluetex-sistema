@@ -1,12 +1,13 @@
 import type { PainelEstoque } from '@/lib/estoque'
+import { formatMoeda } from '@/lib/utils'
 
-interface Props { resumo: PainelEstoque['resumo'] }
+interface Props { resumo: PainelEstoque['resumo']; valorEstoque?: number }
 
 function quantidade(valor: number) {
   return valor.toLocaleString('pt-BR')
 }
 
-export default function ResumoEstoque({ resumo }: Props) {
+export default function ResumoEstoque({ resumo, valorEstoque }: Props) {
   const cards = [
     ['Produtos', resumo.produtos, 'stock-summary-neutral'],
     ['Entradas do mês', resumo.entradas, 'stock-summary-in'],
@@ -23,6 +24,13 @@ export default function ResumoEstoque({ resumo }: Props) {
           <small>unidades base</small>
         </article>
       ))}
+      {valorEstoque != null && (
+        <article className="stock-summary-card stock-summary-valor">
+          <span>Valor de estoque</span>
+          <strong>{formatMoeda(valorEstoque)}</strong>
+          <small>a preço médio de venda</small>
+        </article>
+      )}
     </section>
   )
 }

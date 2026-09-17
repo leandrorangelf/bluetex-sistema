@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData, itensCaixas } from '@/lib/utils'
 import type { Compra } from '@/types'
-import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
+import { calcularEstoque, calcularPrecoMedioVenda, calcularValorEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
 import RelatorioMovimentosEstoque from '@/components/estoque/RelatorioMovimentosEstoque'
@@ -64,7 +64,7 @@ export default function EstoqueAtualPage() {
       sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome'),
       sb.from('btx_estoque_inicial').select('id,produto_id,mes,ano,qtd_carteiras').eq('unidade', unidade),
       sb.from('btx_compras').select('id,data_compra,numero_nf,fornecedor:btx_fornecedores(nome),itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('unidade', unidade).eq('ativo', true),
-      sb.from('btx_vendas').select('id,data_venda,numero_nf,cliente:btx_clientes(nome),itens:btx_vendas_itens(id,produto_id,qtd_carteiras)').eq('unidade', unidade).eq('ativo', true),
+      sb.from('btx_vendas').select('id,data_venda,numero_nf,cliente:btx_clientes(nome),itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor)').eq('unidade', unidade).eq('ativo', true),
       sb.from('btx_ajustes_estoque').select('*').eq('unidade', unidade).eq('ativo', true),
     ])
     if (consultas.some(resultado => resultado.error)) {
@@ -108,6 +108,9 @@ export default function EstoqueAtualPage() {
     movimentos: normalizarMovimentosEstoque(compras, vendas, ajustes),
     produtoId: produtoId || undefined,
   }), [ano, mes, produtoId, produtos, aberturas, compras, vendas, ajustes])
+
+  const precoMedioVenda = useMemo(() => calcularPrecoMedioVenda(vendas), [vendas])
+  const valorEstoque = useMemo(() => calcularValorEstoque(painel.saldos, precoMedioVenda), [painel.saldos, precoMedioVenda])
 
   function navMes(direcao: number) {
     let novoMes = mes + direcao
@@ -206,9 +209,9 @@ export default function EstoqueAtualPage() {
         : loading ? <div className="stock-loading">Carregando estoque...</div>
         : error && !ajusteModal ? <div className="alert alert-red stock-error"><span>{error}</span><button className="btn btn-secondary btn-sm" onClick={loadData}>Tentar novamente</button></div>
         : <>
-          <ResumoEstoque resumo={painel.resumo} />
+          <ResumoEstoque resumo={painel.resumo} valorEstoque={valorEstoque} />
           <CalendarioEstoque ano={ano} mes={mes} movimentos={painel.movimentos} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />
-          <TabelaSaldosEstoque saldos={painel.saldos} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
+          <TabelaSaldosEstoque saldos={painel.saldos} precoMedioVenda={precoMedioVenda} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
           <div className="stock-tabs" role="tablist">
             <button className={tab === 'movimentos' ? 'active' : ''} onClick={() => setTab('movimentos')} role="tab" aria-selected={tab === 'movimentos'}>Movimentações</button>
             {veTudo && <button className={tab === 'auditoria' ? 'active' : ''} onClick={() => setTab('auditoria')} role="tab" aria-selected={tab === 'auditoria'}>Histórico de alterações</button>}

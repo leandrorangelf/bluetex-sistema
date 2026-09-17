@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calcularEstoque, type AberturaEstoque, type MovimentoEstoque, type ProdutoEstoque } from '../lib/estoque.ts'
+import { calcularEstoque, calcularPrecoMedioVenda, calcularValorEstoque, type AberturaEstoque, type MovimentoEstoque, type ProdutoEstoque, type SaldoProduto, type VendaEstoqueDb } from '../lib/estoque.ts'
 
 const produtos: ProdutoEstoque[] = [
   { id: 'p1', nome: 'Produto A', fatorConversao: 10 },
@@ -89,4 +89,28 @@ test('desempata movimentos do mesmo dia por identificador', () => {
 
   assert.deepEqual(painel.movimentos.map(item => item.id), ['a', 'b'])
   assert.deepEqual(painel.movimentos.map(item => item.saldoApos), [85, 83])
+})
+
+test('calcula preço médio de venda ponderado pela quantidade, não pela contagem de vendas', () => {
+  const vendas: VendaEstoqueDb[] = [
+    { id: 'v1', data_venda: '2026-01-10', numero_nf: '1', itens: [{ id: 'i1', produto_id: 'p1', qtd_carteiras: 100, valor: 500 }] },
+    { id: 'v2', data_venda: '2026-02-10', numero_nf: '2', itens: [{ id: 'i2', produto_id: 'p1', qtd_carteiras: 400, valor: 2400 }] },
+    { id: 'v3', data_venda: '2026-02-11', numero_nf: '3', itens: [{ id: 'i3', produto_id: 'p2', qtd_carteiras: 0, valor: 0 }] },
+  ]
+  const precos = calcularPrecoMedioVenda(vendas)
+
+  // (500 + 2400) / (100 + 400) = 5.8 — não a média simples de 5 e 6
+  assert.equal(precos.get('p1'), 5.8)
+  assert.equal(precos.has('p2'), false)
+})
+
+test('valoriza o estoque pelo saldo atual (nunca negativo) vezes o preço médio de venda', () => {
+  const saldos: SaldoProduto[] = [
+    { produtoId: 'p1', produtoNome: 'Produto A', fatorConversao: 10, saldoInicioMes: 0, compras: 0, vendas: 0, ajustesEntrada: 0, ajustesSaida: 0, saldoAtual: 90 },
+    { produtoId: 'p2', produtoNome: 'Produto B', fatorConversao: 20, saldoInicioMes: 0, compras: 0, vendas: 0, ajustesEntrada: 0, ajustesSaida: 0, saldoAtual: -15 },
+    { produtoId: 'p3', produtoNome: 'Sem venda', fatorConversao: 1, saldoInicioMes: 0, compras: 0, vendas: 0, ajustesEntrada: 0, ajustesSaida: 0, saldoAtual: 50 },
+  ]
+  const precos = new Map([['p1', 5.8], ['p2', 3]])
+
+  assert.equal(calcularValorEstoque(saldos, precos), 90 * 5.8)
 })

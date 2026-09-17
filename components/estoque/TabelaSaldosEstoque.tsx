@@ -1,13 +1,14 @@
-import { converterParaUnidadeMaior } from '@/lib/utils'
+import { converterParaUnidadeMaior, formatMoeda } from '@/lib/utils'
 import type { SaldoProduto } from '@/lib/estoque'
 
 interface Props {
   saldos: SaldoProduto[]
+  precoMedioVenda?: Map<string, number>
   produtoSelecionado?: string
   onSelectProduto?: (produtoId: string) => void
 }
 
-export default function TabelaSaldosEstoque({ saldos, produtoSelecionado, onSelectProduto }: Props) {
+export default function TabelaSaldosEstoque({ saldos, precoMedioVenda, produtoSelecionado, onSelectProduto }: Props) {
   const cx = (base: number, fator: number) => converterParaUnidadeMaior(base, fator)
   return (
     <section className="stock-panel">
@@ -24,11 +25,13 @@ export default function TabelaSaldosEstoque({ saldos, produtoSelecionado, onSele
             <th className="num">Saída</th>
             <th className="num">Ajustes</th>
             <th className="num">Saldo</th>
+            {precoMedioVenda && <th className="num">Valor (preço médio venda)</th>}
           </tr></thead>
           <tbody>
-            {saldos.length === 0 ? <tr><td colSpan={6} className="empty-state">Nenhum produto encontrado.</td></tr> : saldos.map(item => {
+            {saldos.length === 0 ? <tr><td colSpan={precoMedioVenda ? 7 : 6} className="empty-state">Nenhum produto encontrado.</td></tr> : saldos.map(item => {
               const ajustes = item.ajustesEntrada - item.ajustesSaida
               const selecionado = produtoSelecionado === item.produtoId
+              const precoMedio = precoMedioVenda?.get(item.produtoId) ?? 0
               return (
                 <tr
                   key={item.produtoId}
@@ -41,6 +44,9 @@ export default function TabelaSaldosEstoque({ saldos, produtoSelecionado, onSele
                   <td className="mono num stock-negative">{item.vendas ? `−${cx(item.vendas, item.fatorConversao)}` : '—'}</td>
                   <td className={`mono num ${ajustes < 0 ? 'stock-negative' : ajustes > 0 ? 'stock-positive' : ''}`}>{ajustes ? `${ajustes > 0 ? '+' : '−'}${cx(Math.abs(ajustes), item.fatorConversao)}` : '—'}</td>
                   <td className={`mono num stock-current ${item.saldoAtual < 0 ? 'stock-negative' : ''}`}>{cx(item.saldoAtual, item.fatorConversao)}</td>
+                  {precoMedioVenda && (
+                    <td className="mono num">{precoMedio > 0 ? formatMoeda(Math.max(item.saldoAtual, 0) * precoMedio) : '—'}</td>
+                  )}
                 </tr>
               )
             })}

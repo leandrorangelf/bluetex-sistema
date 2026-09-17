@@ -7,13 +7,14 @@ import { useAuth } from '@/lib/auth-context'
 import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos, labelFormaPagamento } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber, type VendaInfo } from '@/lib/painel-resumo'
-import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
+import { calcularEstoque, calcularPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
 import { UNIDADES, type Unidade, type GrupoCategoria, type Produto, type AjusteEstoque } from '@/types'
 import Modal from '@/components/Modal'
 
 interface LinhaEstoque {
   id: string; nome: string; fator: number; unidadeBase: string; unidadeMaior: string
   saldos: Record<string, number>
+  precoMedioVenda: number
 }
 
 async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number, mes: number, alvos: string[]): Promise<LinhaEstoque[]> {
@@ -21,7 +22,7 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
     sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true),
     sb.from('btx_estoque_inicial').select('id,unidade,produto_id,mes,ano,qtd_carteiras').in('unidade', alvos),
     sb.from('btx_compras').select('id,unidade,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
-    sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
+    sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_ajustes_estoque').select('*').eq('ativo', true).in('unidade', alvos),
   ])
   const produtosNorm = normalizarProdutosEstoque(ordenarProdutos((produtosRes.data ?? []) as Produto[]))
@@ -29,6 +30,7 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
   const compras = (comprasRes.data ?? []) as unknown as (CompraEstoqueDb & { unidade: string })[]
   const vendas = (vendasRes.data ?? []) as unknown as (VendaEstoqueDb & { unidade: string })[]
   const ajustes = (ajustesRes.data ?? []) as AjusteEstoque[]
+  const precoMedioVenda = calcularPrecoMedioVenda(vendas)
 
   const saldosPorProduto = new Map<string, Record<string, number>>()
   for (const u of alvos) {
@@ -47,6 +49,7 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
     id: p.id, nome: p.nome, fator: p.fatorConversao,
     unidadeBase: p.unidadeBase ?? '', unidadeMaior: p.unidadeMaior ?? '',
     saldos: saldosPorProduto.get(p.id) ?? {},
+    precoMedioVenda: precoMedioVenda.get(p.id) ?? 0,
   }))
 }
 
@@ -57,6 +60,7 @@ function caixas(base: number, fator: number): string {
 }
 
 function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: LinhaEstoque[]; unidade: string }) {
+  const valorEstoque = linhas.reduce((total, l) => total + Math.max(l.saldos[unidade] ?? 0, 0) * l.precoMedioVenda, 0)
   return (
     <Link href="/estoque-atual" className="card card-accent card-hover" style={{ textDecoration: 'none', color: 'inherit', display: 'block', '--accent-cor': 'var(--brand)' } as React.CSSProperties}>
       <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{titulo} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>· estoque em caixas</span></div>
@@ -69,6 +73,10 @@ function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: Linh
           </div>
         )
       })}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>Valor de estoque <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 10 }}>(preço médio de venda)</span></span>
+        <span className="mono text-green" style={{ fontSize: 13, fontWeight: 700 }}>{formatMoeda(valorEstoque)}</span>
+      </div>
     </Link>
   )
 }

@@ -565,6 +565,8 @@ td.cell-actions { white-space: nowrap; }
 .stock-summary-in::before { background: #16845b; }
 .stock-summary-out::before, .stock-summary-negative::before { background: var(--red); }
 .stock-summary-balance::before { background: #3158a6; }
+.stock-summary-valor::before { background: var(--green); }
+.stock-summary-valor strong { color: var(--green); }
 .stock-summary-negative strong { color: var(--red); }
 .stock-panel { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .stock-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); }

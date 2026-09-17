@@ -9,7 +9,7 @@ export function nomeRelacaoEstoque(r: RelacaoNomeEstoque): string | undefined {
 }
 
 export interface AberturaEstoqueDb { id: string; produto_id: string; mes: number; ano: number; qtd_carteiras: number }
-export interface ItemMovimentoEstoqueDb { id: string; produto_id: string; qtd_carteiras: number }
+export interface ItemMovimentoEstoqueDb { id: string; produto_id: string; qtd_carteiras: number; valor?: number }
 export interface CompraEstoqueDb { id: string; data_compra: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[]; fornecedor?: RelacaoNomeEstoque }
 export interface VendaEstoqueDb { id: string; data_venda: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[]; cliente?: RelacaoNomeEstoque }
 
@@ -178,6 +178,32 @@ export function normalizarProdutosEstoque(produtos: Produto[]): ProdutoEstoque[]
 
 export function normalizarAberturasEstoque(aberturas: AberturaEstoqueDb[]): AberturaEstoque[] {
   return aberturas.map(item => ({ id: item.id, produtoId: item.produto_id, ano: item.ano, mes: item.mes, quantidade: Number(item.qtd_carteiras) }))
+}
+
+// Preço médio de venda por unidade base de cada produto (histórico completo,
+// ponderado pela quantidade de cada venda) — usado pra valorizar o estoque
+// pelo que ele vale se vendido, não pelo custo de compra.
+export function calcularPrecoMedioVenda(vendas: VendaEstoqueDb[]): Map<string, number> {
+  const acumulado = new Map<string, { valor: number; qtd: number }>()
+  for (const venda of vendas) {
+    for (const item of venda.itens ?? []) {
+      const qtd = Number(item.qtd_carteiras)
+      if (!qtd || item.valor == null) continue
+      const atual = acumulado.get(item.produto_id) ?? { valor: 0, qtd: 0 }
+      atual.valor += Number(item.valor)
+      atual.qtd += qtd
+      acumulado.set(item.produto_id, atual)
+    }
+  }
+  const precos = new Map<string, number>()
+  for (const [produtoId, { valor, qtd }] of acumulado) {
+    if (qtd > 0) precos.set(produtoId, valor / qtd)
+  }
+  return precos
+}
+
+export function calcularValorEstoque(saldos: SaldoProduto[], precoMedioVenda: Map<string, number>): number {
+  return saldos.reduce((total, s) => total + Math.max(s.saldoAtual, 0) * (precoMedioVenda.get(s.produtoId) ?? 0), 0)
 }
 
 export function normalizarMovimentosEstoque(compras: CompraEstoqueDb[], vendas: VendaEstoqueDb[], ajustes: AjusteEstoque[]): MovimentoEstoque[] {
