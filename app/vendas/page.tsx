@@ -92,7 +92,15 @@ function ListaVendas({ unidade }: { unidade?: string }) {
   return (
     <div>
       <div className="table-wrap">
-        <table>
+        <table className="table-vendas">
+          <colgroup>
+            <col style={{ width: 100 }} />
+            <col style={{ width: 120 }} />
+            <col />
+            <col />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 100 }} />
+          </colgroup>
           <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Produtos (caixas)</th><th className="num">Total NF</th><th className="num">Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={6} className="empty-state">Carregando...</td></tr>
@@ -100,7 +108,10 @@ function ListaVendas({ unidade }: { unidade?: string }) {
             : rows.map(r => (
               <tr key={r.id}>
                 <td className="mono">{formatData(r.data_venda)}</td>
-                <td className="mono">{r.numero_nf ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
+                <td className="mono" style={{ fontWeight: 700 }}>
+                  {r.numero_nf ?? '—'}
+                  {isVhsysManaged(r) && <span className="badge badge-purple" style={{ display: 'block', width: 'fit-content', marginTop: 4 }}>VHSYS</span>}
+                </td>
                 <td>{(r.cliente as unknown as { nome: string })?.nome ?? '—'}</td>
                 <td className="cell-wrap" style={{ fontSize: 12 }}>{itensCaixas(r.itens)}</td>
                 <td className="mono num">{formatMoeda(r.valor_total)}</td>
