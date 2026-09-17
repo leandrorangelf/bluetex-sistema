@@ -135,6 +135,10 @@ td.cell-wrap { white-space: normal; max-width: 340px; overflow-wrap: anywhere; }
 td.cell-actions { white-space: nowrap; }
 .row-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
 
+/* tabela padronizada: texto em caixa alta, linha separando cada lançamento com mais destaque */
+.table-vendas td { text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.table-vendas tbody tr:nth-child(even) { background: var(--bg); }
+
 /* Badges */
 .badge {
   display: inline-flex; align-items: center; padding: 3px 8px;
