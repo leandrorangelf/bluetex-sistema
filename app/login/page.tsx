@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import Logo from '@/components/Logo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -30,7 +31,7 @@ export default function LoginPage() {
     <div className="login-shell">
       <div className="login-brand">
         <div>
-          <div className="login-brand-kicker">New Bluetex</div>
+          <Logo tamanho="lg" cor="claro" />
           <h2 className="login-brand-title">Sistema de gestão para distribuidoras</h2>
           <p className="login-brand-sub">
             Controle de vendas, estoque, compras e financeiro em um só lugar.
@@ -42,7 +43,7 @@ export default function LoginPage() {
       <div className="login-form-panel">
         <div className="login-form-card">
           <div className="login-form-header">
-            <div className="login-brand-kicker">New Bluetex</div>
+            <Logo tamanho="sm" cor="escuro" />
             <h1>Entrar</h1>
             <p>Acesse com seu e-mail e senha cadastrados.</p>
           </div>

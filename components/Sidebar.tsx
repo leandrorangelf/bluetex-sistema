@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { UNIDADES, type Unidade } from '@/types'
+import Logo from './Logo'
 
 const NAV = [
   { href: '/dashboard', label: 'Painel' },
@@ -28,14 +29,9 @@ export default function Sidebar() {
     <aside className="sidebar">
       {/* Logo */}
       <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: 4 }}>
-          NEW BLUETEX
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
-          Sistema
-        </div>
+        <Logo tamanho="sm" cor="claro" />
         {unidadeAtiva && (
-          <div style={{ fontSize: 11, color: '#CC2222', fontWeight: 600, marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: '#CC2222', fontWeight: 600, marginTop: 8 }}>
             {unidadeAtiva}
           </div>
         )}
