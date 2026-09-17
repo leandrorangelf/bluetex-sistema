@@ -103,29 +103,28 @@ interface LinhaMatriz {
 // Pivô cliente × mês: uma linha por cliente, uma coluna por mês, valor =
 // total de caixas daquele cliente no mês (soma de todos os produtos —
 // já vem pronto em caixas_total_mes, só precisa desduplicar por cliente/mês).
-// Com um ano específico selecionado, as 12 colunas (jan a dez) sempre
-// aparecem, mesmo zeradas — mesmo padrão pra todas as unidades. Com
-// "todos os anos", não dá pra saber o intervalo, então só mostra os
-// meses que realmente têm alguma linha.
-function montarMatriz(linhas: LinhaRelatorio[], ano: string): { clientes: LinhaMatriz[]; meses: string[] } {
+// As 12 colunas (jan a dez) sempre aparecem pra qualquer ano que tenha ao
+// menos uma linha, mesmo com meses zerados nesse ano — inclusive com
+// "todos os anos" selecionado (aí gera jan-dez de cada ano que apareceu,
+// não só de um). Ano sem nenhuma venda simplesmente não entra.
+function montarMatriz(linhas: LinhaRelatorio[]): { clientes: LinhaMatriz[]; meses: string[] } {
   const porCliente = new Map<string, Map<string, number>>()
-  const mesesSet = new Set<string>()
+  const anosSet = new Set<string>()
   for (const linha of linhas) {
-    mesesSet.add(linha.mes)
+    anosSet.add(linha.mes.slice(0, 4))
     if (!porCliente.has(linha.cliente)) porCliente.set(linha.cliente, new Map())
     porCliente.get(linha.cliente)!.set(linha.mes, linha.caixas_total_mes)
   }
-  const meses = /^\d{4}$/.test(ano)
-    ? Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, '0')}`)
-    : [...mesesSet].sort()
+  const meses = [...anosSet].sort()
+    .flatMap((anoLinha) => Array.from({ length: 12 }, (_, i) => `${anoLinha}-${String(i + 1).padStart(2, '0')}`))
   const clientes = [...porCliente.entries()]
     .map(([cliente, totalPorMes]) => ({ cliente, totalPorMes }))
     .sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR'))
   return { clientes, meses }
 }
 
-function exportarMatrizCsv(linhas: LinhaRelatorio[], unidade: string, ano: string) {
-  const { clientes, meses } = montarMatriz(linhas, ano)
+function exportarMatrizCsv(linhas: LinhaRelatorio[], unidade: string) {
+  const { clientes, meses } = montarMatriz(linhas)
   const infoUnidade = ESTADO_E_COORD_POR_UNIDADE[unidade]
   const cabecalho = ['CLIENTE', 'ESTADO', 'REPRESENTANTES', ...meses.map(formatarMes)]
   const linhasCsv = clientes.map(({ cliente, totalPorMes }) => [
@@ -464,12 +463,12 @@ export default function RelatorioVendasVhsysPage() {
             <span>
               <strong>Total por cliente/mês</strong> (todos os produtos somados — mesmo formato da sua planilha)
             </span>
-            <button className="btn btn-primary" onClick={() => exportarMatrizCsv(dados.linhas, unidade, ano)}>
+            <button className="btn btn-primary" onClick={() => exportarMatrizCsv(dados.linhas, unidade)}>
               Exportar por cliente × mês
             </button>
           </p>
           {(() => {
-            const { clientes, meses } = montarMatriz(dados.linhas, ano)
+            const { clientes, meses } = montarMatriz(dados.linhas)
             const infoUnidade = ESTADO_E_COORD_POR_UNIDADE[unidade]
             return (
               <div style={{ overflowX: 'auto' }}>
