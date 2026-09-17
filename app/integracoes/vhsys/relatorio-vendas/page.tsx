@@ -405,7 +405,7 @@ export default function RelatorioVendasVhsysPage() {
               {dados.total_linhas} linhas · Total geral: <strong>{formatoMoeda.format(dados.valor_total)}</strong>
             </span>
             <button className="btn btn-primary" onClick={() => exportarCsv(dados.linhas)}>
-              Exportar para Excel
+              Exportar detalhado (linha a linha)
             </button>
           </p>
           {dados.linhas.length === 0 ? (
@@ -465,7 +465,7 @@ export default function RelatorioVendasVhsysPage() {
               <strong>Total por cliente/mês</strong> (todos os produtos somados — mesmo formato da sua planilha)
             </span>
             <button className="btn btn-primary" onClick={() => exportarMatrizCsv(dados.linhas, unidade, ano)}>
-              Exportar para Excel
+              Exportar por cliente × mês
             </button>
           </p>
           {(() => {
