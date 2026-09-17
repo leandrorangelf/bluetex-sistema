@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
-import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, hoje, ordenarProdutos } from '@/lib/utils'
+import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber } from '@/lib/painel-resumo'
 import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
@@ -346,6 +346,8 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
 
   if (!conta) return null
   const travado = readOnly || conta.gerenciadoPorVhsys
+  const tipo: 'pagar' | 'receber' = 'grupo' in conta ? 'pagar' : 'receber'
+  const hrefBaixa = `/${tipo === 'pagar' ? 'parcelas-pagar' : 'parcelas-receber'}?abrir=${conta.id}`
 
   async function run(patch: Record<string, unknown>) {
     setSaving(true)
@@ -361,12 +363,15 @@ function ModalConta({ conta, onClose, onGravou, readOnly }: {
       title={conta.descricao}
       size="sm"
       footer={travado ? (
-        <button className="btn btn-secondary" onClick={onClose}>Fechar</button>
+        <>
+          <button className="btn btn-secondary" onClick={onClose}>Fechar</button>
+          <Link href={hrefBaixa} className="btn btn-primary" onClick={onClose}>Abrir em {tipo === 'pagar' ? 'Contas a Pagar' : 'Contas a Receber'} →</Link>
+        </>
       ) : (
         <>
           <button className="btn btn-danger" disabled={saving} onClick={() => run({ status: 'cancelado' })}>Cancelar conta</button>
           <button className="btn btn-secondary" disabled={saving} onClick={() => run({ vencimento: venc, valor: val, observacoes: obs.trim() || null })}>Salvar alteração</button>
-          <button className="btn btn-primary" disabled={saving} onClick={() => run({ status: 'pago', data_pagamento: hoje() })}>Marcar pago</button>
+          <Link href={hrefBaixa} className="btn btn-primary" onClick={onClose}>Dar baixa / pagamento →</Link>
         </>
       )}
     >

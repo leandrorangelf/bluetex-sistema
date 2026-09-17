@@ -1,6 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { formatMoeda, formatData, hoje, mesAtual, anoAtual, getMesAnoLabel } from '@/lib/utils'
@@ -26,6 +27,9 @@ function diasAtraso(vencimento: string, hojeStr: string) {
 
 export default function ParcelasReceberPage() {
   const { profile, unidadeAtiva } = useAuth()
+  const searchParams = useSearchParams()
+  const abrirId = searchParams.get('abrir')
+  const abrirTratado = useRef(false)
   const isDiretoria = profile?.role === 'diretoria'
   const [rows, setRows] = useState<Parcela[]>([])
   const [pagMap, setPagMap] = useState<Map<string, PagamentoRow[]>>(new Map())
@@ -47,6 +51,26 @@ export default function ParcelasReceberPage() {
   const sb = createClient()
 
   useEffect(() => { load() }, [unidadeAtiva, statusFiltro])
+
+  // veio de um link do Painel pra dar baixa/ver uma conta específica — força
+  // os filtros a mostrarem ela e abre o modal certo assim que carregar.
+  useEffect(() => {
+    if (abrirId) { setStatusFiltro('todos'); setTodosMeses(true) }
+  }, [abrirId])
+
+  useEffect(() => {
+    if (!abrirId || abrirTratado.current || rows.length === 0) return
+    const row = rows.find(r => r.id === abrirId)
+    if (!row) return
+    abrirTratado.current = true
+    if (!isVhsysManaged(row) && (row.status === 'pendente' || row.status === 'parcial')) {
+      setReceberRow(row)
+    } else {
+      setFormEdit({ vencimento: row.vencimento, valor: row.valor })
+      setNota(row.nota_interna ?? '')
+      setVerId(row.id)
+    }
+  }, [abrirId, rows])
 
   async function load() {
     setLoading(true)

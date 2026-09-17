@@ -3,10 +3,15 @@ import type { AjusteEstoque, Produto } from '@/types'
 export type TipoMovimentoEstoque = 'entrada' | 'saida'
 export type OrigemMovimentoEstoque = 'compra' | 'venda' | 'ajuste'
 
+type RelacaoNomeEstoque = { nome: string } | { nome: string }[] | null | undefined
+export function nomeRelacaoEstoque(r: RelacaoNomeEstoque): string | undefined {
+  return (Array.isArray(r) ? r[0]?.nome : r?.nome) || undefined
+}
+
 export interface AberturaEstoqueDb { id: string; produto_id: string; mes: number; ano: number; qtd_carteiras: number }
 export interface ItemMovimentoEstoqueDb { id: string; produto_id: string; qtd_carteiras: number }
-export interface CompraEstoqueDb { id: string; data_compra: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[] }
-export interface VendaEstoqueDb { id: string; data_venda: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[] }
+export interface CompraEstoqueDb { id: string; data_compra: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[]; fornecedor?: RelacaoNomeEstoque }
+export interface VendaEstoqueDb { id: string; data_venda: string; numero_nf: string | null; itens: ItemMovimentoEstoqueDb[]; cliente?: RelacaoNomeEstoque }
 
 export interface ProdutoEstoque {
   id: string
@@ -33,6 +38,8 @@ export interface MovimentoEstoque {
   quantidade: number
   documento?: string
   descricao?: string
+  // fornecedor (entrada/compra) ou cliente (saída/venda) — "de quem veio" / "pra quem foi"
+  contraparte?: string
 }
 
 export interface MovimentoEstoqueCalculado extends MovimentoEstoque {
@@ -182,6 +189,7 @@ export function normalizarMovimentosEstoque(compras: CompraEstoqueDb[], vendas: 
     origem: 'compra' as const,
     quantidade: Number(item.qtd_carteiras),
     documento: compra.numero_nf ? `NF ${compra.numero_nf}` : 'Compra sem NF',
+    contraparte: nomeRelacaoEstoque(compra.fornecedor),
   })))
   const saidas = vendas.flatMap(venda => (venda.itens ?? []).map(item => ({
     id: item.id,
@@ -191,6 +199,7 @@ export function normalizarMovimentosEstoque(compras: CompraEstoqueDb[], vendas: 
     origem: 'venda' as const,
     quantidade: Number(item.qtd_carteiras),
     documento: venda.numero_nf ? `NF ${venda.numero_nf}` : 'Venda sem NF',
+    contraparte: nomeRelacaoEstoque(venda.cliente),
   })))
   const correcoes = ajustes.filter(item => item.ativo).map(item => ({
     id: item.id,
