@@ -23,6 +23,7 @@ export default function ProdutosPage() {
   const [err, setErr] = useState('')
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
+  const podeGerenciar = profile?.role === 'admin' || profile?.role === 'unidade'
 
   useEffect(() => { load() }, [])
 
@@ -69,12 +70,12 @@ export default function ProdutosPage() {
     <div>
       <div className="page-header">
         <div><h1 className="page-title">Produtos</h1><div className="page-subtitle">Catálogo de produtos da distribuidora</div></div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNew}>+ Novo produto</button>}
+        {podeGerenciar && <button className="btn btn-primary" onClick={openNew}>+ Novo produto</button>}
       </div>
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Produto</th><th>Unid. base</th><th>Unid. maior</th><th>Fator</th>{isAdmin && <th>Ações</th>}</tr></thead>
+          <thead><tr><th>Produto</th><th>Unid. base</th><th>Unid. maior</th><th>Fator</th>{podeGerenciar && <th>Ações</th>}</tr></thead>
           <tbody>
             {loading ? (
               <tr><td colSpan={5} className="empty-state">Carregando...</td></tr>
@@ -86,7 +87,7 @@ export default function ProdutosPage() {
                 <td>{r.unidade_base?.nome}</td>
                 <td>{r.unidade_maior?.nome}</td>
                 <td className="mono">{r.fator_conversao}</td>
-                {isAdmin && (
+                {podeGerenciar && (
                   <td style={{ display: 'flex', gap: 6 }}>
                     {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span> : <>
                       <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>

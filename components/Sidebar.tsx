@@ -13,7 +13,7 @@ const NAV = [
   { href: '/parcelas-receber', label: 'Contas a Receber' },
   { href: '/estoque-atual', label: 'Estoque' },
   { section: 'Cadastros' },
-  { href: '/produtos', label: 'Produtos', unidadeHidden: true },
+  { href: '/produtos', label: 'Produtos' },
   { href: '/clientes', label: 'Clientes', unidadeHidden: true },
   { href: '/fornecedores', label: 'Fornecedores' },
   { href: '/categorias', label: 'Categorias', unidadeHidden: true },
