@@ -45,7 +45,7 @@ export default function ParcelasReceberPage() {
   const [receberRow, setReceberRow] = useState<Parcela | null>(null)
   const [receberSaving, setReceberSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
-  const [formEdit, setFormEdit] = useState<{ data_lancamento: string; vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix'; nf: string; texto: string }>({ data_lancamento: '', vencimento: '', valor: 0, forma_pagamento: 'boleto', nf: '', texto: '' })
+  const [formEdit, setFormEdit] = useState<{ vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix'; nf: string; texto: string }>({ vencimento: '', valor: 0, forma_pagamento: 'boleto', nf: '', texto: '' })
   const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -64,7 +64,7 @@ export default function ParcelasReceberPage() {
   // livre digitado por alguém, então pode ter erro de digitação.
   function formEditFromRow(r: Parcela) {
     const nf = nfMap.get(r.id)
-    return { data_lancamento: r.data_lancamento, vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? ('boleto' as const), nf: nf && nf !== '—' ? nf : '', texto: r.observacoes?.trim() ?? '' }
+    return { vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? ('boleto' as const), nf: nf && nf !== '—' ? nf : '', texto: r.observacoes?.trim() ?? '' }
   }
 
   useEffect(() => {
@@ -159,7 +159,7 @@ export default function ParcelasReceberPage() {
   async function salvarEdit() {
     if (!verRow || isVhsysManaged(verRow)) return
     setSaving(true)
-    await sb.from('btx_parcelas').update({ data_lancamento: formEdit.data_lancamento, vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento }).eq('id', verRow.id)
+    await sb.from('btx_parcelas').update({ vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento }).eq('id', verRow.id)
     if (verRow.origem === 'venda' && verRow.origem_id) {
       await sb.from('btx_vendas').update({ numero_nf: formEdit.nf.trim() || null }).eq('id', verRow.origem_id)
     } else {
@@ -318,13 +318,17 @@ export default function ParcelasReceberPage() {
             <label className="form-label">Nº do boleto / NF</label>
             <input className="form-input" value={formEdit.nf} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, nf: e.target.value }))} placeholder="Ex.: 2388" />
           </div>
-          <div className="form-group">
-            <label className="form-label">Data do lançamento</label>
-            <input className="form-input" type="date" value={formEdit.data_lancamento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, data_lancamento: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Vencimento</label>
-            <input className="form-input" type="date" value={formEdit.vencimento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, vencimento: e.target.value }))} />
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label" style={{ color: 'var(--red)' }}>Vencimento</label>
+              <input className="form-input" type="date" value={formEdit.vencimento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, vencimento: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ color: 'var(--green)' }}>Recebido em</label>
+              <div className="form-input mono" style={{ background: 'var(--surface2)', color: verRow.status === 'pago' ? 'var(--green)' : 'var(--text-muted)' }}>
+                {verRow.status === 'pago' ? formatData(verRow.data_pagamento) : '— ainda não recebido'}
+              </div>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Valor (R$)</label>
