@@ -46,7 +46,7 @@ body { margin: 0; }
   overflow-y: auto; z-index: 40;
   border-right: 3px solid var(--brand);
 }
-.main { margin-left: 240px; flex: 1; padding: 32px; min-height: 100vh; background: var(--bg); }
+.main { margin-left: 240px; flex: 1; min-width: 0; padding: 32px; min-height: 100vh; background: var(--bg); }
 
 /* Cards */
 .card {
