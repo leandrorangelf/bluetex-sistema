@@ -183,10 +183,6 @@ export default function ParcelasReceberPage() {
     setSaving(false); setConfirm(null); load()
   }
 
-  async function atualizarFormaPagamento(id: string, valor: string) {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, forma_pagamento: (valor || null) as Parcela['forma_pagamento'] } : r))
-    await sb.from('btx_parcelas').update({ forma_pagamento: valor || null }).eq('id', id)
-  }
 
   function abrirVer(r: Parcela) {
     setFormEdit(formEditFromRow(r))
@@ -265,16 +261,7 @@ export default function ParcelasReceberPage() {
                   </td>
                   <td className="cell-wrap">{clienteMap.get(r.id) ?? '—'}</td>
                   <td className="mono cell-clip" title={nfMap.get(r.id) ?? undefined}>{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
-                  <td>
-                    {isVhsysManaged(r) || isDiretoria ? labelFormaPagamento(r.forma_pagamento) : (
-                      <select className="form-select" style={{ fontSize: 11, padding: '3px 6px' }} value={r.forma_pagamento ?? ''} onChange={e => atualizarFormaPagamento(r.id, e.target.value)}>
-                        <option value="">—</option>
-                        <option value="boleto">Boleto</option>
-                        <option value="especie">Dinheiro</option>
-                        <option value="pix">PIX</option>
-                      </select>
-                    )}
-                  </td>
+                  <td>{labelFormaPagamento(r.forma_pagamento)}</td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono num">{recebido > 0 ? formatMoeda(recebido) : '—'}</td>
                   <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
