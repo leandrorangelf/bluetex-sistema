@@ -188,7 +188,10 @@ export default function ParcelasPagarPage() {
   const verRow = verId ? rows.find(r => r.id === verId) ?? null : null
   const competencia = `${ano}-${String(mes).padStart(2, '0')}`
   const porOrigem = origemFiltro === 'todos' ? rows : rows.filter(r => r.origem === origemFiltro)
-  const visiveis = todosMeses ? porOrigem : porOrigem.filter(r => r.vencimento.startsWith(competencia))
+  // pra conta paga, o "mês dela" é o mês em que foi paga, não o vencimento —
+  // senão uma conta vencida mês passado e paga agora some da aba Pagas.
+  const dataDoMes = (r: Parcela) => (r.status === 'pago' ? r.data_pagamento ?? r.vencimento : r.vencimento)
+  const visiveis = todosMeses ? porOrigem : porOrigem.filter(r => dataDoMes(r).startsWith(competencia))
   function mudarMes(delta: number) {
     let m = mes + delta, a = ano
     if (m < 1) { m = 12; a-- } else if (m > 12) { m = 1; a++ }

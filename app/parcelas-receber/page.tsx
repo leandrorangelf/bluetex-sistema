@@ -177,7 +177,10 @@ export default function ParcelasReceberPage() {
   const hojeStr = hoje()
   const verRow = verId ? rows.find(r => r.id === verId) ?? null : null
   const competencia = `${ano}-${String(mes).padStart(2, '0')}`
-  const visiveis = todosMeses ? rows : rows.filter(r => r.vencimento.startsWith(competencia))
+  // pra conta recebida, o "mês dela" é o mês em que foi recebida, não o
+  // vencimento — senão uma conta vencida mês passado e paga agora some da lista.
+  const dataDoMes = (r: Parcela) => (r.status === 'pago' ? r.data_pagamento ?? r.vencimento : r.vencimento)
+  const visiveis = todosMeses ? rows : rows.filter(r => dataDoMes(r).startsWith(competencia))
   const totalSaldo = visiveis.reduce((a, r) => a + saldoRestante(r.valor, pagosDe(r)), 0)
   function mudarMes(delta: number) {
     let m = mes + delta, a = ano
