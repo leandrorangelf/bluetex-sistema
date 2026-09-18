@@ -202,6 +202,13 @@ export default function ParcelasPagarPage() {
     setSaving(false); setConfirm(null); load()
   }
 
+  // muita conta antiga não tem tipo de pagamento preenchido — corrigir uma a
+  // uma direto na lista é bem mais rápido que abrir "Ver" pra cada uma.
+  async function atualizarFormaPagamento(id: string, valor: string) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, forma_pagamento: (valor || null) as Parcela['forma_pagamento'] } : r))
+    await sb.from('btx_parcelas').update({ forma_pagamento: valor || null }).eq('id', id)
+  }
+
   function abrirVer(r: Parcela) {
     setFormEdit(formEditFromRow(r))
     setNota(r.nota_interna ?? '')
@@ -270,21 +277,28 @@ export default function ParcelasPagarPage() {
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o pagamento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Lançamento</th><th>Vencimento</th><th>Pago em</th><th>Origem</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
+          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={11} className="empty-state">Carregando...</td></tr>
-            : visiveis.length === 0 ? <tr><td colSpan={11} className="empty-state">Nenhuma conta.</td></tr>
+            {loading ? <tr><td colSpan={9} className="empty-state">Carregando...</td></tr>
+            : visiveis.length === 0 ? <tr><td colSpan={9} className="empty-state">Nenhuma conta.</td></tr>
             : visiveis.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
               const pago = somaPagos(r)
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
-                  <td className="mono">{formatData(r.data_lancamento)}</td>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
-                  <td className="mono">{r.status === 'pago' ? formatData(r.data_pagamento) : '—'}</td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
                   <td className="mono cell-clip" title={nfMap.get(r.id) ?? undefined}>{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
-                  <td>{labelFormaPagamento(r.forma_pagamento)}</td>
+                  <td>
+                    {isVhsysManaged(r) || isDiretoria ? labelFormaPagamento(r.forma_pagamento) : (
+                      <select className="form-select" style={{ fontSize: 11, padding: '3px 6px' }} value={r.forma_pagamento ?? ''} onChange={e => atualizarFormaPagamento(r.id, e.target.value)}>
+                        <option value="">—</option>
+                        <option value="boleto">Boleto</option>
+                        <option value="especie">Dinheiro</option>
+                        <option value="pix">PIX</option>
+                      </select>
+                    )}
+                  </td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono num">{pago > 0 ? formatMoeda(pago) : '—'}</td>
                   <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>

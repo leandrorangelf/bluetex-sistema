@@ -183,6 +183,11 @@ export default function ParcelasReceberPage() {
     setSaving(false); setConfirm(null); load()
   }
 
+  async function atualizarFormaPagamento(id: string, valor: string) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, forma_pagamento: (valor || null) as Parcela['forma_pagamento'] } : r))
+    await sb.from('btx_parcelas').update({ forma_pagamento: valor || null }).eq('id', id)
+  }
+
   function abrirVer(r: Parcela) {
     setFormEdit(formEditFromRow(r))
     setNota(r.nota_interna ?? '')
@@ -243,10 +248,10 @@ export default function ParcelasReceberPage() {
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o recebimento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Lançamento</th><th>Cliente</th><th>NF</th><th>Tipo</th><th>Vencimento</th><th>Recebido em</th><th className="num">Valor</th><th className="num">Recebido</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
+          <thead><tr><th>Vencimento</th><th>Cliente</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Recebido</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={11} className="empty-state">Carregando...</td></tr>
-            : visiveis.length === 0 ? <tr><td colSpan={11} className="empty-state">Nenhuma conta.</td></tr>
+            {loading ? <tr><td colSpan={9} className="empty-state">Carregando...</td></tr>
+            : visiveis.length === 0 ? <tr><td colSpan={9} className="empty-state">Nenhuma conta.</td></tr>
             : visiveis.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
               const recebido = somaPagos(r)
@@ -254,15 +259,22 @@ export default function ParcelasReceberPage() {
               const atraso = vencida ? diasAtraso(r.vencimento, hojeStr) : 0
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
-                  <td className="mono">{formatData(r.data_lancamento)}</td>
-                  <td className="cell-wrap">{clienteMap.get(r.id) ?? '—'}</td>
-                  <td className="mono cell-clip" title={nfMap.get(r.id) ?? undefined}>{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
-                  <td>{labelFormaPagamento(r.forma_pagamento)}</td>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>
                     {formatData(r.vencimento)}
                     {emAberto && atraso > 0 && <span className="page-subtitle"> · {atraso} dia(s) em atraso</span>}
                   </td>
-                  <td className="mono">{r.status === 'pago' ? formatData(r.data_pagamento) : '—'}</td>
+                  <td className="cell-wrap">{clienteMap.get(r.id) ?? '—'}</td>
+                  <td className="mono cell-clip" title={nfMap.get(r.id) ?? undefined}>{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
+                  <td>
+                    {isVhsysManaged(r) || isDiretoria ? labelFormaPagamento(r.forma_pagamento) : (
+                      <select className="form-select" style={{ fontSize: 11, padding: '3px 6px' }} value={r.forma_pagamento ?? ''} onChange={e => atualizarFormaPagamento(r.id, e.target.value)}>
+                        <option value="">—</option>
+                        <option value="boleto">Boleto</option>
+                        <option value="especie">Dinheiro</option>
+                        <option value="pix">PIX</option>
+                      </select>
+                    )}
+                  </td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono num">{recebido > 0 ? formatMoeda(recebido) : '—'}</td>
                   <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
