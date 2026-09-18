@@ -44,7 +44,7 @@ export default function ParcelasPagarPage() {
   const [pagarRow, setPagarRow] = useState<Parcela | null>(null)
   const [pagarSaving, setPagarSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
-  const [formEdit, setFormEdit] = useState<{ vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix'; nf: string; texto: string }>({ vencimento: '', valor: 0, forma_pagamento: 'boleto', nf: '', texto: '' })
+  const [formEdit, setFormEdit] = useState<{ vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria'; nf: string; texto: string }>({ vencimento: '', valor: 0, forma_pagamento: 'boleto', nf: '', texto: '' })
   const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -361,6 +361,8 @@ export default function ParcelasPagarPage() {
               <option value="boleto">Boleto</option>
               <option value="especie">Dinheiro</option>
               <option value="pix">PIX</option>
+              <option value="debito">Débito</option>
+              <option value="tarifa_bancaria">Tarifa Bancária</option>
             </select>
           </div>
           <div className="form-group">

@@ -8,7 +8,7 @@ export function formatData(d: string | null): string {
   return `${day}/${m}/${y}`
 }
 
-export const LABEL_FORMA_PAGAMENTO: Record<string, string> = { boleto: 'Boleto', especie: 'Dinheiro', pix: 'PIX' }
+export const LABEL_FORMA_PAGAMENTO: Record<string, string> = { boleto: 'Boleto', especie: 'Dinheiro', pix: 'PIX', debito: 'Débito', tarifa_bancaria: 'Tarifa Bancária' }
 export function labelFormaPagamento(v: string | null | undefined): string {
   return v ? (LABEL_FORMA_PAGAMENTO[v] ?? v) : '—'
 }

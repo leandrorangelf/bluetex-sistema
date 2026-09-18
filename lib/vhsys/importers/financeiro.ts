@@ -60,11 +60,13 @@ const CAMPOS_PAGAR: Campos = {
 }
 
 // normaliza a forma de pagamento do VHSYS pro nosso vocabulário fechado
-function normalizarFormaPagamento(valor: unknown): 'boleto' | 'especie' | 'pix' | null {
+function normalizarFormaPagamento(valor: unknown): 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria' | null {
   const texto = String(valor ?? '').trim().toLocaleLowerCase('pt-BR')
   if (!texto) return null
   if (texto.includes('pix')) return 'pix'
   if (texto.includes('boleto')) return 'boleto'
+  if (texto.includes('debito') || texto.includes('débito')) return 'debito'
+  if (texto.includes('tarifa')) return 'tarifa_bancaria'
   if (texto.includes('dinheiro') || texto.includes('especie') || texto.includes('espécie')) return 'especie'
   return null
 }

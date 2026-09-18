@@ -8,7 +8,7 @@ import { GRUPOS_CATEGORIA, type GrupoCategoria } from '@/types'
 
 type Categoria = { id: string; nome: string; grupo: GrupoCategoria }
 type Fornecedor = { id: string; nome: string }
-type FormaPagamento = 'boleto' | 'especie' | 'pix'
+type FormaPagamento = 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria'
 
 interface Props {
   unidade: string
@@ -170,6 +170,8 @@ export default function FormDespesa({ unidade, categorias, onResult }: Props) {
               <option value="boleto">Boleto</option>
               <option value="especie">Dinheiro</option>
               <option value="pix">PIX</option>
+              <option value="debito">Débito</option>
+              <option value="tarifa_bancaria">Tarifa Bancária</option>
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>

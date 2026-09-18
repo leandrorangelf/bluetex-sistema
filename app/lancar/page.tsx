@@ -107,7 +107,7 @@ function FormReceber({ sb, unidade, clientes, saving, setSaving, onResult }: For
   const [valor, setValor] = useState(0)
   const [dataLancamento, setDataLancamento] = useState(hoje())
   const [data, setData] = useState(hoje())
-  const [formaPagamento, setFormaPagamento] = useState<'boleto' | 'especie' | 'pix'>('boleto')
+  const [formaPagamento, setFormaPagamento] = useState<'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria'>('boleto')
   const [parcelar, setParcelar] = useState(false)
   const [n, setN] = useState(2)
 
@@ -145,6 +145,8 @@ function FormReceber({ sb, unidade, clientes, saving, setSaving, onResult }: For
             <option value="boleto">Boleto</option>
             <option value="especie">Dinheiro</option>
             <option value="pix">PIX</option>
+            <option value="debito">Débito</option>
+            <option value="tarifa_bancaria">Tarifa Bancária</option>
           </select></div>
         <div className="form-group"><label className="form-label">Data do lançamento *</label>
           <input className="form-input" type="date" value={dataLancamento} onChange={e => setDataLancamento(e.target.value)} /></div>
