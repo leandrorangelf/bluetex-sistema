@@ -43,7 +43,7 @@ export default function ParcelasPagarPage() {
   const [pagarRow, setPagarRow] = useState<Parcela | null>(null)
   const [pagarSaving, setPagarSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
-  const [formEdit, setFormEdit] = useState<{ data_lancamento: string; vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix' }>({ data_lancamento: '', vencimento: '', valor: 0, forma_pagamento: 'boleto' })
+  const [formEdit, setFormEdit] = useState<{ data_lancamento: string; vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix'; numero_boleto: string }>({ data_lancamento: '', vencimento: '', valor: 0, forma_pagamento: 'boleto', numero_boleto: '' })
   const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -65,7 +65,7 @@ export default function ParcelasPagarPage() {
     if (!isVhsysManaged(row) && (row.status === 'pendente' || row.status === 'parcial')) {
       setPagarRow(row)
     } else {
-      setFormEdit({ data_lancamento: row.data_lancamento, vencimento: row.vencimento, valor: row.valor, forma_pagamento: row.forma_pagamento ?? 'boleto' })
+      setFormEdit({ data_lancamento: row.data_lancamento, vencimento: row.vencimento, valor: row.valor, forma_pagamento: row.forma_pagamento ?? 'boleto', numero_boleto: row.numero_boleto ?? '' })
       setNota(row.nota_interna ?? '')
       setVerId(row.id)
     }
@@ -152,7 +152,7 @@ export default function ParcelasPagarPage() {
   async function salvarEdit() {
     if (!verRow || isVhsysManaged(verRow)) return
     setSaving(true)
-    await sb.from('btx_parcelas').update({ data_lancamento: formEdit.data_lancamento, vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento }).eq('id', verRow.id)
+    await sb.from('btx_parcelas').update({ data_lancamento: formEdit.data_lancamento, vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento, numero_boleto: formEdit.numero_boleto.trim() || null }).eq('id', verRow.id)
     await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
     setSaving(false); setVerId(null); load()
   }
@@ -172,7 +172,7 @@ export default function ParcelasPagarPage() {
   }
 
   function abrirVer(r: Parcela) {
-    setFormEdit({ data_lancamento: r.data_lancamento, vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? 'boleto' })
+    setFormEdit({ data_lancamento: r.data_lancamento, vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? 'boleto', numero_boleto: r.numero_boleto ?? '' })
     setNota(r.nota_interna ?? '')
     setVerId(r.id)
   }
@@ -252,7 +252,7 @@ export default function ParcelasPagarPage() {
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
                   <td className="mono">{r.status === 'pago' ? formatData(r.data_pagamento) : '—'}</td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
-                  <td className="mono">{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
+                  <td className="mono cell-clip" title={nfMap.get(r.id) ?? undefined}>{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                   <td>{labelFormaPagamento(r.forma_pagamento)}</td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono num">{pago > 0 ? formatMoeda(pago) : '—'}</td>
@@ -305,6 +305,12 @@ export default function ParcelasPagarPage() {
             <label className="form-label">Origem</label>
             <div>{origemMap.get(verRow.id) ?? '—'}</div>
           </div>
+          {!verRow.origem_id && (
+            <div className="form-group">
+              <label className="form-label">Nº do boleto / NF</label>
+              <input className="form-input" value={formEdit.numero_boleto} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, numero_boleto: e.target.value }))} placeholder="Ex.: 2388" />
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Data do lançamento</label>
             <input className="form-input" type="date" value={formEdit.data_lancamento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, data_lancamento: e.target.value }))} />

@@ -146,6 +146,10 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    letra por linha; a tabela cresce e usa o scroll horizontal do .table-wrap
    em vez de espremer o texto. */
 td.cell-wrap { white-space: normal; min-width: 200px; max-width: 340px; overflow-wrap: break-word; }
+/* coluna que devia ser curta (NF, boleto) mas às vezes recebe texto longo
+   por engano — corta com "..." em vez de esticar a tabela toda; passe o
+   texto completo em title pra aparecer no hover. */
+td.cell-clip { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 /* botões de ação numa linha, sem quebrar nem colapsar a coluna */
 td.cell-actions { white-space: nowrap; }
 .row-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
