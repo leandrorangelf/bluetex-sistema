@@ -30,7 +30,7 @@ export interface UnidadeMedida {
 }
 export interface Produto {
   id: string; nome: string; unidade_base_id: string; unidade_maior_id: string; fator_conversao: number
-  ativo: boolean; created_at: string
+  ativo: boolean; created_at: string; unidade: Unidade | null
   unidade_base?: UnidadeMedida; unidade_maior?: UnidadeMedida
   origem_sistema?: OrigemSistema; vhsys_id_mg?: string | null; vhsys_synced_at?: string | null
 }
