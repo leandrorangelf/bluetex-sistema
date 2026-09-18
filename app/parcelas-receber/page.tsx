@@ -165,7 +165,6 @@ export default function ParcelasReceberPage() {
     } else {
       await sb.from('btx_parcelas').update({ numero_boleto: formEdit.nf.trim() || null, observacoes: formEdit.texto.trim() || null }).eq('id', verRow.id)
     }
-    await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
     setSaving(false); setVerId(null); load()
   }
 
