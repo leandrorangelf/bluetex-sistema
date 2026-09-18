@@ -184,7 +184,6 @@ export default function ParcelasPagarPage() {
     } else {
       await sb.from('btx_parcelas').update({ numero_boleto: formEdit.nf.trim() || null, observacoes: formEdit.texto.trim() || null }).eq('id', verRow.id)
     }
-    await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
     setSaving(false); setVerId(null); load()
   }
 
@@ -200,13 +199,6 @@ export default function ParcelasPagarPage() {
     setSaving(true)
     await sb.from('btx_parcelas').update({ ativo: false }).eq('id', id)
     setSaving(false); setConfirm(null); load()
-  }
-
-  // muita conta antiga não tem tipo de pagamento preenchido — corrigir uma a
-  // uma direto na lista é bem mais rápido que abrir "Ver" pra cada uma.
-  async function atualizarFormaPagamento(id: string, valor: string) {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, forma_pagamento: (valor || null) as Parcela['forma_pagamento'] } : r))
-    await sb.from('btx_parcelas').update({ forma_pagamento: valor || null }).eq('id', id)
   }
 
   function abrirVer(r: Parcela) {
@@ -289,16 +281,7 @@ export default function ParcelasPagarPage() {
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
                   <td className="mono cell-clip" title={nfMap.get(r.id) ?? undefined}>{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
-                  <td>
-                    {isVhsysManaged(r) || isDiretoria ? labelFormaPagamento(r.forma_pagamento) : (
-                      <select className="form-select" style={{ fontSize: 11, padding: '3px 6px' }} value={r.forma_pagamento ?? ''} onChange={e => atualizarFormaPagamento(r.id, e.target.value)}>
-                        <option value="">—</option>
-                        <option value="boleto">Boleto</option>
-                        <option value="especie">Dinheiro</option>
-                        <option value="pix">PIX</option>
-                      </select>
-                    )}
-                  </td>
+                  <td>{labelFormaPagamento(r.forma_pagamento)}</td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
                   <td className="mono num">{pago > 0 ? formatMoeda(pago) : '—'}</td>
                   <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
