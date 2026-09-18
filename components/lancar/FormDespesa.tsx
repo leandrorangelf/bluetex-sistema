@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { hoje } from '@/lib/utils'
 import { gerarParcelasRecorrentes } from '@/lib/parcelamento'
@@ -44,6 +44,38 @@ export default function FormDespesa({ unidade, categorias, onResult }: Props) {
     })()
   }, [unidade, sb])
 
+  // com 1 só parcela (caso comum) o valor dela É o valor total da despesa —
+  // sem isso a parcela ficava com valor 0 se o usuário só preenchesse "Valor
+  // Total" e não abrisse o campo de valor da parcela lá embaixo.
+  useEffect(() => {
+    if (recorrente) return
+    setParcelas(prev => prev.length === 1 && prev[0].valor !== form.valor_total
+      ? [{ ...prev[0], valor: form.valor_total }] : prev)
+  }, [form.valor_total, recorrente])
+
+  // acompanha o campo "Data" enquanto a parcela avulsa não foi mexida à mão —
+  // antes ela nascia travada em hoje(), ignorando a data lançada lá em cima
+  // (e o vencimento acabava saindo igual à data de lançamento, duplicado).
+  // Assim que o usuário editar "Data do lançamento" ou "Vencimento" na
+  // parcela, esse campo para de seguir o topo — o vencimento dela é respeitado.
+  const dataSincronizada = useRef(EMPTY.data)
+  useEffect(() => {
+    if (recorrente) return
+    setParcelas(prev => {
+      if (prev.length !== 1) return prev
+      const p = prev[0]
+      const seguindoLancamento = p.data_lancamento === dataSincronizada.current
+      const seguindoVencimento = p.vencimento === dataSincronizada.current
+      if (!seguindoLancamento && !seguindoVencimento) return prev
+      return [{
+        ...p,
+        data_lancamento: seguindoLancamento ? form.data : p.data_lancamento,
+        vencimento: seguindoVencimento ? form.data : p.vencimento,
+      }]
+    })
+    dataSincronizada.current = form.data
+  }, [form.data, recorrente])
+
   const porGrupo = GRUPOS_CATEGORIA.map(g => ({ g, itens: categorias.filter(c => c.grupo === g.value) })).filter(x => x.itens.length)
 
   async function salvar() {
@@ -79,6 +111,7 @@ export default function FormDespesa({ unidade, categorias, onResult }: Props) {
     setSaving(false)
     if (e2) { onResult({ tipo: 'erro', texto: 'Despesa criada mas falhou ao gerar parcelas. Confira em Parcelas a Pagar.' }); return }
     onResult({ tipo: 'ok', texto: recorrente ? `Despesa recorrente lançada (${linhas.length} meses).` : 'Despesa lançada.' })
+    dataSincronizada.current = EMPTY.data
     setForm(EMPTY); setParcelas([parcelaAvulsa()])
     setRecorrente(false); setRecVencimento(hoje()); setRecValor(0); setRecFormaPagamento('boleto'); setRecMeses(12)
   }

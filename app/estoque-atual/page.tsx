@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
-import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData, itensCaixas } from '@/lib/utils'
+import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData, itensCaixas, converterParaUnidadeMaior } from '@/lib/utils'
 import type { Compra } from '@/types'
 import { calcularEstoque, calcularPrecoMedioVenda, calcularValorEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
@@ -20,6 +20,11 @@ import { UNIDADES, type AjusteEstoque, type AuditoriaEstoque, type Produto, type
 interface ProfileNome { id: string; nome: string }
 
 const AJUSTE_VAZIO = { produto_id: '', data_ajuste: hoje(), tipo: 'entrada' as TipoAjusteEstoque, quantidade: 0, motivo: '' }
+
+// "X caixas" (unidade maior) — só pra exibir na prévia do ajuste de saldo
+function caixasLabel(qtdBase: number, fatorConversao: number): string {
+  return `${converterParaUnidadeMaior(qtdBase, fatorConversao)} caixas`
+}
 
 export default function EstoqueAtualPage() {
   const { profile, unidadeAtiva } = useAuth()
@@ -41,6 +46,8 @@ export default function EstoqueAtualPage() {
   const [ajusteForm, setAjusteForm] = useState(AJUSTE_VAZIO)
   const [ajusteEditId, setAjusteEditId] = useState<string | null>(null)
   const [modoAjusteUnidade, setModoAjusteUnidade] = useState<'base' | 'maior'>('maior')
+  const [modoAjusteValor, setModoAjusteValor] = useState<'real' | 'delta'>('real')
+  const [saldoRealAlvo, setSaldoRealAlvo] = useState(0)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -112,6 +119,15 @@ export default function EstoqueAtualPage() {
   const precoMedioVenda = useMemo(() => calcularPrecoMedioVenda(vendas), [vendas])
   const valorEstoque = useMemo(() => calcularValorEstoque(painel.saldos, precoMedioVenda), [painel.saldos, precoMedioVenda])
 
+  // saldo de todos os produtos (sem o filtro de produto da página) — usado
+  // pra saber o saldo atual de qualquer produto escolhido no modal de ajuste
+  const painelTodosProdutos = useMemo(() => calcularEstoque({
+    ano, mes,
+    produtos: normalizarProdutosEstoque(produtos),
+    aberturas: normalizarAberturasEstoque(aberturas),
+    movimentos: normalizarMovimentosEstoque(compras, vendas, ajustes),
+  }), [ano, mes, produtos, aberturas, compras, vendas, ajustes])
+
   function navMes(direcao: number) {
     let novoMes = mes + direcao
     let novoAno = ano
@@ -121,10 +137,16 @@ export default function EstoqueAtualPage() {
     setAno(novoAno)
   }
 
+  function saldoAtualDoProduto(produtoId: string): number {
+    return painelTodosProdutos.saldos.find(s => s.produtoId === produtoId)?.saldoAtual ?? 0
+  }
+
   function abrirNovoAjuste() {
     setAjusteEditId(null)
     setAjusteForm({ ...AJUSTE_VAZIO, produto_id: produtoId })
     setModoAjusteUnidade('maior')
+    setModoAjusteValor('real')
+    setSaldoRealAlvo(produtoId ? saldoAtualDoProduto(produtoId) : 0)
     setError('')
     setAjusteModal(true)
   }
@@ -135,12 +157,28 @@ export default function EstoqueAtualPage() {
     setAjusteEditId(id)
     setAjusteForm({ produto_id: ajuste.produto_id, data_ajuste: ajuste.data_ajuste, tipo: ajuste.tipo, quantidade: ajuste.qtd_carteiras, motivo: ajuste.motivo ?? '' })
     setModoAjusteUnidade('maior')
+    setModoAjusteValor('delta')
     setAjusteModal(true)
   }
 
   async function salvarAjuste() {
-    if (!unidade || !ajusteForm.produto_id || ajusteForm.quantidade <= 0 || !ajusteForm.motivo.trim()) {
-      setError('Informe produto, quantidade positiva e motivo do ajuste.')
+    if (!unidade || !ajusteForm.produto_id || !ajusteForm.motivo.trim()) {
+      setError('Informe produto e motivo do ajuste.')
+      return
+    }
+    let tipo = ajusteForm.tipo
+    let quantidade = ajusteForm.quantidade
+    if (modoAjusteValor === 'real') {
+      const delta = saldoRealAlvo - saldoAtualDoProduto(ajusteForm.produto_id)
+      if (delta === 0) {
+        setError('O saldo real informado já é igual ao saldo atual do sistema — nada pra ajustar.')
+        return
+      }
+      tipo = delta > 0 ? 'entrada' : 'saida'
+      quantidade = Math.abs(delta)
+    }
+    if (quantidade <= 0) {
+      setError('Informe uma quantidade válida.')
       return
     }
     setSaving(true)
@@ -151,8 +189,8 @@ export default function EstoqueAtualPage() {
       data_ajuste: ajusteForm.data_ajuste,
       mes: mesAjuste,
       ano: anoAjuste,
-      tipo: ajusteForm.tipo,
-      qtd_carteiras: Math.round(ajusteForm.quantidade),
+      tipo,
+      qtd_carteiras: Math.round(quantidade),
       motivo: ajusteForm.motivo.trim(),
       ativo: true,
     }
@@ -223,22 +261,68 @@ export default function EstoqueAtualPage() {
 
       <Modal open={ajusteModal && aba === 'saldo'} onClose={() => setAjusteModal(false)} title={ajusteEditId ? 'Editar ajuste' : 'Novo ajuste'} size="sm" footer={<><button className="btn btn-secondary" onClick={() => setAjusteModal(false)}>Cancelar</button><button className="btn btn-primary" onClick={salvarAjuste} disabled={saving}>{saving ? 'Salvando...' : 'Salvar ajuste'}</button></>}>
         {error && <div className="alert alert-red">{error}</div>}
-        <div className="form-group"><label className="form-label">Produto</label><select className="form-select" value={ajusteForm.produto_id} onChange={event => setAjusteForm(form => ({ ...form, produto_id: event.target.value }))}><option value="">Selecione...</option>{produtos.map(produto => <option key={produto.id} value={produto.id}>{produto.nome}</option>)}</select></div>
-        <div className="grid-2"><div className="form-group"><label className="form-label">Data</label><input className="form-input" type="date" value={ajusteForm.data_ajuste} onChange={event => setAjusteForm(form => ({ ...form, data_ajuste: event.target.value }))} /></div><div className="form-group"><label className="form-label">Tipo</label><select className="form-select" value={ajusteForm.tipo} onChange={event => setAjusteForm(form => ({ ...form, tipo: event.target.value as TipoAjusteEstoque }))}><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div></div>
+        <div className="form-group">
+          <label className="form-label">Produto</label>
+          <select className="form-select" value={ajusteForm.produto_id} onChange={event => {
+            const novoProdutoId = event.target.value
+            setAjusteForm(form => ({ ...form, produto_id: novoProdutoId }))
+            setSaldoRealAlvo(novoProdutoId ? saldoAtualDoProduto(novoProdutoId) : 0)
+          }}><option value="">Selecione...</option>{produtos.map(produto => <option key={produto.id} value={produto.id}>{produto.nome}</option>)}</select>
+        </div>
+        <div className="form-group"><label className="form-label">Data</label><input className="form-input" type="date" value={ajusteForm.data_ajuste} onChange={event => setAjusteForm(form => ({ ...form, data_ajuste: event.target.value }))} /></div>
+        {!ajusteEditId && (
+          <div className="form-group">
+            <label className="form-label">Como informar</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className={`btn btn-sm ${modoAjusteValor === 'real' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteValor('real')}>Saldo real (contagem)</button>
+              <button type="button" className={`btn btn-sm ${modoAjusteValor === 'delta' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteValor('delta')}>Somar/subtrair quantidade</button>
+            </div>
+          </div>
+        )}
         {(() => {
           const produtoSelecionado = produtos.find(item => item.id === ajusteForm.produto_id)
           const fatorConversao = produtoSelecionado?.fator_conversao || 1
-          const valorInput = modoAjusteUnidade === 'maior' ? ajusteForm.quantidade / fatorConversao : ajusteForm.quantidade
           const unidadeLabel = modoAjusteUnidade === 'maior' ? (produtoSelecionado?.unidade_maior?.nome ?? 'unidade maior') : (produtoSelecionado?.unidade_base?.nome ?? 'unidade base')
+          const seletorUnidade = (
+            <div className="form-group">
+              <label className="form-label">Em</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className={`btn btn-sm ${modoAjusteUnidade === 'maior' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteUnidade('maior')}>Unidade maior</button>
+                <button type="button" className={`btn btn-sm ${modoAjusteUnidade === 'base' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteUnidade('base')}>Unidade base</button>
+              </div>
+            </div>
+          )
+
+          if (modoAjusteValor === 'real') {
+            const saldoAtualBase = ajusteForm.produto_id ? saldoAtualDoProduto(ajusteForm.produto_id) : 0
+            const valorInput = modoAjusteUnidade === 'maior' ? saldoRealAlvo / fatorConversao : saldoRealAlvo
+            const delta = saldoRealAlvo - saldoAtualBase
+            return (
+              <>
+                {seletorUnidade}
+                <div className="form-group">
+                  <label className="form-label">Saldo real agora ({unidadeLabel})</label>
+                  <input className="form-input" type="number" step="0.01" value={valorInput || ''} onChange={event => {
+                    const v = Number(event.target.value)
+                    setSaldoRealAlvo(modoAjusteUnidade === 'maior' ? v * fatorConversao : v)
+                  }} />
+                </div>
+                {ajusteForm.produto_id && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <span className="page-subtitle">
+                      Saldo no sistema: {caixasLabel(saldoAtualBase, fatorConversao)} · {delta === 0 ? 'já está igual, nada a ajustar' : `vai gerar ${delta > 0 ? 'uma entrada' : 'uma saída'} de ${caixasLabel(Math.abs(delta), fatorConversao)}`}
+                    </span>
+                  </div>
+                )}
+              </>
+            )
+          }
+
+          const valorInput = modoAjusteUnidade === 'maior' ? ajusteForm.quantidade / fatorConversao : ajusteForm.quantidade
           return (
             <>
-              <div className="form-group">
-                <label className="form-label">Lançar em</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className={`btn btn-sm ${modoAjusteUnidade === 'maior' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteUnidade('maior')}>Unidade maior</button>
-                  <button type="button" className={`btn btn-sm ${modoAjusteUnidade === 'base' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setModoAjusteUnidade('base')}>Unidade base</button>
-                </div>
-              </div>
+              <div className="form-group"><label className="form-label">Tipo</label><select className="form-select" value={ajusteForm.tipo} onChange={event => setAjusteForm(form => ({ ...form, tipo: event.target.value as TipoAjusteEstoque }))}><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+              {seletorUnidade}
               <div className="form-group">
                 <label className="form-label">Quantidade ({unidadeLabel})</label>
                 <input className="form-input" type="number" min={0} step="0.01" value={valorInput || ''} onChange={event => {
