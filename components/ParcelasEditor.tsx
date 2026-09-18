@@ -9,7 +9,7 @@ export interface ParcelaForm {
   valor: number
   numero_boleto: string
   observacoes: string
-  forma_pagamento: 'boleto' | 'especie' | 'pix' | 'debito'
+  forma_pagamento: 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria'
 }
 
 interface Props {
@@ -23,6 +23,7 @@ const FORMAS_PAGAMENTO = [
   { value: 'especie', label: 'Dinheiro' },
   { value: 'pix', label: 'PIX' },
   { value: 'debito', label: 'Débito' },
+  { value: 'tarifa_bancaria', label: 'Tarifa Bancária' },
 ] as const
 
 const EMPTY_PARCELA: ParcelaForm = { numero_parcela: 1, data_lancamento: hoje(), vencimento: '', valor: 0, numero_boleto: '', observacoes: '', forma_pagamento: 'boleto' }

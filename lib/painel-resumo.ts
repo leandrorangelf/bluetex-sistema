@@ -4,12 +4,12 @@ import { GRUPOS_CATEGORIA, type GrupoCategoria } from '../types/index.ts'
 export interface ContaPagar {
   id: string; descricao: string; observacoes: string; vencimento: string; dataPagamento: string | null; valor: number
   grupo: GrupoCategoria; categoria: string; unidade: string; vencida: boolean; proxima: boolean
-  paga: boolean; gerenciadoPorVhsys: boolean; formaPagamento: 'boleto' | 'especie' | 'pix' | 'debito' | null
+  paga: boolean; gerenciadoPorVhsys: boolean; formaPagamento: 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria' | null
 }
 export interface ContaReceber {
   id: string; descricao: string; observacoes: string; vencimento: string; dataPagamento: string | null; valor: number
   categoria: string; unidade: string; vencida: boolean; proxima: boolean; paga: boolean
-  gerenciadoPorVhsys: boolean; formaPagamento: 'boleto' | 'especie' | 'pix' | 'debito' | null
+  gerenciadoPorVhsys: boolean; formaPagamento: 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria' | null
   numeroParcela: number; numeroNf: string | null
 }
 // Info da venda de origem (cliente, NF) pra exibir em colunas próprias na

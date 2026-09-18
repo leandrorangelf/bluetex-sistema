@@ -89,7 +89,7 @@ export interface Despesa {
   observacoes: string | null; ativo: boolean; created_at: string
   categoria?: CategoriaDespesa; fornecedor?: Fornecedor
 }
-export type FormaPagamento = 'boleto' | 'especie' | 'pix' | 'debito'
+export type FormaPagamento = 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria'
 export interface Parcela {
   id: string; unidade: Unidade; tipo: TipoParcela; origem: OrigemParcela; origem_id: string | null
   numero_parcela: number; data_lancamento: string; vencimento: string; valor: number; status: StatusParcela
