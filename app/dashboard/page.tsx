@@ -7,7 +7,8 @@ import { useAuth } from '@/lib/auth-context'
 import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos, labelFormaPagamento } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber, type VendaInfo } from '@/lib/painel-resumo'
-import { calcularEstoque, calcularPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
+import { calcularEstoque, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, mesclarPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
+import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
 import { UNIDADES, type Unidade, type GrupoCategoria, type Produto, type AjusteEstoque } from '@/types'
 import Modal from '@/components/Modal'
 
@@ -18,19 +19,23 @@ interface LinhaEstoque {
 }
 
 async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number, mes: number, alvos: string[]): Promise<LinhaEstoque[]> {
-  const [produtosRes, aberturasRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
+  const codigosVhsys = VHSYS_UNIDADES.filter(u => alvos.includes(u.unidade)).map(u => u.codigo)
+  const [produtosRes, aberturasRes, comprasRes, vendasRes, ajustesRes, historicoRes] = await Promise.all([
     sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true),
     sb.from('btx_estoque_inicial').select('id,unidade,produto_id,mes,ano,qtd_carteiras').in('unidade', alvos),
     sb.from('btx_compras').select('id,unidade,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_ajustes_estoque').select('*').eq('ativo', true).in('unidade', alvos),
+    codigosVhsys.length ? sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor').in('unidade_codigo', codigosVhsys) : Promise.resolve({ data: [] as LinhaHistoricoVendaVhsys[] }),
   ])
   const produtosNorm = normalizarProdutosEstoque(ordenarProdutos((produtosRes.data ?? []) as Produto[]))
   const aberturas = (aberturasRes.data ?? []) as (AberturaEstoqueDb & { unidade: string })[]
   const compras = (comprasRes.data ?? []) as unknown as (CompraEstoqueDb & { unidade: string })[]
   const vendas = (vendasRes.data ?? []) as unknown as (VendaEstoqueDb & { unidade: string })[]
   const ajustes = (ajustesRes.data ?? []) as AjusteEstoque[]
-  const precoMedioVenda = calcularPrecoMedioVenda(vendas)
+  const historicoVendas = (historicoRes.data ?? []) as LinhaHistoricoVendaVhsys[]
+  const precoMedioVendaHistorico = calcularPrecoMedioVendaHistorico(historicoVendas, produtosNorm.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fatorConversao })))
+  const precoMedioVenda = mesclarPrecoMedioVenda(calcularPrecoMedioVenda(vendas), precoMedioVendaHistorico)
 
   const saldosPorProduto = new Map<string, Record<string, number>>()
   for (const u of alvos) {
