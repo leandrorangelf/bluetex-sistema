@@ -127,6 +127,22 @@ test('prestacao de contas agrupa por categoria do VHSYS, separando realizado e p
   assert.equal(r.entradasPorCategoria[0].categoria, 'Vendas')
 })
 
+test('descrição de conta a pagar usa a descrição real da despesa/fornecedor da compra, não o genérico', () => {
+  const r = calcularResumoUnidade(base({
+    parcelas: [
+      parc({ id: 'p1', origem: 'despesa', origem_id: 'd1', valor: 100 }),
+      parc({ id: 'p2', origem: 'compra', origem_id: 'c1', valor: 200 }),
+      parc({ id: 'p3', origem: 'despesa', origem_id: 'd2', valor: 50 }),
+    ],
+    pagarInfoPorId: new Map([['despesa:d1', 'Aluguel do galpão'], ['compra:c1', 'Fornecedor XYZ']]),
+  }))
+  const porId = new Map(r.contasPagar.map(c => [c.id, c.descricao]))
+  assert.equal(porId.get('p1'), 'Aluguel do galpão')
+  assert.equal(porId.get('p2'), 'Fornecedor XYZ')
+  // sem info na tabela e sem observação própria, cai no genérico mesmo
+  assert.equal(porId.get('p3'), 'Despesa (parc. 1)')
+})
+
 test('consolida soma unidades', () => {
   const a = calcularResumoUnidade(base({ saldoBase: 1000, parcelas: [parc({ valor: 100 })] }))
   const b = calcularResumoUnidade(base({ unidade: 'NEW BLUETEX SC', saldoBase: 500, parcelas: [parc({ id: 'p2', valor: 200 })] }))

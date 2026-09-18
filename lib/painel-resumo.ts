@@ -52,6 +52,9 @@ export interface EntradaResumo {
   // cliente/NF da venda de origem, por origem_id — só pra parcelas de receber
   // vindas de venda (ver VendaInfo).
   vendaInfoPorId?: Map<string, VendaInfo>
+  // descrição real de despesa/compra de origem, por chave "${origem}:${origem_id}"
+  // — sem isso, parcela sem observação própria cai no genérico "Despesa (parc. N)".
+  pagarInfoPorId?: Map<string, string>
   // saldo real do banco (VHSYS), só pra exibir como referência — ver
   // saldoBancarioReferencia no retorno.
   saldoBancario?: number | null
@@ -85,6 +88,17 @@ function infoReceber(
     return { descricao: info?.cliente?.trim() || '—', numeroNf: info?.numeroNf?.trim() || null }
   }
   return { descricao: p.observacoes?.trim() || 'Recebimento', numeroNf: p.numero_boleto ?? null }
+}
+
+// Descrição de uma parcela a pagar: quando vem de despesa/compra, usa a
+// descrição/fornecedor real de lá (via pagarInfoPorId); senão, a observação
+// da própria parcela; só cai no genérico se nada disso existir.
+function descricaoPagar(p: ParcelaFinanceira, pagarInfoPorId?: Map<string, string>): string {
+  if (p.origem_id) {
+    const info = pagarInfoPorId?.get(`${p.origem}:${p.origem_id}`)
+    if (info?.trim()) return info.trim()
+  }
+  return p.observacoes?.trim() || `${capitalizar(p.origem)} (parc. ${p.numero_parcela})`
 }
 
 function categoriaDe(p: ParcelaFinanceira, grupo: GrupoCategoria): string {
@@ -202,7 +216,7 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
     catPagar.push({ categoria, valor: valorExibido, paga })
     contasPagar.push({
       id: p.id,
-      descricao: p.observacoes?.trim() || `${capitalizar(p.origem)} (parc. ${p.numero_parcela})`,
+      descricao: descricaoPagar(p, input.pagarInfoPorId),
       observacoes: p.observacoes?.trim() ?? '',
       vencimento: p.vencimento,
       dataPagamento: paga ? p.data_pagamento : null,

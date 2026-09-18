@@ -108,7 +108,7 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
   const [basesRes, parcelasRes, despesasRes, saldoRes] = await Promise.all([
     sb.from('btx_caixa_mensal').select('*').eq('unidade', unidade).order('ano', { ascending: false }).order('mes', { ascending: false }),
     sb.from('btx_parcelas').select('id,tipo,origem,origem_id,numero_parcela,numero_boleto,vencimento,valor,status,data_pagamento,ativo,observacoes,origem_sistema,categoria_vhsys,forma_pagamento').eq('unidade', unidade).eq('ativo', true).neq('status', 'cancelado'),
-    sb.from('btx_despesas').select('id, categoria:btx_categorias_despesas(grupo)').eq('unidade', unidade).eq('ativo', true),
+    sb.from('btx_despesas').select('id, descricao, categoria:btx_categorias_despesas(grupo)').eq('unidade', unidade).eq('ativo', true),
     sb.from('btx_vhsys_saldos_bancarios').select('saldo_atual,consultado_em').eq('unidade', unidade).order('consultado_em', { ascending: false }).limit(1),
   ])
   const saldoBancario = (saldoRes.data?.[0]?.saldo_atual as number | undefined) ?? null
@@ -126,8 +126,10 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
     .map(p => ({ id: p.id, parcela_id: p.parcela_id, valor: Number(p.valor), data_pagamento: p.data_pagamento }))
 
   const grupoPorDespesa = new Map<string, GrupoCategoria>()
-  for (const d of (despesasRes.data ?? []) as unknown as { id: string; categoria: { grupo: GrupoCategoria } | null }[]) {
+  const pagarInfoPorId = new Map<string, string>()
+  for (const d of (despesasRes.data ?? []) as unknown as { id: string; descricao: string | null; categoria: { grupo: GrupoCategoria } | null }[]) {
     grupoPorDespesa.set(d.id, d.categoria?.grupo ?? 'outros')
+    if (d.descricao?.trim()) pagarInfoPorId.set(`despesa:${d.id}`, d.descricao.trim())
   }
 
   const vendaIds = [...new Set(parcelas.filter(p => p.tipo === 'receber' && p.origem === 'venda' && p.origem_id).map(p => p.origem_id as string))]
@@ -139,10 +141,19 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
     }
   }
 
+  const compraIds = [...new Set(parcelas.filter(p => p.origem === 'compra' && p.origem_id).map(p => p.origem_id as string))]
+  if (compraIds.length) {
+    const { data: compras } = await sb.from('btx_compras').select('id,fornecedor:btx_fornecedores(nome)').in('id', compraIds)
+    for (const c of (compras ?? []) as unknown as { id: string; fornecedor: RelacaoNomeEstoque }[]) {
+      const nome = nomeRelacaoEstoque(c.fornecedor)
+      if (nome) pagarInfoPorId.set(`compra:${c.id}`, nome)
+    }
+  }
+
   return calcularResumoUnidade({
     unidade, ano, mes, hoje: hojeStr,
     saldoBase: Number(baseVigente?.saldo_inicial ?? 0),
-    competenciaBase, parcelas, pagamentos, grupoPorDespesa, vendaInfoPorId,
+    competenciaBase, parcelas, pagamentos, grupoPorDespesa, vendaInfoPorId, pagarInfoPorId,
     saldoBancario,
   })
 }
