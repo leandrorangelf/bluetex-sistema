@@ -12,11 +12,11 @@ const NAV = [
   { href: '/parcelas-pagar', label: 'Contas a Pagar' },
   { href: '/parcelas-receber', label: 'Contas a Receber' },
   { href: '/estoque-atual', label: 'Estoque' },
-  { section: 'Cadastros' },
-  { href: '/produtos', label: 'Produtos' },
-  { href: '/clientes', label: 'Clientes' },
-  { href: '/fornecedores', label: 'Fornecedores' },
-  { href: '/categorias', label: 'Categorias' },
+  { section: 'Cadastros', unidadeHidden: true },
+  { href: '/produtos', label: 'Produtos', unidadeHidden: true },
+  { href: '/clientes', label: 'Clientes', unidadeHidden: true },
+  { href: '/fornecedores', label: 'Fornecedores', unidadeHidden: true },
+  { href: '/categorias', label: 'Categorias', unidadeHidden: true },
   { section: 'Integrações' },
   { href: '/integracoes/vhsys', label: 'Integração VHSYS', adminOnly: true },
   { section: 'Administração' },
@@ -66,6 +66,7 @@ export default function Sidebar() {
       <nav style={{ flex: 1, paddingTop: 8 }}>
         {NAV.map((item, i) => {
           if (profile?.role === 'diretoria' && ('section' in item || item.href !== '/dashboard')) return null
+          if (profile?.role === 'unidade' && 'unidadeHidden' in item && item.unidadeHidden) return null
           if ('section' in item) return (
             <div key={i} className="nav-section">{item.section}</div>
           )

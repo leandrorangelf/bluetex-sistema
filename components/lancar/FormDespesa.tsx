@@ -53,25 +53,18 @@ export default function FormDespesa({ unidade, categorias, onResult }: Props) {
       ? [{ ...prev[0], valor: form.valor_total }] : prev)
   }, [form.valor_total, recorrente])
 
-  // acompanha o campo "Data" enquanto a parcela avulsa não foi mexida à mão —
-  // antes ela nascia travada em hoje(), ignorando a data lançada lá em cima
-  // (e o vencimento acabava saindo igual à data de lançamento, duplicado).
-  // Assim que o usuário editar "Data do lançamento" ou "Vencimento" na
-  // parcela, esse campo para de seguir o topo — o vencimento dela é respeitado.
+  // Vencimento acompanha o campo "Data" (do topo) enquanto a parcela avulsa
+  // não foi mexida à mão — assim que o usuário editar o vencimento direto na
+  // parcela, esse campo para de seguir o topo. Data de lançamento NÃO segue:
+  // ela é sempre o dia real em que a pessoa está lançando (hoje), automática.
   const dataSincronizada = useRef(EMPTY.data)
   useEffect(() => {
     if (recorrente) return
     setParcelas(prev => {
       if (prev.length !== 1) return prev
       const p = prev[0]
-      const seguindoLancamento = p.data_lancamento === dataSincronizada.current
-      const seguindoVencimento = p.vencimento === dataSincronizada.current
-      if (!seguindoLancamento && !seguindoVencimento) return prev
-      return [{
-        ...p,
-        data_lancamento: seguindoLancamento ? form.data : p.data_lancamento,
-        vencimento: seguindoVencimento ? form.data : p.vencimento,
-      }]
+      if (p.vencimento !== dataSincronizada.current) return prev
+      return [{ ...p, vencimento: form.data }]
     })
     dataSincronizada.current = form.data
   }, [form.data, recorrente])
@@ -142,7 +135,7 @@ export default function FormDespesa({ unidade, categorias, onResult }: Props) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Data</label>
+          <label className="form-label">Vencimento</label>
           <input className="form-input" type="date" value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value }))} />
         </div>
         <div className="form-group">

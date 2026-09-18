@@ -5,55 +5,33 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { formatMoeda, formatData, itensCaixas } from '@/lib/utils'
 import { UNIDADES, type Unidade, type Venda } from '@/types'
-import FormMovimento from '@/components/lancar/FormMovimento'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { isVhsysManaged } from '@/lib/vhsys/read-only'
-
-type Aba = 'registrar' | 'lista'
 
 export default function VendasPage() {
   const { profile, unidadeAtiva } = useAuth()
   const isAdmin = profile?.role === 'admin'
-  const isDiretoria = profile?.role === 'diretoria'
-  const [aba, setAba] = useState<Aba>(isDiretoria ? 'lista' : 'registrar')
   const [unidade, setUnidade] = useState<Unidade | ''>((unidadeAtiva as Unidade) ?? '')
-  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   useEffect(() => { if (!isAdmin && unidadeAtiva) setUnidade(unidadeAtiva as Unidade) }, [isAdmin, unidadeAtiva])
 
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-title">Vendas</h1><div className="page-subtitle">Registro de saídas e contas a receber</div></div>
+        <div><h1 className="page-title">Vendas</h1><div className="page-subtitle">Vendas sincronizadas do VHSYS</div></div>
       </div>
 
       {isAdmin && (
         <div className="form-group" style={{ maxWidth: 320 }}>
           <label className="form-label">Unidade</label>
-          <select className="form-select" value={unidade} onChange={e => { setUnidade(e.target.value as Unidade); setMsg(null) }}>
+          <select className="form-select" value={unidade} onChange={e => setUnidade(e.target.value as Unidade)}>
             <option value="">Selecione…</option>
             {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
       )}
 
-      <div className="tabs">
-        {!isDiretoria && <button className={`tab${aba === 'registrar' ? ' active' : ''}`} onClick={() => { setAba('registrar'); setMsg(null) }}>Registrar</button>}
-        <button className={`tab${aba === 'lista' ? ' active' : ''}`} onClick={() => { setAba('lista'); setMsg(null) }}>Lista</button>
-      </div>
-
-      {aba === 'registrar' && !isDiretoria && (
-        !unidade ? <div className="empty-state">Selecione a unidade.</div> : (
-          <>
-            {msg && <div className={`alert ${msg.tipo === 'ok' ? 'alert-green' : 'alert-red'}`} style={{ marginBottom: 16 }}>{msg.texto}</div>}
-            <div className="card" style={{ maxWidth: 720 }}>
-              <FormMovimento tipo="venda" unidade={unidade} onResult={setMsg} />
-            </div>
-          </>
-        )
-      )}
-
-      {aba === 'lista' && <ListaVendas unidade={isAdmin ? (unidade || undefined) : undefined} />}
+      <ListaVendas unidade={isAdmin ? (unidade || undefined) : undefined} />
     </div>
   )
 }
