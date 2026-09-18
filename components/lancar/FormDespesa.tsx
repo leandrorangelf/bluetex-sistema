@@ -44,6 +44,15 @@ export default function FormDespesa({ unidade, categorias, onResult }: Props) {
     })()
   }, [unidade, sb])
 
+  // com 1 só parcela (caso comum) o valor dela É o valor total da despesa —
+  // sem isso a parcela ficava com valor 0 se o usuário só preenchesse "Valor
+  // Total" e não abrisse o campo de valor da parcela lá embaixo.
+  useEffect(() => {
+    if (recorrente) return
+    setParcelas(prev => prev.length === 1 && prev[0].valor !== form.valor_total
+      ? [{ ...prev[0], valor: form.valor_total }] : prev)
+  }, [form.valor_total, recorrente])
+
   const porGrupo = GRUPOS_CATEGORIA.map(g => ({ g, itens: categorias.filter(c => c.grupo === g.value) })).filter(x => x.itens.length)
 
   async function salvar() {
