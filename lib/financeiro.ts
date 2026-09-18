@@ -22,7 +22,7 @@ export interface ParcelaFinanceira {
   descricao?: string
   origem_sistema?: string
   categoria_vhsys?: string | null
-  forma_pagamento?: 'boleto' | 'especie' | 'pix' | null
+  forma_pagamento?: 'boleto' | 'especie' | 'pix' | 'debito' | null
 }
 
 export interface PagamentoParcela {

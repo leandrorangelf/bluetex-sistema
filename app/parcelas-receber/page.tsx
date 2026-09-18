@@ -45,7 +45,7 @@ export default function ParcelasReceberPage() {
   const [receberRow, setReceberRow] = useState<Parcela | null>(null)
   const [receberSaving, setReceberSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
-  const [formEdit, setFormEdit] = useState<{ vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix'; nf: string; texto: string }>({ vencimento: '', valor: 0, forma_pagamento: 'boleto', nf: '', texto: '' })
+  const [formEdit, setFormEdit] = useState<{ vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix' | 'debito'; nf: string; texto: string }>({ vencimento: '', valor: 0, forma_pagamento: 'boleto', nf: '', texto: '' })
   const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -340,6 +340,7 @@ export default function ParcelasReceberPage() {
               <option value="boleto">Boleto</option>
               <option value="especie">Dinheiro</option>
               <option value="pix">PIX</option>
+              <option value="debito">Débito</option>
             </select>
           </div>
           <div className="form-group">

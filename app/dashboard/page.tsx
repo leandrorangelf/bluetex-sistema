@@ -273,7 +273,7 @@ function CardRecebiveis({ resumo, onClickConta }: { resumo: ResumoUnidade; onCli
   )
 }
 
-interface ItemLancamento { id: string; descricao: string; data: string; valor: number; categoria: string; formaPagamento: 'boleto' | 'especie' | 'pix' | null }
+interface ItemLancamento { id: string; descricao: string; data: string; valor: number; categoria: string; formaPagamento: 'boleto' | 'especie' | 'pix' | 'debito' | null }
 
 function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; total: number; itens: ItemLancamento[] }[] {
   const mapa = new Map<string, ItemLancamento[]>()
