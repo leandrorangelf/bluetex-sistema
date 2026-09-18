@@ -5,24 +5,31 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import type { Produto, UnidadeMedida } from '@/types'
+import type { Produto, Unidade, UnidadeMedida } from '@/types'
+import { UNIDADES } from '@/types'
 import { isVhsysManaged } from '@/lib/vhsys/read-only'
 
 const EMPTY = { nome: '', unidade_base_id: '', unidade_maior_id: '', fator_conversao: 480 }
 
 export default function ProdutosPage() {
-  const { profile } = useAuth()
+  const { profile, unidadeAtiva } = useAuth()
   const [rows, setRows] = useState<Produto[]>([])
   const [unidades, setUnidades] = useState<UnidadeMedida[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY)
+  const [formUnidade, setFormUnidade] = useState<Unidade | ''>('')
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   const sb = createClient()
   const isAdmin = profile?.role === 'admin'
+  const isUnidade = profile?.role === 'unidade'
+  const podeGerenciar = isAdmin || isUnidade
+  function podeEditar(r: Produto) {
+    return isAdmin || (isUnidade && r.unidade === unidadeAtiva)
+  }
 
   useEffect(() => { load() }, [])
 
@@ -37,19 +44,26 @@ export default function ProdutosPage() {
     setLoading(false)
   }
 
-  function openNew() { setForm(EMPTY); setEditId(null); setErr(''); setModal(true) }
+  function openNew() {
+    setForm(EMPTY)
+    setFormUnidade(isUnidade ? (unidadeAtiva as Unidade) ?? '' : '')
+    setEditId(null); setErr(''); setModal(true)
+  }
   function openEdit(r: Produto) {
-    if (isVhsysManaged(r)) return
+    if (isVhsysManaged(r) || !podeEditar(r)) return
     setForm({ nome: r.nome, unidade_base_id: r.unidade_base_id, unidade_maior_id: r.unidade_maior_id, fator_conversao: r.fator_conversao })
-    setEditId(r.id); setErr(''); setModal(true)
+    setFormUnidade(r.unidade ?? ''); setEditId(r.id); setErr(''); setModal(true)
   }
 
   async function save() {
-    if (editId && isVhsysManaged(rows.find(r => r.id === editId) ?? {})) return
+    const editRow = editId ? rows.find(r => r.id === editId) : null
+    if (editRow && (isVhsysManaged(editRow) || !podeEditar(editRow))) return
     if (!form.nome.trim()) return setErr('Nome é obrigatório.')
     if (!form.unidade_base_id || !form.unidade_maior_id) return setErr('Escolha as duas unidades.')
+    const unidade = isAdmin ? (formUnidade || null) : unidadeAtiva
+    if (isUnidade && !unidade) return setErr('Selecione a unidade.')
     setSaving(true)
-    const payload = { nome: form.nome, unidade_base_id: form.unidade_base_id, unidade_maior_id: form.unidade_maior_id, fator_conversao: form.fator_conversao }
+    const payload = { nome: form.nome, unidade_base_id: form.unidade_base_id, unidade_maior_id: form.unidade_maior_id, fator_conversao: form.fator_conversao, unidade }
     if (editId) {
       await sb.from('btx_produtos').update(payload).eq('id', editId)
     } else {
@@ -59,7 +73,8 @@ export default function ProdutosPage() {
   }
 
   async function remove(id: string) {
-    if (isVhsysManaged(rows.find(r => r.id === id) ?? {})) return
+    const r = rows.find(r => r.id === id)
+    if (!r || isVhsysManaged(r) || !podeEditar(r)) return
     setSaving(true)
     await sb.from('btx_produtos').update({ ativo: false }).eq('id', id)
     setSaving(false); setConfirm(null); load()
@@ -69,29 +84,31 @@ export default function ProdutosPage() {
     <div>
       <div className="page-header">
         <div><h1 className="page-title">Produtos</h1><div className="page-subtitle">Catálogo de produtos da distribuidora</div></div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNew}>+ Novo produto</button>}
+        {podeGerenciar && <button className="btn btn-primary" onClick={openNew}>+ Novo produto</button>}
       </div>
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Produto</th><th>Unid. base</th><th>Unid. maior</th><th>Fator</th>{isAdmin && <th>Ações</th>}</tr></thead>
+          <thead><tr><th>Produto</th><th>Unid. base</th><th>Unid. maior</th><th>Fator</th><th>Unidade</th>{podeGerenciar && <th>Ações</th>}</tr></thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="empty-state">Carregando...</td></tr>
+              <tr><td colSpan={podeGerenciar ? 6 : 5} className="empty-state">Carregando...</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={5} className="empty-state">Nenhum produto cadastrado.</td></tr>
+              <tr><td colSpan={podeGerenciar ? 6 : 5} className="empty-state">Nenhum produto cadastrado.</td></tr>
             ) : rows.map(r => (
               <tr key={r.id}>
                 <td style={{ fontWeight: 500 }}>{r.nome} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                 <td>{r.unidade_base?.nome}</td>
                 <td>{r.unidade_maior?.nome}</td>
                 <td className="mono">{r.fator_conversao}</td>
-                {isAdmin && (
+                <td>{r.unidade ? <span className="badge badge-green">{r.unidade.replace('NEW BLUETEX ', '')}</span> : <span className="badge badge-purple">Global</span>}</td>
+                {podeGerenciar && (
                   <td style={{ display: 'flex', gap: 6 }}>
-                    {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span> : <>
+                    {isVhsysManaged(r) ? <span className="text-muted">Gerenciado pelo VHSYS</span>
+                    : podeEditar(r) ? <>
                       <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>Editar</button>
                       <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>Excluir</button>
-                    </>}
+                    </> : <span className="text-muted">Somente leitura</span>}
                   </td>
                 )}
               </tr>
@@ -107,6 +124,15 @@ export default function ProdutosPage() {
         </>}
       >
         {err && <div className="alert alert-red">{err}</div>}
+        {isAdmin && (
+          <div className="form-group">
+            <label className="form-label">Unidade</label>
+            <select className="form-select" value={formUnidade} onChange={e => setFormUnidade(e.target.value as Unidade | '')}>
+              <option value="">Global (todas as unidades)</option>
+              {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+        )}
         <div className="form-group">
           <label className="form-label">Nome</label>
           <input className="form-input" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} />
