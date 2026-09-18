@@ -7,7 +7,8 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData, itensCaixas, converterParaUnidadeMaior } from '@/lib/utils'
 import type { Compra } from '@/types'
-import { calcularEstoque, calcularPrecoMedioVenda, calcularValorEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
+import { calcularEstoque, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, calcularValorEstoque, mesclarPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type VendaEstoqueDb } from '@/lib/estoque'
+import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
 import RelatorioMovimentosEstoque from '@/components/estoque/RelatorioMovimentosEstoque'
@@ -36,6 +37,7 @@ export default function EstoqueAtualPage() {
   const [aberturas, setAberturas] = useState<AberturaEstoqueDb[]>([])
   const [compras, setCompras] = useState<CompraEstoqueDb[]>([])
   const [vendas, setVendas] = useState<VendaEstoqueDb[]>([])
+  const [historicoVendas, setHistoricoVendas] = useState<LinhaHistoricoVendaVhsys[]>([])
   const [ajustes, setAjustes] = useState<AjusteEstoque[]>([])
   const [auditoria, setAuditoria] = useState<AuditoriaEstoque[]>([])
   const [nomesUsuarios, setNomesUsuarios] = useState<Record<string, string>>({})
@@ -85,6 +87,14 @@ export default function EstoqueAtualPage() {
     setVendas((consultas[3].data ?? []) as unknown as VendaEstoqueDb[])
     setAjustes((consultas[4].data ?? []) as AjusteEstoque[])
 
+    const codigoVhsys = VHSYS_UNIDADES.find(u => u.unidade === unidade)?.codigo
+    if (codigoVhsys) {
+      const { data: historico } = await sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor').eq('unidade_codigo', codigoVhsys)
+      setHistoricoVendas((historico ?? []) as LinhaHistoricoVendaVhsys[])
+    } else {
+      setHistoricoVendas([])
+    }
+
     if (veTudo) {
       const auditResult = await sb.from('btx_auditoria_estoque').select('*').eq('unidade', unidade).order('created_at', { ascending: false }).limit(300)
       if (!auditResult.error) {
@@ -116,7 +126,12 @@ export default function EstoqueAtualPage() {
     produtoId: produtoId || undefined,
   }), [ano, mes, produtoId, produtos, aberturas, compras, vendas, ajustes])
 
-  const precoMedioVenda = useMemo(() => calcularPrecoMedioVenda(vendas), [vendas])
+  const precoMedioVendaAtiva = useMemo(() => calcularPrecoMedioVenda(vendas), [vendas])
+  const precoMedioVendaHistorico = useMemo(
+    () => calcularPrecoMedioVendaHistorico(historicoVendas, produtos.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fator_conversao }))),
+    [historicoVendas, produtos],
+  )
+  const precoMedioVenda = useMemo(() => mesclarPrecoMedioVenda(precoMedioVendaAtiva, precoMedioVendaHistorico), [precoMedioVendaAtiva, precoMedioVendaHistorico])
   const valorEstoque = useMemo(() => calcularValorEstoque(painel.saldos, precoMedioVenda), [painel.saldos, precoMedioVenda])
 
   // saldo de todos os produtos (sem o filtro de produto da página) — usado
