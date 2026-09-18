@@ -141,8 +141,11 @@ tbody tr:hover { background: #F3F3F5; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 /* colunas numéricas: alinhadas à direita, dígitos de largura fixa */
 th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
-/* coluna de texto livre (origem, descrição, cliente) — deixa quebrar e limita largura */
-td.cell-wrap { white-space: normal; max-width: 340px; overflow-wrap: anywhere; }
+/* coluna de texto livre (origem, descrição, cliente) — deixa quebrar e limita largura.
+   min-width evita que as outras colunas (nowrap) espremam essa até sobrar 1
+   letra por linha; a tabela cresce e usa o scroll horizontal do .table-wrap
+   em vez de espremer o texto. */
+td.cell-wrap { white-space: normal; min-width: 200px; max-width: 340px; overflow-wrap: break-word; }
 /* botões de ação numa linha, sem quebrar nem colapsar a coluna */
 td.cell-actions { white-space: nowrap; }
 .row-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
