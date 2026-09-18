@@ -58,10 +58,6 @@ export default function ParcelasEditor({ parcelas, onChange, tipo }: Props) {
           </div>
           <div className="grid-2">
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Data do lançamento</label>
-              <input className="form-input" type="date" value={p.data_lancamento} onChange={e => update(i, 'data_lancamento', e.target.value)} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Vencimento</label>
               <input className="form-input" type="date" value={p.vencimento} onChange={e => update(i, 'vencimento', e.target.value)} />
             </div>
