@@ -33,6 +33,7 @@ export default function ParcelasPagarPage() {
   const [pagMap, setPagMap] = useState<Map<string, PagamentoRow[]>>(new Map())
   const [origemMap, setOrigemMap] = useState<Map<string, string>>(new Map())
   const [nfMap, setNfMap] = useState<Map<string, string>>(new Map())
+  const [despesaDescricaoMap, setDespesaDescricaoMap] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [statusFiltro, setStatusFiltro] = useState<(typeof STATUS)[number]['key']>('aberto')
   const [origemFiltro, setOrigemFiltro] = useState<(typeof ORIGENS)[number]>('todos')
@@ -43,7 +44,7 @@ export default function ParcelasPagarPage() {
   const [pagarRow, setPagarRow] = useState<Parcela | null>(null)
   const [pagarSaving, setPagarSaving] = useState(false)
   const [verId, setVerId] = useState<string | null>(null)
-  const [formEdit, setFormEdit] = useState<{ data_lancamento: string; vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix'; numero_boleto: string }>({ data_lancamento: '', vencimento: '', valor: 0, forma_pagamento: 'boleto', numero_boleto: '' })
+  const [formEdit, setFormEdit] = useState<{ data_lancamento: string; vencimento: string; valor: number; forma_pagamento: 'boleto' | 'especie' | 'pix'; nf: string; texto: string }>({ data_lancamento: '', vencimento: '', valor: 0, forma_pagamento: 'boleto', nf: '', texto: '' })
   const [nota, setNota] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -57,6 +58,16 @@ export default function ParcelasPagarPage() {
     if (abrirId) { setStatusFiltro('todos'); setTodosMeses(true) }
   }, [abrirId])
 
+  // NF fica no lugar certo dependendo da origem: numero_nf da compra/despesa
+  // vinculada, ou numero_boleto da própria parcela quando não tem vínculo.
+  // Mesma coisa pra "Origem": descrição da despesa ou observações da parcela
+  // — texto livre digitado por alguém, então pode ter erro de digitação.
+  function formEditFromRow(r: Parcela) {
+    const nf = nfMap.get(r.id)
+    const texto = r.origem === 'despesa' && r.origem_id ? (despesaDescricaoMap.get(r.origem_id) ?? '') : (r.observacoes?.trim() ?? '')
+    return { data_lancamento: r.data_lancamento, vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? ('boleto' as const), nf: nf && nf !== '—' ? nf : '', texto }
+  }
+
   useEffect(() => {
     if (!abrirId || abrirTratado.current || rows.length === 0) return
     const row = rows.find(r => r.id === abrirId)
@@ -65,7 +76,7 @@ export default function ParcelasPagarPage() {
     if (!isVhsysManaged(row) && (row.status === 'pendente' || row.status === 'parcial')) {
       setPagarRow(row)
     } else {
-      setFormEdit({ data_lancamento: row.data_lancamento, vencimento: row.vencimento, valor: row.valor, forma_pagamento: row.forma_pagamento ?? 'boleto', numero_boleto: row.numero_boleto ?? '' })
+      setFormEdit(formEditFromRow(row))
       setNota(row.nota_interna ?? '')
       setVerId(row.id)
     }
@@ -91,6 +102,15 @@ export default function ParcelasPagarPage() {
     }
     setPagMap(mp)
 
+    // auto-corrige parcela que ficou paga (soma dos pagamentos cobre o valor)
+    // mas o status não sincronizou — sem isso ela trava em "saldo zero" sem
+    // deixar dar baixa nem aparecer em Pagas.
+    const dessincronizadas = parcelas.filter(p => p.status !== 'pago' && p.status !== 'cancelado' && saldoRestante(p.valor, mp.get(p.id) ?? []) <= 0 && (mp.get(p.id) ?? []).length > 0)
+    if (dessincronizadas.length > 0) {
+      await Promise.all(dessincronizadas.map(p => sincronizarParcela(sb, { id: p.id, valor: p.valor, status: p.status })))
+      return load()
+    }
+
     const origemIds = (o: OrigemParcela) => [...new Set(parcelas.filter(p => p.origem === o && p.origem_id).map(p => p.origem_id as string))]
     const compraIds = origemIds('compra')
     const despesaIds = origemIds('despesa')
@@ -103,10 +123,12 @@ export default function ParcelasPagarPage() {
     const compraNome = new Map(compraData.map(c => [c.id, nomeRelacao(c.fornecedor) ?? 'Compra']))
     const compraNf = new Map(compraData.map(c => [c.id, c.numero_nf ?? '']))
     const despesaNf = new Map(despesaData.map(d => [d.id, d.numero_nf ?? '']))
+    const despesaDescricao = new Map(despesaData.map(d => [d.id, d.descricao ?? '']))
     const despesaTxt = new Map(despesaData.map(d => {
       const cat = nomeRelacao(d.categoria)
       return [d.id, d.descricao + (cat ? ` · ${cat}` : '')]
     }))
+    setDespesaDescricaoMap(despesaDescricao)
     const om = new Map<string, string>()
     const nf = new Map<string, string>()
     for (const p of parcelas) {
@@ -152,7 +174,16 @@ export default function ParcelasPagarPage() {
   async function salvarEdit() {
     if (!verRow || isVhsysManaged(verRow)) return
     setSaving(true)
-    await sb.from('btx_parcelas').update({ data_lancamento: formEdit.data_lancamento, vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento, numero_boleto: formEdit.numero_boleto.trim() || null }).eq('id', verRow.id)
+    await sb.from('btx_parcelas').update({ data_lancamento: formEdit.data_lancamento, vencimento: formEdit.vencimento, valor: formEdit.valor, forma_pagamento: formEdit.forma_pagamento }).eq('id', verRow.id)
+    // NF e "origem" (descrição/observação) moram em tabelas diferentes
+    // dependendo de onde a conta veio — grava no lugar certo.
+    if (verRow.origem === 'despesa' && verRow.origem_id) {
+      await sb.from('btx_despesas').update({ numero_nf: formEdit.nf.trim() || null, descricao: formEdit.texto.trim() }).eq('id', verRow.origem_id)
+    } else if (verRow.origem === 'compra' && verRow.origem_id) {
+      await sb.from('btx_compras').update({ numero_nf: formEdit.nf.trim() || null }).eq('id', verRow.origem_id)
+    } else {
+      await sb.from('btx_parcelas').update({ numero_boleto: formEdit.nf.trim() || null, observacoes: formEdit.texto.trim() || null }).eq('id', verRow.id)
+    }
     await sincronizarParcela(sb, { id: verRow.id, valor: formEdit.valor, status: verRow.status })
     setSaving(false); setVerId(null); load()
   }
@@ -172,7 +203,7 @@ export default function ParcelasPagarPage() {
   }
 
   function abrirVer(r: Parcela) {
-    setFormEdit({ data_lancamento: r.data_lancamento, vencimento: r.vencimento, valor: r.valor, forma_pagamento: r.forma_pagamento ?? 'boleto', numero_boleto: r.numero_boleto ?? '' })
+    setFormEdit(formEditFromRow(r))
     setNota(r.nota_interna ?? '')
     setVerId(r.id)
   }
@@ -302,15 +333,15 @@ export default function ParcelasPagarPage() {
             </div>
           )}
           <div className="form-group">
-            <label className="form-label">Origem</label>
-            <div>{origemMap.get(verRow.id) ?? '—'}</div>
+            <label className="form-label">{verRow.origem === 'despesa' ? 'Descrição' : verRow.origem === 'compra' ? 'Fornecedor' : 'Origem'}</label>
+            {verRow.origem === 'compra'
+              ? <div>{origemMap.get(verRow.id) ?? '—'}</div>
+              : <input className="form-input" value={formEdit.texto} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, texto: e.target.value }))} placeholder={verRow.origem === 'despesa' ? 'Descrição da despesa' : 'Observação'} />}
           </div>
-          {!verRow.origem_id && (
-            <div className="form-group">
-              <label className="form-label">Nº do boleto / NF</label>
-              <input className="form-input" value={formEdit.numero_boleto} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, numero_boleto: e.target.value }))} placeholder="Ex.: 2388" />
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label">Nº do boleto / NF</label>
+            <input className="form-input" value={formEdit.nf} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, nf: e.target.value }))} placeholder="Ex.: 2388" />
+          </div>
           <div className="form-group">
             <label className="form-label">Data do lançamento</label>
             <input className="form-input" type="date" value={formEdit.data_lancamento} disabled={isVhsysManaged(verRow)} onChange={e => setFormEdit(f => ({ ...f, data_lancamento: e.target.value }))} />
