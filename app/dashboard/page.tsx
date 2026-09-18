@@ -628,7 +628,7 @@ export default function DashboardPage() {
 
       <ModalConta
         conta={contaAberta}
-        readOnly={profile?.role === 'diretoria'}
+        readOnly={profile?.role !== 'admin'}
         podeExcluir={profile?.role === 'admin'}
         onClose={() => setContaAberta(null)}
         onGravou={() => { setContaAberta(null); carregar() }}
@@ -677,7 +677,7 @@ export default function DashboardPage() {
           {abaUnica.parcelasVencidas > 0 && (
             <div className="alert alert-red" style={{ marginBottom: 16 }}>⚠ {abaUnica.parcelasVencidas} conta(s) a pagar vencida(s) sem baixa</div>
           )}
-          <Waterfall resumo={abaUnica} onEditarSaldo={profile?.role === 'diretoria' ? undefined : () => setEditandoSaldo(true)} />
+          <Waterfall resumo={abaUnica} onEditarSaldo={profile?.role === 'admin' ? () => setEditandoSaldo(true) : undefined} />
           <CardRecebiveis resumo={abaUnica} onClickConta={setContaAberta} />
           <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.75fr) minmax(0, 1.25fr)', gap: 16, alignItems: 'start' }}>
