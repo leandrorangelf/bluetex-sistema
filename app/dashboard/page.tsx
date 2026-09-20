@@ -71,10 +71,16 @@ function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: Linh
       <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{titulo} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>· estoque em caixas</span></div>
       {linhas.map(l => {
         const v = l.saldos[unidade] ?? 0
+        const valorLinha = Math.max(v, 0) * l.precoMedioVenda
         return (
-          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 12, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
             <span>{l.nome}</span>
-            <span className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</span>
+            <span style={{ textAlign: 'right' }}>
+              <span className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</span>
+              <span className="mono" style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)' }}>
+                {valorLinha > 0 ? formatMoeda(valorLinha) : '—'}
+              </span>
+            </span>
           </div>
         )
       })}
