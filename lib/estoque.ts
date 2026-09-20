@@ -1,4 +1,5 @@
 import type { AjusteEstoque, Produto } from '@/types'
+import { melhorMatch, tokens, type LocalProduto } from './vhsys/produto-match'
 
 export type TipoMovimentoEstoque = 'entrada' | 'saida'
 export type OrigemMovimentoEstoque = 'compra' | 'venda' | 'ajuste'
@@ -204,6 +205,49 @@ export function calcularPrecoMedioVenda(vendas: VendaEstoqueDb[]): Map<string, n
 
 export function calcularValorEstoque(saldos: SaldoProduto[], precoMedioVenda: Map<string, number>): number {
   return saldos.reduce((total, s) => total + Math.max(s.saldoAtual, 0) * (precoMedioVenda.get(s.produtoId) ?? 0), 0)
+}
+
+export interface LinhaHistoricoVendaVhsys { produto: string; qtd_caixas: number; valor: number }
+
+// Preço médio de referência a partir do relatório histórico de vendas do
+// VHSYS (btx_vhsys_vendas_historico) — só leitura, não move estoque. Serve de
+// fallback pra produto sem venda "ativa" recente em btx_vendas (ex.: catálogo
+// que só passou a sincronizar depois da virada de estoque), casando a
+// descrição do VHSYS com o catálogo local pelo mesmo matcher usado no
+// relatório de vendas.
+export function calcularPrecoMedioVendaHistorico(
+  linhas: LinhaHistoricoVendaVhsys[],
+  produtosLocais: { id: string; nome: string; fatorConversao: number }[],
+): Map<string, number> {
+  const locais: LocalProduto[] = produtosLocais.map(p => ({ id: p.id, nome: p.nome, _tokens: tokens(p.nome) }))
+  const acumulado = new Map<string, { valor: number; qtdCarteiras: number }>()
+  for (const linha of linhas) {
+    if (!linha.qtd_caixas || linha.valor == null) continue
+    const match = melhorMatch(linha.produto, locais)
+    if (!match) continue
+    const produtoLocal = produtosLocais.find(p => p.id === match.id)
+    if (!produtoLocal) continue
+    const qtdCarteiras = linha.qtd_caixas * produtoLocal.fatorConversao
+    const atual = acumulado.get(match.id) ?? { valor: 0, qtdCarteiras: 0 }
+    atual.valor += linha.valor
+    atual.qtdCarteiras += qtdCarteiras
+    acumulado.set(match.id, atual)
+  }
+  const precos = new Map<string, number>()
+  for (const [produtoId, { valor, qtdCarteiras }] of acumulado) {
+    if (qtdCarteiras > 0) precos.set(produtoId, valor / qtdCarteiras)
+  }
+  return precos
+}
+
+// Preço "ao vivo" (vendas ativas recentes) manda; histórico do VHSYS só
+// preenche o que ainda não tem venda ativa registrada.
+export function mesclarPrecoMedioVenda(preferido: Map<string, number>, fallback: Map<string, number>): Map<string, number> {
+  const resultado = new Map(preferido)
+  for (const [produtoId, preco] of fallback) {
+    if (!resultado.has(produtoId)) resultado.set(produtoId, preco)
+  }
+  return resultado
 }
 
 export function normalizarMovimentosEstoque(compras: CompraEstoqueDb[], vendas: VendaEstoqueDb[], ajustes: AjusteEstoque[]): MovimentoEstoque[] {

@@ -31,6 +31,11 @@ export default function VhsysPage() {
           Ver relatório de vendas por cliente/mês (todo o período)
         </Link>
       </p>
+      <p style={{ marginTop: 8 }}>
+        <Link href="/vendas">
+          Ver extrato de vendas por NF/produto (aba Vendas — tem botão de sincronizar lá)
+        </Link>
+      </p>
     </div>
   )
 }

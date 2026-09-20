@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calcularEstoque, calcularPrecoMedioVenda, calcularValorEstoque, type AberturaEstoque, type MovimentoEstoque, type ProdutoEstoque, type SaldoProduto, type VendaEstoqueDb } from '../lib/estoque.ts'
+import { calcularEstoque, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, calcularValorEstoque, mesclarPrecoMedioVenda, type AberturaEstoque, type LinhaHistoricoVendaVhsys, type MovimentoEstoque, type ProdutoEstoque, type SaldoProduto, type VendaEstoqueDb } from '../lib/estoque.ts'
 
 const produtos: ProdutoEstoque[] = [
   { id: 'p1', nome: 'Produto A', fatorConversao: 10 },
@@ -113,4 +113,28 @@ test('valoriza o estoque pelo saldo atual (nunca negativo) vezes o preço médio
   const precos = new Map([['p1', 5.8], ['p2', 3]])
 
   assert.equal(calcularValorEstoque(saldos, precos), 90 * 5.8)
+})
+
+test('preço médio do histórico VHSYS casa a descrição do produto e converte caixas em carteiras', () => {
+  const produtosLocais = [{ id: 'p1', nome: 'GUDANG RED', fatorConversao: 480 }]
+  const linhas: LinhaHistoricoVendaVhsys[] = [
+    { produto: 'El Poncio Gudang Red', qtd_caixas: 9, valor: 71280 },
+    { produto: 'El Poncio Gudang Red', qtd_caixas: 4, valor: 31680 },
+    { produto: 'Produto sem correspondência', qtd_caixas: 10, valor: 999 },
+  ]
+  const precos = calcularPrecoMedioVendaHistorico(linhas, produtosLocais)
+
+  // (71280 + 31680) / ((9 + 4) * 480) — preço por carteira, não por caixa
+  assert.equal(precos.get('p1'), (71280 + 31680) / (13 * 480))
+  assert.equal(precos.size, 1)
+})
+
+test('mescla preço ao vivo com fallback do histórico sem sobrescrever quem já tem venda ativa', () => {
+  const ativo = new Map([['p1', 20]])
+  const historico = new Map([['p1', 10], ['p2', 5]])
+
+  const mesclado = mesclarPrecoMedioVenda(ativo, historico)
+
+  assert.equal(mesclado.get('p1'), 20)
+  assert.equal(mesclado.get('p2'), 5)
 })
