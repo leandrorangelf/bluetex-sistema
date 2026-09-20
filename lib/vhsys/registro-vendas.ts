@@ -77,9 +77,12 @@ export async function buscarRegistroVendas(
   for (const pedido of validosNoPeriodo) {
     const cliente = String(pedido.nome_cliente ?? 'Sem cliente').trim() || 'Sem cliente'
     const dataVenda = isoDate(pedido.data_pedido ?? pedido.data_emissao)!
-    const numeroNf = String(pedido.numero_nfe ?? pedido.numero_nf ?? '').trim() || null
-    const internalId = String(pedido.id_ped ?? pedido.id_pedido)
     const pedidoVhsysId = String(pedido.id_pedido ?? pedido.id_ped)
+    // VHSYS não devolve nº de nota fiscal no /pedidos — usa o nº do pedido
+    // como referência (mesmo fallback já usado no importador que sincroniza
+    // btx_vendas, então fica consistente com o resto do sistema).
+    const numeroNf = String(pedido.numero_nfe ?? pedido.numero_nf ?? pedidoVhsysId ?? '').trim() || null
+    const internalId = String(pedido.id_ped ?? pedido.id_pedido)
     const itens = await client.list<VhsysOrderItem>(`/pedidos/${encodeURIComponent(internalId)}/produtos`)
 
     for (const item of itens) {

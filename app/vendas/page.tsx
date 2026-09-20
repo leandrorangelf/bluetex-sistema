@@ -1,15 +1,15 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { formatMoeda, formatData } from '@/lib/utils'
 import { UNIDADES, type Unidade } from '@/types'
 import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
-import { calcularSituacaoPorNf, type SituacaoVenda } from '@/lib/vendas-situacao'
 
 interface RegistroVenda {
   id: string
+  pedido_vhsys_id: string
   numero_nf: string | null
   cliente: string
   data_venda: string
@@ -19,11 +19,38 @@ interface RegistroVenda {
   sem_conversao: boolean
 }
 
-function badgeSituacao(situacao: SituacaoVenda) {
-  const classe = situacao === 'pago' ? 'badge-green' : situacao === 'parcial' ? 'badge-amber' : situacao === 'pendente' ? 'badge-red' : 'badge-gray'
-  const label = situacao === 'pago' ? 'Pago' : situacao === 'parcial' ? 'Parcial' : situacao === 'pendente' ? 'Pendente' : 'Não conciliado'
-  return <span className={`badge ${classe}`}>{label}</span>
+interface Pedido {
+  pedidoId: string
+  numeroNf: string | null
+  cliente: string
+  dataVenda: string
+  itens: RegistroVenda[]
+  valorTotal: number
 }
+
+function agruparPorPedido(rows: RegistroVenda[]): Pedido[] {
+  const porPedido = new Map<string, Pedido>()
+  for (const r of rows) {
+    const atual = porPedido.get(r.pedido_vhsys_id)
+    if (atual) {
+      atual.itens.push(r)
+      atual.valorTotal += r.valor
+    } else {
+      porPedido.set(r.pedido_vhsys_id, {
+        pedidoId: r.pedido_vhsys_id, numeroNf: r.numero_nf, cliente: r.cliente,
+        dataVenda: r.data_venda, itens: [r], valorTotal: r.valor,
+      })
+    }
+  }
+  return [...porPedido.values()].sort((a, b) => b.dataVenda.localeCompare(a.dataVenda) || b.pedidoId.localeCompare(a.pedidoId))
+}
+
+const ANO_ATUAL = new Date().getFullYear()
+const ANOS_DISPONIVEIS = Array.from({ length: 6 }, (_, i) => String(ANO_ATUAL - i))
+const MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+]
 
 export default function VendasPage() {
   const { profile, unidadeAtiva } = useAuth()
@@ -35,7 +62,7 @@ export default function VendasPage() {
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-title">Vendas</h1><div className="page-subtitle">Extrato de vendas do VHSYS — data, cliente, produto, caixas e valor</div></div>
+        <div><h1 className="page-title">Vendas</h1><div className="page-subtitle">Extrato de vendas do VHSYS, agrupado por pedido</div></div>
       </div>
 
       {isAdmin && (
@@ -56,27 +83,24 @@ export default function VendasPage() {
 function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean }) {
   const { unidadeAtiva } = useAuth()
   const [rows, setRows] = useState<RegistroVenda[]>([])
-  const [situacoes, setSituacoes] = useState<Map<string, SituacaoVenda>>(new Map())
   const [loading, setLoading] = useState(true)
   const [sincronizando, setSincronizando] = useState(false)
   const [erroSync, setErroSync] = useState('')
+  const [ano, setAno] = useState(String(ANO_ATUAL))
+  const [mes, setMes] = useState('')
   const [filtroCliente, setFiltroCliente] = useState('')
   const [filtroProduto, setFiltroProduto] = useState('')
+  const [abertos, setAbertos] = useState<Set<string>>(new Set())
   const sb = useMemo(() => createClient(), [])
   const filtro = unidade ?? unidadeAtiva ?? ''
 
   async function carregar() {
     setLoading(true)
-    const [{ data: registros }, { data: vendas }, { data: parcelas }] = await Promise.all([
-      sb.from('btx_vhsys_registro_vendas')
-        .select('id,numero_nf,cliente,data_venda,produto_texto,qtd_caixas,valor,sem_conversao')
-        .eq('unidade', filtro)
-        .order('data_venda', { ascending: false }),
-      sb.from('btx_vendas').select('id,numero_nf').eq('unidade', filtro),
-      sb.from('btx_parcelas').select('origem_id,status').eq('unidade', filtro).eq('tipo', 'receber').eq('origem', 'venda'),
-    ])
+    const { data: registros } = await sb.from('btx_vhsys_registro_vendas')
+      .select('id,pedido_vhsys_id,numero_nf,cliente,data_venda,produto_texto,qtd_caixas,valor,sem_conversao')
+      .eq('unidade', filtro)
+      .order('data_venda', { ascending: false })
     setRows((registros ?? []) as RegistroVenda[])
-    setSituacoes(calcularSituacaoPorNf((vendas ?? []) as { id: string; numero_nf: string | null }[], (parcelas ?? []) as { origem_id: string; status: string }[]))
     setLoading(false)
   }
 
@@ -104,17 +128,41 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
       })
   }
 
+  function toggle(pedidoId: string) {
+    setAbertos(prev => {
+      const novo = new Set(prev)
+      if (novo.has(pedidoId)) novo.delete(pedidoId)
+      else novo.add(pedidoId)
+      return novo
+    })
+  }
+
   const rowsFiltradas = rows.filter(r =>
-    (!filtroCliente.trim() || r.cliente.toLocaleLowerCase('pt-BR').includes(filtroCliente.trim().toLocaleLowerCase('pt-BR')))
+    r.data_venda.startsWith(mes ? `${ano}-${mes}` : ano)
+    && (!filtroCliente.trim() || r.cliente.toLocaleLowerCase('pt-BR').includes(filtroCliente.trim().toLocaleLowerCase('pt-BR')))
     && (!filtroProduto.trim() || r.produto_texto.toLocaleLowerCase('pt-BR').includes(filtroProduto.trim().toLocaleLowerCase('pt-BR'))),
   )
-  const valorTotal = rowsFiltradas.reduce((total, r) => total + r.valor, 0)
+  const pedidos = agruparPorPedido(rowsFiltradas)
+  const valorTotal = pedidos.reduce((total, p) => total + p.valorTotal, 0)
 
   if (!filtro) return null
 
   return (
     <div>
       <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div className="form-group" style={{ marginBottom: 0, maxWidth: 140 }}>
+          <label className="form-label">Ano</label>
+          <select className="form-select" value={ano} onChange={e => setAno(e.target.value)}>
+            {ANOS_DISPONIVEIS.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0, maxWidth: 160 }}>
+          <label className="form-label">Mês</label>
+          <select className="form-select" value={mes} onChange={e => setMes(e.target.value)}>
+            <option value="">Todos</option>
+            {MESES.map((nome, i) => <option key={nome} value={String(i + 1).padStart(2, '0')}>{nome}</option>)}
+          </select>
+        </div>
         <div className="form-group" style={{ marginBottom: 0, maxWidth: 220 }}>
           <label className="form-label">Cliente contém</label>
           <input className="form-input" value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} placeholder="ex.: due valle" />
@@ -135,41 +183,54 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
       <div className="table-wrap">
         <table className="table-vendas">
           <colgroup>
+            <col style={{ width: 30 }} />
             <col style={{ width: 100 }} />
-            <col style={{ width: 120 }} />
-            <col />
+            <col style={{ width: 100 }} />
             <col />
             <col style={{ width: 90 }} />
-            <col style={{ width: 120 }} />
-            <col style={{ width: 120 }} />
+            <col style={{ width: 130 }} />
           </colgroup>
-          <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Produto</th><th className="num">Caixas</th><th className="num">Valor</th><th>Situação</th></tr></thead>
+          <thead><tr><th /><th>Data</th><th>Pedido</th><th>Cliente</th><th className="num">Itens</th><th className="num">Valor</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={7} className="empty-state">Carregando...</td></tr>
-            : rowsFiltradas.length === 0 ? (
-              <tr><td colSpan={7} className="empty-state">
+            {loading ? <tr><td colSpan={6} className="empty-state">Carregando...</td></tr>
+            : pedidos.length === 0 ? (
+              <tr><td colSpan={6} className="empty-state">
                 {rows.length === 0
                   ? (isAdmin ? 'Nenhuma venda sincronizada ainda. Clique em "Sincronizar com o VHSYS".' : 'Nenhuma venda sincronizada ainda.')
-                  : 'Nenhuma venda encontrada para esse filtro.'}
+                  : 'Nenhuma venda encontrada para esse período/filtro.'}
               </td></tr>
             )
-            : rowsFiltradas.map(r => (
-              <tr key={r.id}>
-                <td className="mono">{formatData(r.data_venda)}</td>
-                <td className="mono" style={{ fontWeight: 700 }}>{r.numero_nf ?? '—'}</td>
-                <td>{r.cliente}</td>
-                <td className="cell-wrap" style={{ fontSize: 12 }}>
-                  {r.produto_texto}
-                  {r.sem_conversao && <span title="Sem produto correspondente no catálogo local — quantidade em carteiras, não em caixas" style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
-                </td>
-                <td className="mono num">{r.qtd_caixas.toLocaleString('pt-BR')}</td>
-                <td className="mono num">{formatMoeda(r.valor)}</td>
-                <td>{badgeSituacao(r.numero_nf ? (situacoes.get(r.numero_nf) ?? 'não conciliado') : 'não conciliado')}</td>
-              </tr>
-            ))}
+            : pedidos.map(p => {
+              const aberto = abertos.has(p.pedidoId)
+              return (
+                <Fragment key={p.pedidoId}>
+                  <tr style={{ cursor: 'pointer' }} onClick={() => toggle(p.pedidoId)}>
+                    <td className="mono">{aberto ? '▾' : '▸'}</td>
+                    <td className="mono">{formatData(p.dataVenda)}</td>
+                    <td className="mono" style={{ fontWeight: 700 }}>{p.numeroNf ?? '—'}</td>
+                    <td>{p.cliente}</td>
+                    <td className="mono num">{p.itens.length}</td>
+                    <td className="mono num">{formatMoeda(p.valorTotal)}</td>
+                  </tr>
+                  {aberto && p.itens.map(item => (
+                    <tr key={item.id} className="audit-subrow">
+                      <td />
+                      <td />
+                      <td />
+                      <td className="cell-wrap" style={{ fontSize: 12 }}>
+                        {item.produto_texto}
+                        {item.sem_conversao && <span title="Sem produto correspondente no catálogo local — quantidade em carteiras, não em caixas" style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
+                      </td>
+                      <td className="mono num">{item.qtd_caixas.toLocaleString('pt-BR')} cx</td>
+                      <td className="mono num">{formatMoeda(item.valor)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              )
+            })}
           </tbody>
-          {rowsFiltradas.length > 0 && (
-            <tfoot><tr><td colSpan={5} style={{ textAlign: 'right', fontWeight: 700 }}>Total</td><td className="mono num" style={{ fontWeight: 700 }}>{formatMoeda(valorTotal)}</td><td /></tr></tfoot>
+          {pedidos.length > 0 && (
+            <tfoot><tr><td colSpan={4} /><td style={{ textAlign: 'right', fontWeight: 700 }}>Total</td><td className="mono num" style={{ fontWeight: 700 }}>{formatMoeda(valorTotal)}</td></tr></tfoot>
           )}
         </table>
       </div>
