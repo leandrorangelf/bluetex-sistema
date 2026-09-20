@@ -66,20 +66,24 @@ function caixas(base: number, fator: number): string {
 
 function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: LinhaEstoque[]; unidade: string }) {
   const valorEstoque = linhas.reduce((total, l) => total + Math.max(l.saldos[unidade] ?? 0, 0) * l.precoMedioVenda, 0)
+  const cols = '1fr 64px 92px'
   return (
     <Link href="/estoque-atual" className="card card-accent card-hover" style={{ textDecoration: 'none', color: 'inherit', display: 'block', '--accent-cor': 'var(--brand)' } as React.CSSProperties}>
-      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{titulo} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>· estoque em caixas</span></div>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{titulo}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+        <span>Produto</span>
+        <span style={{ textAlign: 'right' }}>Caixas</span>
+        <span style={{ textAlign: 'right' }}>Precificação</span>
+      </div>
       {linhas.map(l => {
         const v = l.saldos[unidade] ?? 0
         const valorLinha = Math.max(v, 0) * l.precoMedioVenda
         return (
-          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 12, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+          <div key={l.id} style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, alignItems: 'center', fontSize: 12, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
             <span>{l.nome}</span>
-            <span style={{ textAlign: 'right' }}>
-              <span className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</span>
-              <span className="mono" style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)' }}>
-                {valorLinha > 0 ? formatMoeda(valorLinha) : '—'}
-              </span>
+            <span className={`mono${v < 0 ? ' text-red' : ''}`} style={{ textAlign: 'right' }}>{caixas(v, l.fator)}</span>
+            <span className="mono" style={{ textAlign: 'right', color: valorLinha > 0 ? 'inherit' : 'var(--text-muted)' }}>
+              {valorLinha > 0 ? formatMoeda(valorLinha) : '—'}
             </span>
           </div>
         )
