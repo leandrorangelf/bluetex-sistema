@@ -26,6 +26,7 @@ interface Pedido {
   dataVenda: string
   itens: RegistroVenda[]
   valorTotal: number
+  caixasTotal: number
 }
 
 function agruparPorPedido(rows: RegistroVenda[]): Pedido[] {
@@ -35,14 +36,26 @@ function agruparPorPedido(rows: RegistroVenda[]): Pedido[] {
     if (atual) {
       atual.itens.push(r)
       atual.valorTotal += r.valor
+      atual.caixasTotal += r.qtd_caixas
     } else {
       porPedido.set(r.pedido_vhsys_id, {
         pedidoId: r.pedido_vhsys_id, numeroNf: r.numero_nf, cliente: r.cliente,
-        dataVenda: r.data_venda, itens: [r], valorTotal: r.valor,
+        dataVenda: r.data_venda, itens: [r], valorTotal: r.valor, caixasTotal: r.qtd_caixas,
       })
     }
   }
   return [...porPedido.values()].sort((a, b) => b.dataVenda.localeCompare(a.dataVenda) || b.pedidoId.localeCompare(a.pedidoId))
+}
+
+function Seta({ aberto }: { aberto: boolean }) {
+  return (
+    <svg
+      width="12" height="12" viewBox="0 0 12 12" fill="none"
+      style={{ transform: aberto ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+    >
+      <path d="M4 2.5L8 6L4 9.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 const ANO_ATUAL = new Date().getFullYear()
@@ -183,14 +196,14 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
       <div className="table-wrap">
         <table className="table-vendas">
           <colgroup>
-            <col style={{ width: 30 }} />
+            <col style={{ width: 26 }} />
             <col style={{ width: 100 }} />
             <col style={{ width: 100 }} />
             <col />
             <col style={{ width: 90 }} />
             <col style={{ width: 130 }} />
           </colgroup>
-          <thead><tr><th /><th>Data</th><th>Pedido</th><th>Cliente</th><th className="num">Itens</th><th className="num">Valor</th></tr></thead>
+          <thead><tr><th /><th>Data</th><th>Pedido</th><th>Cliente</th><th className="num">Caixas</th><th className="num">Valor</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={6} className="empty-state">Carregando...</td></tr>
             : pedidos.length === 0 ? (
@@ -202,14 +215,15 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
             )
             : pedidos.map(p => {
               const aberto = abertos.has(p.pedidoId)
+              const temVariosItens = p.itens.length > 1
               return (
                 <Fragment key={p.pedidoId}>
-                  <tr style={{ cursor: 'pointer' }} onClick={() => toggle(p.pedidoId)}>
-                    <td className="mono">{aberto ? '▾' : '▸'}</td>
+                  <tr className="venda-row-pedido" onClick={() => toggle(p.pedidoId)}>
+                    <td className="venda-chevron"><Seta aberto={aberto} /></td>
                     <td className="mono">{formatData(p.dataVenda)}</td>
                     <td className="mono" style={{ fontWeight: 700 }}>{p.numeroNf ?? '—'}</td>
-                    <td>{p.cliente}</td>
-                    <td className="mono num">{p.itens.length}</td>
+                    <td>{p.cliente}{temVariosItens && <span className="badge badge-gray venda-badge-itens">{p.itens.length} produtos</span>}</td>
+                    <td className="mono num">{p.caixasTotal.toLocaleString('pt-BR')}</td>
                     <td className="mono num">{formatMoeda(p.valorTotal)}</td>
                   </tr>
                   {aberto && p.itens.map(item => (
@@ -221,7 +235,7 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
                         {item.produto_texto}
                         {item.sem_conversao && <span title="Sem produto correspondente no catálogo local — quantidade em carteiras, não em caixas" style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
                       </td>
-                      <td className="mono num">{item.qtd_caixas.toLocaleString('pt-BR')} cx</td>
+                      <td className="mono num">{item.qtd_caixas.toLocaleString('pt-BR')}</td>
                       <td className="mono num">{formatMoeda(item.valor)}</td>
                     </tr>
                   ))}
