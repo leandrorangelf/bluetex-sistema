@@ -203,7 +203,7 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
             <col style={{ width: 90 }} />
             <col style={{ width: 130 }} />
           </colgroup>
-          <thead><tr><th /><th>Data</th><th>Pedido</th><th>Cliente</th><th className="num">Caixas</th><th className="num">Valor</th></tr></thead>
+          <thead><tr><th /><th>Data</th><th>NF</th><th>Cliente</th><th className="num">Caixas</th><th className="num">Valor</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={6} className="empty-state">Carregando...</td></tr>
             : pedidos.length === 0 ? (
