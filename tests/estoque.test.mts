@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calcularEstoque, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, calcularValorEstoque, mesclarPrecoMedioVenda, type AberturaEstoque, type LinhaHistoricoVendaVhsys, type MovimentoEstoque, type ProdutoEstoque, type SaldoProduto, type VendaEstoqueDb } from '../lib/estoque.ts'
+import { calcularEstoque, calcularPrecoMedioCompra, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, calcularValorEstoque, mesclarPrecoMedioVenda, precoPorPacote, type AberturaEstoque, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type MovimentoEstoque, type ProdutoEstoque, type SaldoProduto, type VendaEstoqueDb } from '../lib/estoque.ts'
 
 const produtos: ProdutoEstoque[] = [
   { id: 'p1', nome: 'Produto A', fatorConversao: 10 },
@@ -137,4 +137,20 @@ test('mescla preço ao vivo com fallback do histórico sem sobrescrever quem já
 
   assert.equal(mesclado.get('p1'), 20)
   assert.equal(mesclado.get('p2'), 5)
+})
+
+test('preço médio de compra é ponderado pela quantidade da nota de entrada', () => {
+  const compras: CompraEstoqueDb[] = [
+    { id: 'c1', data_compra: '2026-06-09', numero_nf: '2353', itens: [{ id: 'i1', produto_id: 'p1', qtd_carteiras: 11500, valor: 67965 }] },
+    { id: 'c2', data_compra: '2026-05-26', numero_nf: '2329', itens: [{ id: 'i2', produto_id: 'p1', qtd_carteiras: 10920, valor: 70508 }] },
+    { id: 'c3', data_compra: '2026-05-26', numero_nf: '2330', itens: [{ id: 'i3', produto_id: 'p2', qtd_carteiras: 0, valor: 0 }] },
+  ]
+  const precos = calcularPrecoMedioCompra(compras)
+
+  assert.equal(precos.get('p1'), (67965 + 70508) / (11500 + 10920))
+  assert.equal(precos.has('p2'), false)
+})
+
+test('preço por pacote é o preço por carteira vezes 10 (confirmado com o cliente)', () => {
+  assert.ok(Math.abs(precoPorPacote(7.02) - 70.2) < 1e-9)
 })

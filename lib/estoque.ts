@@ -207,6 +207,36 @@ export function calcularValorEstoque(saldos: SaldoProduto[], precoMedioVenda: Ma
   return saldos.reduce((total, s) => total + Math.max(s.saldoAtual, 0) * (precoMedioVenda.get(s.produtoId) ?? 0), 0)
 }
 
+// Preço médio de compra (nota de entrada da fábrica/fornecedor) por unidade
+// base de cada produto — pra comparar com o preço de venda (margem). Não
+// entra na valorização do estoque, que é sempre pelo preço de venda.
+export function calcularPrecoMedioCompra(compras: CompraEstoqueDb[]): Map<string, number> {
+  const acumulado = new Map<string, { valor: number; qtd: number }>()
+  for (const compra of compras) {
+    for (const item of compra.itens ?? []) {
+      const qtd = Number(item.qtd_carteiras)
+      if (!qtd || item.valor == null) continue
+      const atual = acumulado.get(item.produto_id) ?? { valor: 0, qtd: 0 }
+      atual.valor += Number(item.valor)
+      atual.qtd += qtd
+      acumulado.set(item.produto_id, atual)
+    }
+  }
+  const precos = new Map<string, number>()
+  for (const [produtoId, { valor, qtd }] of acumulado) {
+    if (qtd > 0) precos.set(produtoId, valor / qtd)
+  }
+  return precos
+}
+
+// Confirmado com o cliente: pacote = 10 carteiras (unidade base), fixo pra
+// todo o catálogo — não é uma unidade cadastrada no sistema, só uma
+// conversão de exibição pro jeito que a operação pensa o produto.
+export const CARTEIRAS_POR_PACOTE = 10
+export function precoPorPacote(precoPorCarteira: number): number {
+  return precoPorCarteira * CARTEIRAS_POR_PACOTE
+}
+
 export interface LinhaHistoricoVendaVhsys { produto: string; qtd_caixas: number; valor: number }
 
 // Preço médio de referência a partir do relatório histórico de vendas do

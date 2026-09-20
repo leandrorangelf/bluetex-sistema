@@ -7,10 +7,11 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData, itensCaixas, converterParaUnidadeMaior } from '@/lib/utils'
 import type { Compra } from '@/types'
-import { calcularEstoque, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, calcularValorEstoque, mesclarPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type VendaEstoqueDb } from '@/lib/estoque'
+import { calcularEstoque, calcularPrecoMedioCompra, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, calcularValorEstoque, mesclarPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type VendaEstoqueDb } from '@/lib/estoque'
 import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
+import MargemPorProduto from '@/components/estoque/MargemPorProduto'
 import RelatorioMovimentosEstoque from '@/components/estoque/RelatorioMovimentosEstoque'
 import CalendarioEstoque from '@/components/estoque/CalendarioEstoque'
 import HistoricoAuditoriaEstoque from '@/components/estoque/HistoricoAuditoriaEstoque'
@@ -72,7 +73,7 @@ export default function EstoqueAtualPage() {
     const consultas = await Promise.all([
       sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true).order('nome'),
       sb.from('btx_estoque_inicial').select('id,produto_id,mes,ano,qtd_carteiras').eq('unidade', unidade),
-      sb.from('btx_compras').select('id,data_compra,numero_nf,fornecedor:btx_fornecedores(nome),itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('unidade', unidade).eq('ativo', true),
+      sb.from('btx_compras').select('id,data_compra,numero_nf,fornecedor:btx_fornecedores(nome),itens:btx_compras_itens(id,produto_id,qtd_carteiras,valor)').eq('unidade', unidade).eq('ativo', true),
       sb.from('btx_vendas').select('id,data_venda,numero_nf,cliente:btx_clientes(nome),itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor)').eq('unidade', unidade).eq('ativo', true),
       sb.from('btx_ajustes_estoque').select('*').eq('unidade', unidade).eq('ativo', true),
     ])
@@ -133,6 +134,7 @@ export default function EstoqueAtualPage() {
   )
   const precoMedioVenda = useMemo(() => mesclarPrecoMedioVenda(precoMedioVendaAtiva, precoMedioVendaHistorico), [precoMedioVendaAtiva, precoMedioVendaHistorico])
   const valorEstoque = useMemo(() => calcularValorEstoque(painel.saldos, precoMedioVenda), [painel.saldos, precoMedioVenda])
+  const precoMedioCompra = useMemo(() => calcularPrecoMedioCompra(compras), [compras])
 
   // saldo de todos os produtos (sem o filtro de produto da página) — usado
   // pra saber o saldo atual de qualquer produto escolhido no modal de ajuste
@@ -265,6 +267,7 @@ export default function EstoqueAtualPage() {
           <ResumoEstoque resumo={painel.resumo} valorEstoque={valorEstoque} />
           <CalendarioEstoque ano={ano} mes={mes} movimentos={painel.movimentos} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />
           <TabelaSaldosEstoque saldos={painel.saldos} precoMedioVenda={precoMedioVenda} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
+          {isAdmin && <MargemPorProduto saldos={painel.saldos} precoMedioCompra={precoMedioCompra} precoMedioVenda={precoMedioVenda} />}
           <div className="stock-tabs" role="tablist">
             <button className={tab === 'movimentos' ? 'active' : ''} onClick={() => setTab('movimentos')} role="tab" aria-selected={tab === 'movimentos'}>Movimentações</button>
             {veTudo && <button className={tab === 'auditoria' ? 'active' : ''} onClick={() => setTab('auditoria')} role="tab" aria-selected={tab === 'auditoria'}>Histórico de alterações</button>}
