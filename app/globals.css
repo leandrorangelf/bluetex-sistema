@@ -659,6 +659,11 @@ td.cell-actions { white-space: nowrap; }
 .audit-subrow { background: var(--bg); }
 .audit-subrow td { border-top: 1px dashed var(--border); }
 
+.venda-row-pedido { cursor: pointer; }
+.venda-row-pedido:hover { background: #F3F3F5; }
+.venda-chevron { width: 26px; color: var(--text-muted); text-align: center; }
+.venda-badge-itens { margin-left: 8px; font-size: 9px; padding: 1px 6px; }
+
 @media (max-width: 760px) {
   .audit-page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
   .audit-filters { grid-template-columns: 1fr; }
