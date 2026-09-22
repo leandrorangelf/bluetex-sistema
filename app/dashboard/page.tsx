@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
-import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos, labelFormaPagamento } from '@/lib/utils'
+import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos, labelFormaPagamento, hoje } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber, type VendaInfo } from '@/lib/painel-resumo'
 import { calcularEstoque, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, mesclarPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
@@ -584,7 +584,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [contaAberta, setContaAberta] = useState<ContaPagar | ContaReceber | null>(null)
   const [editandoSaldo, setEditandoSaldo] = useState(false)
-  const hojeStr = new Date().toISOString().slice(0, 10)
+  const hojeStr = hoje()
 
   const carregar = useCallback(async () => {
     if (!profile) return
