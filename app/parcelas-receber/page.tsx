@@ -130,7 +130,12 @@ export default function ParcelasReceberPage() {
     setClienteMap(cm)
     setNfMap(nf)
 
-    parcelas.sort((a, b) => (cm.get(a.id) ?? '').localeCompare(cm.get(b.id) ?? '') || a.vencimento.localeCompare(b.vencimento))
+    if (statusFiltro === 'pago') {
+      // recebidas: mais recente primeiro, pela data em que o dinheiro entrou
+      parcelas.sort((a, b) => (b.data_pagamento ?? '').localeCompare(a.data_pagamento ?? ''))
+    } else {
+      parcelas.sort((a, b) => (cm.get(a.id) ?? '').localeCompare(cm.get(b.id) ?? '') || a.vencimento.localeCompare(b.vencimento))
+    }
     setRows(parcelas)
     setLoading(false)
   }
@@ -243,7 +248,7 @@ export default function ParcelasReceberPage() {
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o recebimento ser confirmado.</div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Vencimento</th><th>Cliente</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Recebido</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
+          <thead><tr><th>{statusFiltro === 'pago' ? 'Recebido em' : 'Vencimento'}</th><th>Cliente</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Recebido</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={9} className="empty-state">Carregando...</td></tr>
             : visiveis.length === 0 ? <tr><td colSpan={9} className="empty-state">Nenhuma conta.</td></tr>
@@ -255,7 +260,7 @@ export default function ParcelasReceberPage() {
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
                   <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>
-                    {formatData(r.vencimento)}
+                    {statusFiltro === 'pago' ? formatData(r.data_pagamento) : formatData(r.vencimento)}
                     {emAberto && atraso > 0 && <span className="page-subtitle"> · {atraso} dia(s) em atraso</span>}
                   </td>
                   <td className="cell-wrap">{clienteMap.get(r.id) ?? '—'}</td>
