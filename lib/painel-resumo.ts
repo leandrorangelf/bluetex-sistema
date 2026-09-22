@@ -171,8 +171,12 @@ export function calcularResumoUnidade(input: EntradaResumo): ResumoUnidade {
   // "conta do mês" na lista: venceu no mês (ainda em aberto) OU foi paga no mês
   const abertaNoMes = (p: ParcelaFinanceira) =>
     p.status !== 'pago' && dentro(p.vencimento)
+  // "paga no mês" só conta o que já aconteceu até hoje — uma baixa com data
+  // futura (ex.: boleto que só compensa daqui a 2 dias) não pode entrar como
+  // "recebido/pago" antes da hora, senão o saldo início do mês (que é
+  // saldoHoje − recebido + pago) descasa do saldoHoje e vai pro negativo à toa.
   const pagaNoMes = (p: ParcelaFinanceira) =>
-    p.status === 'pago' && dentro(p.data_pagamento)
+    p.status === 'pago' && dentro(p.data_pagamento) && (p.data_pagamento as string) <= input.hoje
 
   let aReceberMes = 0
   const contasPagar: ContaPagar[] = []
