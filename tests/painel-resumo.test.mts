@@ -143,6 +143,22 @@ test('descrição de conta a pagar usa a descrição real da despesa/fornecedor 
   assert.equal(porId.get('p3'), 'Despesa (parc. 1)')
 })
 
+test('recebimento já baixado mas com data futura (ex.: boleto que só compensa daqui a 2 dias) não conta como "pago no mês" antes da hora — saldoInicioMes não pode ir negativo à toa', () => {
+  const r = calcularResumoUnidade(base({
+    hoje: '2026-09-22',
+    saldoBase: 98.09,
+    parcelas: [
+      parc({ id: 'r1', tipo: 'receber', origem: 'venda', origem_id: 'v1', valor: 13440, status: 'pago', data_pagamento: '2026-09-23', vencimento: '2026-09-19' }),
+    ],
+  }))
+  // o dinheiro só compensa amanhã — hoje o saldo continua o mesmo de antes
+  assert.equal(r.saldoHoje, 98.09)
+  // "recebido no mês" não pode incluir algo que ainda não aconteceu
+  assert.equal(r.totalEntrou, 0)
+  // saldoHoje - recebido + pago == saldoInicioMes, e aqui nada mudou ainda
+  assert.equal(r.saldoInicioMes, 98.09)
+})
+
 test('consolida soma unidades', () => {
   const a = calcularResumoUnidade(base({ saldoBase: 1000, parcelas: [parc({ valor: 100 })] }))
   const b = calcularResumoUnidade(base({ unidade: 'NEW BLUETEX SC', saldoBase: 500, parcelas: [parc({ id: 'p2', valor: 200 })] }))
