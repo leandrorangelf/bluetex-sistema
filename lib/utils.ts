@@ -40,8 +40,11 @@ export function getMesAnoLabel(mes: number, ano: number): string {
   return `${meses[mes - 1]} ${ano}`
 }
 
+// data de "hoje" no fuso do Brasil — nunca usar toISOString() aqui: ela é
+// sempre UTC, então à noite (a partir de ~20h/21h local) já virava o dia
+// seguinte e fazia pagamento de amanhã contar como recebido hoje.
 export function hoje(): string {
-  return new Date().toISOString().split('T')[0]
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 }
 
 export function mesAtual(): number {
