@@ -3,6 +3,7 @@ import { analyzeVhsys } from './analyze'
 import { VhsysClient } from './client'
 import { getVhsysConfig } from './config'
 import { confirmVhsys, type SyncDecision } from './confirm'
+import { atualizarMapaProdutos } from './produto-map'
 import { vhsysUnidadePorCodigo } from './unidades'
 
 interface ItemRow {
@@ -33,6 +34,10 @@ export async function runAutoSync(
   const unidade = vhsysUnidadePorCodigo(codigoUnidade)
   if (!unidade) throw new Error('VHSYS_UNIDADE_INVALIDA')
   const client = new VhsysClient(getVhsysConfig(codigoUnidade))
+  // Recasa o catálogo do VHSYS com os produtos locais antes de importar —
+  // senão produto cadastrado depois da última sincronização fica sem nota
+  // de entrada/estoque reconhecidos (ver lib/vhsys/produto-map.ts).
+  await atualizarMapaProdutos(supabase, client, unidade.unidade)
   const syncId = await analyzeVhsys(supabase, userId, client, unidade.unidade)
 
   const { data: items, error } = await supabase
