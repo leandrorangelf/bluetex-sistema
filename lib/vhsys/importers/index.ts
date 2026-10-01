@@ -1,7 +1,7 @@
 import type { VhsysClient } from '../client'
 import { importCompras } from './compras'
 import { importEstoque } from './estoque'
-import { importPagar, importReceber } from './financeiro'
+import { importReceber } from './financeiro'
 import type {
   DomainImporter,
   DomainResult,
@@ -9,14 +9,17 @@ import type {
 } from './shared'
 import { importVendas } from './vendas'
 
-// Escopo do VHSYS: faturamento (vendas, compras, estoque) e os títulos a
-// pagar/receber de lá — inclusive baixa feita no VHSYS, propagada aqui.
-// Saldo bancário continua lançado manualmente por cada unidade.
+// Escopo do VHSYS: faturamento (vendas, compras, estoque) e os boletos a
+// receber gerados pela venda. Contas a pagar NÃO entram automaticamente:
+// o usuário já mantém um lançamento manual detalhado delas (sem CNPJ nem
+// vínculo de fornecedor estruturado), e tentar casar por nome/valor contra
+// texto livre gerou duplicata quase 1:1 do histórico inteiro na primeira
+// tentativa (ver commits deste dia) — revertido. Saldo bancário também
+// continua manual.
 export const DEFAULT_IMPORTERS: [VhsysDomain, DomainImporter][] = [
   ['vendas', importVendas],
   ['compras', importCompras],
   ['receber', importReceber],
-  ['pagar', importPagar],
   ['estoque', importEstoque],
 ]
 

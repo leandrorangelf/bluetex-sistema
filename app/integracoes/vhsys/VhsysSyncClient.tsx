@@ -15,7 +15,6 @@ const DOMAIN_LABEL: Record<string, string> = {
   vendas: 'Vendas',
   compras: 'Compras (notas de entrada)',
   receber: 'Contas a receber (boletos da venda)',
-  pagar: 'Contas a pagar',
   estoque: 'Estoque',
 }
 
@@ -49,8 +48,8 @@ export default function VhsysSyncClient() {
       <h2>Sincronizar com o VHSYS</h2>
       <p>
         Traz o que é novo e atualiza o que já veio: vendas, notas de compra,
-        estoque e contas a pagar/receber (inclusive baixa feita no VHSYS).
-        Saldo bancário é lançado manualmente por cada unidade. Não altera
+        estoque e os boletos a receber gerados pela venda. Contas a pagar e
+        saldo bancário são lançados manualmente por cada unidade. Não altera
         o VHSYS.
       </p>
 

@@ -39,7 +39,6 @@ const DOMAIN_ORDER = [
   'vendas',
   'compras',
   'receber',
-  'pagar',
 ] as const
 
 export async function confirmVhsys(
