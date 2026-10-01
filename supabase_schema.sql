@@ -532,6 +532,11 @@ CREATE TABLE IF NOT EXISTS btx_vhsys_produto_map (
   produto_id UUID REFERENCES btx_produtos(id),
   ignorar BOOLEAN NOT NULL DEFAULT FALSE,
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Alguns produtos são cadastrados no VHSYS numa unidade diferente da
+  -- carteira (ex.: por caixa fechada) — multiplica a quantidade do VHSYS
+  -- antes de gravar aqui. Default 1 = sem correção. Ajuste manual por
+  -- produto quando o estoque vier errado por ordem de grandeza.
+  fator_correcao NUMERIC(10,4) NOT NULL DEFAULT 1,
   PRIMARY KEY (unidade, vhsys_id_produto)
 );
 ALTER TABLE btx_vhsys_produto_map ENABLE ROW LEVEL SECURITY;
@@ -575,6 +580,7 @@ DECLARE
   v_person_id UUID;
   v_product_id UUID;
   v_status TEXT;
+  v_fator NUMERIC;
 BEGIN
   IF p_dominio NOT IN ('vendas','compras','receber','pagar','estoque','bancos') THEN
     RAISE EXCEPTION 'Domínio VHSYS inválido';
@@ -725,10 +731,12 @@ BEGIN
         v_product_id := btx_vhsys_upsert_produto(
           v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
         CONTINUE WHEN v_product_id IS NULL;
+        SELECT fator_correcao INTO v_fator FROM btx_vhsys_produto_map
+          WHERE unidade=v_unidade AND vhsys_id_produto=v_child->>'produto_vhsys_id';
         INSERT INTO btx_vendas_itens(venda_id,produto_id,qtd_carteiras,valor)
         VALUES (
           v_local_id, v_product_id,
-          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0))::INTEGER,
+          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0) * COALESCE(v_fator,1))::INTEGER,
           COALESCE(NULLIF(v_child->>'valor','')::NUMERIC,0)
         );
       END LOOP;
@@ -769,10 +777,12 @@ BEGIN
         v_product_id := btx_vhsys_upsert_produto(
           v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
         CONTINUE WHEN v_product_id IS NULL;
+        SELECT fator_correcao INTO v_fator FROM btx_vhsys_produto_map
+          WHERE unidade=v_unidade AND vhsys_id_produto=v_child->>'produto_vhsys_id';
         INSERT INTO btx_compras_itens(compra_id,produto_id,qtd_carteiras,valor)
         VALUES (
           v_local_id, v_product_id,
-          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0))::INTEGER,
+          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0) * COALESCE(v_fator,1))::INTEGER,
           COALESCE(NULLIF(v_child->>'valor','')::NUMERIC,0)
         );
       END LOOP;
@@ -788,10 +798,12 @@ BEGIN
         v_product_id := btx_vhsys_upsert_produto(
           v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
         CONTINUE WHEN v_product_id IS NULL;
+        SELECT fator_correcao INTO v_fator FROM btx_vhsys_produto_map
+          WHERE unidade=v_unidade AND vhsys_id_produto=v_child->>'produto_vhsys_id';
         INSERT INTO btx_vendas_itens(venda_id,produto_id,qtd_carteiras,valor)
         VALUES (
           v_local_id, v_product_id,
-          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0))::INTEGER,
+          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0) * COALESCE(v_fator,1))::INTEGER,
           COALESCE(NULLIF(v_child->>'valor','')::NUMERIC,0)
         );
       END LOOP;
@@ -806,10 +818,12 @@ BEGIN
         v_product_id := btx_vhsys_upsert_produto(
           v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
         CONTINUE WHEN v_product_id IS NULL;
+        SELECT fator_correcao INTO v_fator FROM btx_vhsys_produto_map
+          WHERE unidade=v_unidade AND vhsys_id_produto=v_child->>'produto_vhsys_id';
         INSERT INTO btx_compras_itens(compra_id,produto_id,qtd_carteiras,valor)
         VALUES (
           v_local_id, v_product_id,
-          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0))::INTEGER,
+          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0) * COALESCE(v_fator,1))::INTEGER,
           COALESCE(NULLIF(v_child->>'valor','')::NUMERIC,0)
         );
       END LOOP;
