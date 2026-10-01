@@ -777,6 +777,43 @@ BEGIN
         );
       END LOOP;
 
+    ELSIF p_dominio = 'vendas' AND v_item.decisao = 'vincular' THEN
+      -- Venda já vinculada antes pode ter ficado sem itens (produto sem
+      -- mapa VHSYS na época) — recasa a cada sincronização, não só na
+      -- primeira importação.
+      DELETE FROM btx_vendas_itens WHERE venda_id=v_local_id;
+      FOR v_child IN SELECT * FROM jsonb_array_elements(
+        COALESCE(v_item.dados_normalizados->'itens','[]'::JSONB)
+      ) LOOP
+        v_product_id := btx_vhsys_upsert_produto(
+          v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
+        CONTINUE WHEN v_product_id IS NULL;
+        INSERT INTO btx_vendas_itens(venda_id,produto_id,qtd_carteiras,valor)
+        VALUES (
+          v_local_id, v_product_id,
+          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0))::INTEGER,
+          COALESCE(NULLIF(v_child->>'valor','')::NUMERIC,0)
+        );
+      END LOOP;
+
+    ELSIF p_dominio = 'compras' AND v_item.decisao = 'vincular' THEN
+      -- Mesma lógica: compra já vinculada antes pode ter ficado sem itens
+      -- (produto sem mapa VHSYS na época) — recasa a cada sincronização.
+      DELETE FROM btx_compras_itens WHERE compra_id=v_local_id;
+      FOR v_child IN SELECT * FROM jsonb_array_elements(
+        COALESCE(v_item.dados_normalizados->'itens','[]'::JSONB)
+      ) LOOP
+        v_product_id := btx_vhsys_upsert_produto(
+          v_child->>'produto_nome', v_child->>'produto_vhsys_id', v_unidade);
+        CONTINUE WHEN v_product_id IS NULL;
+        INSERT INTO btx_compras_itens(compra_id,produto_id,qtd_carteiras,valor)
+        VALUES (
+          v_local_id, v_product_id,
+          ROUND(COALESCE(NULLIF(v_child->>'quantidade','')::NUMERIC,0))::INTEGER,
+          COALESCE(NULLIF(v_child->>'valor','')::NUMERIC,0)
+        );
+      END LOOP;
+
     ELSIF p_dominio IN ('receber','pagar') AND v_item.decisao = 'importar' THEN
       INSERT INTO btx_parcelas(
         unidade, tipo, origem, numero_parcela, vencimento, valor, status,
