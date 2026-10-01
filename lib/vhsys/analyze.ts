@@ -133,6 +133,7 @@ async function loadCandidates(supabase: SupabaseClient, unidade: string): Promis
     sales,
     purchases,
     receivable,
+    payable,
     productMap,
   ] = await Promise.all([
     supabase.from('btx_vendas')
@@ -144,6 +145,9 @@ async function loadCandidates(supabase: SupabaseClient, unidade: string): Promis
     supabase.from('btx_parcelas')
       .select('id,vhsys_id,numero_boleto,vencimento,valor')
       .eq('unidade', unidade).eq('tipo', 'receber'),
+    supabase.from('btx_parcelas')
+      .select('id,vhsys_id,numero_boleto,vencimento,valor')
+      .eq('unidade', unidade).eq('tipo', 'pagar'),
     supabase.from('btx_vhsys_produto_map')
       .select('produto_id,vhsys_id_produto,produto:btx_produtos(nome)')
       .eq('unidade', unidade)
@@ -173,6 +177,11 @@ async function loadCandidates(supabase: SupabaseClient, unidade: string): Promis
       relation: 'fornecedor',
     })),
     receber: ensure(receivable.data, receivable.error).map((row) => toCandidate(row, {
+      external: 'vhsys_id',
+      document: 'numero_boleto',
+      date: 'vencimento',
+    })),
+    pagar: ensure(payable.data, payable.error).map((row) => toCandidate(row, {
       external: 'vhsys_id',
       document: 'numero_boleto',
       date: 'vencimento',
