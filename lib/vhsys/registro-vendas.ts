@@ -60,6 +60,28 @@ export async function buscarRegistroVendas(
     const nome = String(row.nome)
     return { id: String(row.id), nome, _tokens: tokens(nome), fator_conversao: Number(row.fator_conversao) || 1 }
   })
+  const fatorConversaoPorId = new Map(produtosLocais.map((p) => [p.id, p.fator_conversao]))
+
+  // Produto cujo mapa VHSYS tem fator_correcao != 1 (ex.: vendido por caixa
+  // fechada no VHSYS em vez de carteira, como MARLBORO) — match preciso por
+  // vhsys_id_produto, não por nome.
+  const { data: mapaRaw } = await supabase
+    .from('btx_vhsys_produto_map')
+    .select('vhsys_id_produto,produto_id,fator_correcao')
+    .eq('unidade', unidade.unidade)
+    .eq('ignorar', false)
+    .not('produto_id', 'is', null)
+  const mapaPorVhsysId = new Map(
+    (mapaRaw ?? []).map((m) => {
+      const row = m as { vhsys_id_produto: unknown; produto_id: unknown; fator_correcao: unknown }
+      const produtoId = String(row.produto_id)
+      const fatorConversao = fatorConversaoPorId.get(produtoId) ?? 1
+      return [
+        String(row.vhsys_id_produto),
+        { id: produtoId, fator: fatorConversao / (Number(row.fator_correcao) || 1) },
+      ]
+    }),
+  )
   const fatorPorDescricao = new Map<string, { id: string; fator: number } | null>()
 
   const client = new VhsysClient(getVhsysConfig(unidade.codigo))
@@ -90,12 +112,15 @@ export async function buscarRegistroVendas(
       const qtdBruta = Number(item.qtde_produto ?? 0)
       const valor = money(item.valor_total_produto)
 
-      if (!fatorPorDescricao.has(produtoTexto)) {
-        const match = melhorMatch(produtoTexto, produtosLocais)
-        const local = match ? produtosLocais.find((p) => p.id === match.id) : null
-        fatorPorDescricao.set(produtoTexto, local ? { id: local.id, fator: local.fator_conversao } : null)
+      let matchInfo = item.id_produto != null ? mapaPorVhsysId.get(String(item.id_produto)) ?? null : null
+      if (matchInfo === null) {
+        if (!fatorPorDescricao.has(produtoTexto)) {
+          const match = melhorMatch(produtoTexto, produtosLocais)
+          const local = match ? produtosLocais.find((p) => p.id === match.id) : null
+          fatorPorDescricao.set(produtoTexto, local ? { id: local.id, fator: local.fator_conversao } : null)
+        }
+        matchInfo = fatorPorDescricao.get(produtoTexto) ?? null
       }
-      const matchInfo = fatorPorDescricao.get(produtoTexto) ?? null
       const qtd = matchInfo ? qtdBruta / matchInfo.fator : qtdBruta
 
       linhas.push({

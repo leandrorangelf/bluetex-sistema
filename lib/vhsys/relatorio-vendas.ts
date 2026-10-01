@@ -86,6 +86,26 @@ export async function buscarRelatorioVendas(
       fator_conversao: Number(row.fator_conversao) || 1,
     }
   })
+  const fatorConversaoPorId = new Map(produtosLocais.map((p) => [p.id, p.fator_conversao]))
+
+  // Produto cujo mapa VHSYS tem fator_correcao != 1 (ex.: vendido por caixa
+  // fechada no VHSYS em vez de carteira, como MARLBORO) — match preciso por
+  // vhsys_id_produto, não por nome, senão o relatório mostra a mesma conta
+  // errada que o estoque tinha antes dessa correção existir.
+  const { data: mapaRaw } = await supabase
+    .from('btx_vhsys_produto_map')
+    .select('vhsys_id_produto,produto_id,fator_correcao')
+    .eq('unidade', unidade.unidade)
+    .eq('ignorar', false)
+    .not('produto_id', 'is', null)
+  const fatorPorVhsysId = new Map(
+    (mapaRaw ?? []).map((m) => {
+      const row = m as { vhsys_id_produto: unknown; produto_id: unknown; fator_correcao: unknown }
+      const produtoId = String(row.produto_id)
+      const fatorConversao = fatorConversaoPorId.get(produtoId) ?? 1
+      return [String(row.vhsys_id_produto), fatorConversao / (Number(row.fator_correcao) || 1)]
+    }),
+  )
   const fatorPorDescricao = new Map<string, number | null>()
 
   const client = new VhsysClient(getVhsysConfig(unidade.codigo))
@@ -141,10 +161,13 @@ export async function buscarRelatorioVendas(
       const qtdCarteiras = Number(item.qtde_produto ?? 0)
       const valor = money(item.valor_total_produto)
 
-      if (!fatorPorDescricao.has(produto)) {
-        fatorPorDescricao.set(produto, buscarFator(produto, produtosLocais))
+      let fator = item.id_produto != null ? fatorPorVhsysId.get(String(item.id_produto)) ?? null : null
+      if (fator === null) {
+        if (!fatorPorDescricao.has(produto)) {
+          fatorPorDescricao.set(produto, buscarFator(produto, produtosLocais))
+        }
+        fator = fatorPorDescricao.get(produto) ?? null
       }
-      const fator = fatorPorDescricao.get(produto) ?? null
       const qtd = fator ? qtdCarteiras / fator : qtdCarteiras
       const semConversao = fator === null
 
