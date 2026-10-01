@@ -23,11 +23,14 @@ export async function atualizarMapaProdutos(
 ): Promise<{ ligados: number; ignorados: number; mapa: LinhaMapaProduto[] }> {
   const vhsysProdutos = await client.list<Record<string, unknown>>('/produtos', {}, 250)
 
+  // Todo produto ativo entra como candidato — inclusive o já vinculado antes
+  // (origem_sistema vira 'vhsys' assim que um estoque é linkado, ver
+  // supabase_schema.sql). Filtrar por manual/null aqui faria o recasamento
+  // periódico "esquecer" vínculos antigos e sobrescrever com null.
   const { data: locaisRaw } = await supabase
     .from('btx_produtos')
     .select('id,nome')
     .eq('ativo', true)
-    .or('origem_sistema.is.null,origem_sistema.eq.manual')
   const locais: LocalProduto[] = (locaisRaw ?? []).map((p) => {
     const nome = String((p as { nome: unknown }).nome)
     return { id: String((p as { id: unknown }).id), nome, _tokens: tokens(nome) }
