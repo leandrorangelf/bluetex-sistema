@@ -18,8 +18,8 @@ const DOMAIN_LABEL: Record<string, string> = {
   estoque: 'Estoque',
 }
 
-export default function VhsysSyncClient() {
-  const [unidade, setUnidade] = useState(VHSYS_UNIDADES[0].codigo)
+export default function VhsysSyncClient({ unidadeFixa }: { unidadeFixa?: string } = {}) {
+  const [unidade, setUnidade] = useState(unidadeFixa ?? VHSYS_UNIDADES[0].codigo)
   const [state, setState] = useState<UiState>('idle')
   const [result, setResult] = useState<AutoResult | null>(null)
   const [error, setError] = useState('')
@@ -53,8 +53,8 @@ export default function VhsysSyncClient() {
         o VHSYS.
       </p>
 
-      <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Unidade</label>
-      <select
+      {!unidadeFixa && <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700 }}>Unidade</label>}
+      {!unidadeFixa && <select
         className="input"
         value={unidade}
         onChange={(e) => setUnidade(e.target.value)}
@@ -64,7 +64,7 @@ export default function VhsysSyncClient() {
         {VHSYS_UNIDADES.map((u) => (
           <option key={u.codigo} value={u.codigo}>{u.unidade}</option>
         ))}
-      </select>
+      </select>}
 
       <div>
         <button

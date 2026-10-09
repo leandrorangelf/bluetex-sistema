@@ -18,7 +18,7 @@ const NAV = [
   { href: '/fornecedores', label: 'Fornecedores' },
   { href: '/categorias', label: 'Categorias' },
   { section: 'Integrações' },
-  { href: '/integracoes/vhsys', label: 'Integração VHSYS', adminOnly: true },
+  { href: '/integracoes/vhsys', label: 'Integração VHSYS' },
   { section: 'Administração' },
   { href: '/auditoria', label: 'Log de Edições', adminOnly: true },
 ]
