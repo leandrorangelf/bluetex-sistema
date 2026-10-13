@@ -90,7 +90,7 @@ export default function Sidebar() {
         </div>
         <button
           className="btn btn-secondary btn-sm"
-          style={{ width: '100%', justifyContent: 'center', color: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.2)' }}
+          style={{ width: '100%', justifyContent: 'center', background: 'transparent', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.3)' }}
           onClick={signOut}
         >
           Sair
