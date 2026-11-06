@@ -12,6 +12,7 @@ const NAV = [
   { href: '/parcelas-pagar', label: 'Contas a Pagar' },
   { href: '/parcelas-receber', label: 'Contas a Receber' },
   { href: '/estoque-atual', label: 'Estoque' },
+  { href: '/tarefas', label: 'Atividades' },
   { section: 'Cadastros' },
   { href: '/produtos', label: 'Produtos' },
   { href: '/clientes', label: 'Clientes' },

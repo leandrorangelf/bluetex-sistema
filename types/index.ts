@@ -145,3 +145,14 @@ export interface VhsysSincronizacaoItem {
   dados_normalizados: Record<string, unknown>
   erro_sanitizado: string | null
 }
+
+export type StatusTarefa = 'pendente' | 'andamento' | 'concluido'
+export type PrioridadeTarefa = 'baixa' | 'media' | 'alta' | 'urgente'
+export interface ItemChecklist { texto: string; feito: boolean }
+export interface Tarefa {
+  id: string; unidade: Unidade; titulo: string; descricao: string | null
+  status: StatusTarefa; prioridade: PrioridadeTarefa; categoria: string
+  responsavel: string | null; prazo: string | null; checklist: ItemChecklist[]
+  bloqueada: boolean; motivo_bloqueio: string | null; ordem: number
+  criado_por: string | null; concluida_em: string | null; created_at: string; updated_at: string
+}
