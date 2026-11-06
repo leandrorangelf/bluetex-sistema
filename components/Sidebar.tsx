@@ -7,12 +7,12 @@ import Logo from './Logo'
 
 const NAV = [
   { href: '/dashboard', label: 'Painel' },
+  { href: '/tarefas', label: 'Atividades' },
   { href: '/lancar', label: 'Lançar' },
   { href: '/vendas', label: 'Vendas' },
   { href: '/parcelas-pagar', label: 'Contas a Pagar' },
   { href: '/parcelas-receber', label: 'Contas a Receber' },
   { href: '/estoque-atual', label: 'Estoque' },
-  { href: '/tarefas', label: 'Atividades' },
   { section: 'Cadastros' },
   { href: '/produtos', label: 'Produtos' },
   { href: '/clientes', label: 'Clientes' },
