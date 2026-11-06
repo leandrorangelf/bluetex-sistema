@@ -610,7 +610,8 @@ export default function DashboardPage() {
     setMes(m); setAno(a)
   }
 
-  const unidadesComDados = UNIDADES.filter(u => porUnidade[u])
+  // GB são empresas distintas: o consolidado soma só as unidades NEW BLUETEX.
+  const unidadesComDados = UNIDADES.filter(u => u.startsWith('NEW BLUETEX') && porUnidade[u])
   const consolidado = veTudo ? consolidarResumos(unidadesComDados.map(u => porUnidade[u]!) ) : null
   const abaUnica: ResumoUnidade | null = !veTudo
     ? (unidadeAtiva ? porUnidade[unidadeAtiva] ?? null : null)
@@ -633,7 +634,7 @@ export default function DashboardPage() {
 
       {veTudo && (
         <div className="tabs">
-          <button className={`tab${aba === 'consolidado' ? ' active' : ''}`} onClick={() => setAba('consolidado')}>◈ Consolidado</button>
+          <button className={`tab${aba === 'consolidado' ? ' active' : ''}`} onClick={() => setAba('consolidado')}>◈ Consolidado NEW BLUETEX</button>
           {UNIDADES.map(u => <button key={u} className={`tab${aba === u ? ' active' : ''}`} onClick={() => setAba(u)}>{SHORT[u]}</button>)}
         </div>
       )}
