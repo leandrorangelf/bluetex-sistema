@@ -8,6 +8,7 @@ import Logo from './Logo'
 const NAV = [
   { href: '/dashboard', label: 'Painel' },
   { href: '/tarefas', label: 'Atividades' },
+  { href: '/time', label: 'Atividades do time', adminOnly: true },
   { href: '/lancar', label: 'Lançar' },
   { href: '/vendas', label: 'Vendas' },
   { href: '/parcelas-pagar', label: 'Contas a Pagar' },
