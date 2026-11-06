@@ -113,10 +113,7 @@ function SecaoEstoque({ linhas, unidades, unidadeUnica }: { linhas: LinhaEstoque
   )
 }
 
-const SHORT: Record<string, string> = {
-  'NEW BLUETEX MG': 'MG', 'NEW BLUETEX SC': 'SC', 'NEW BLUETEX AM': 'AM',
-  'GB SP': 'GB SP', 'GB CE': 'GB CE', 'GB MA': 'GB MA',
-}
+const SHORT: Record<string, string> = Object.fromEntries(UNIDADES.map(u => [u, u.replace('NEW BLUETEX ', '')]))
 
 async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: string, ano: number, mes: number, hojeStr: string): Promise<ResumoUnidade> {
   const competenciaSel = chaveCompetencia(ano, mes)

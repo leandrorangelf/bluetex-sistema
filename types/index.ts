@@ -1,6 +1,7 @@
 export type Unidade =
   | 'NEW BLUETEX MG' | 'NEW BLUETEX SC' | 'NEW BLUETEX AM'
   | 'GB SP' | 'GB CE' | 'GB MA'
+  | 'NEW BLUETEX CE' | 'NEW BLUETEX MA' | 'NEW BLUETEX SP' | 'NEW BLUETEX GO'
 export type Role = 'admin' | 'unidade' | 'diretoria'
 export type TipoParcela = 'pagar' | 'receber'
 export type OrigemParcela = 'compra' | 'venda' | 'despesa' | 'manual'
@@ -20,6 +21,7 @@ export type SyncDecisao = 'vincular' | 'importar' | 'ignorar'
 export const UNIDADES: Unidade[] = [
   'NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM',
   'GB SP', 'GB CE', 'GB MA',
+  'NEW BLUETEX CE', 'NEW BLUETEX MA', 'NEW BLUETEX SP', 'NEW BLUETEX GO',
 ]
 
 export interface Profile {

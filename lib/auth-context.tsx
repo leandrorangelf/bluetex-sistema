@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
-import type { Profile, Unidade } from '@/types'
+import { UNIDADES, type Profile, type Unidade } from '@/types'
 
 interface AuthCtx {
   user: User | null
@@ -54,8 +54,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.role === 'unidade' && data.unidade) {
         setUnidadeAtivaState(data.unidade as Unidade)
       } else if (data.role === 'admin' || data.role === 'diretoria') {
+        // Admin/diretoria sempre têm uma unidade ativa válida: sem ela as telas
+        // não filtrariam e misturariam dados de todas as unidades.
         const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-        if (saved) setUnidadeAtivaState(saved as Unidade)
+        setUnidadeAtivaState(UNIDADES.find(u => u === saved) ?? UNIDADES[0])
       }
     }
     setLoading(false)

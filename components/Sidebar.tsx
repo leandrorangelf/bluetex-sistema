@@ -54,7 +54,6 @@ export default function Sidebar() {
             value={unidadeAtiva ?? ''}
             onChange={e => setUnidadeAtiva(e.target.value as Unidade)}
           >
-            <option value="" style={{ background: '#1A1A2E', color: '#fff' }}>— Selecione a unidade —</option>
             {UNIDADES.map(u => (
               <option key={u} value={u} style={{ background: '#1A1A2E', color: '#fff' }}>{u}</option>
             ))}
