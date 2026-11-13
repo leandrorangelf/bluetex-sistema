@@ -669,3 +669,10 @@ td.cell-actions { white-space: nowrap; }
   .audit-filters { grid-template-columns: 1fr; }
 }
 
+
+/* Quadro do time (/quadro): entrada do painel lateral */
+@keyframes quadro-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes quadro-slide { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+.quadro-fade { animation: quadro-fade .15s ease-out }
+.quadro-slide { animation: quadro-slide .2s ease-out }
+@media (prefers-reduced-motion: reduce) { .quadro-fade, .quadro-slide { animation: none } }

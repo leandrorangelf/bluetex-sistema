@@ -1,3 +1,3 @@
-import KanbanTarefas from '@/components/KanbanTarefas'
-export const dynamic = 'force-dynamic'
-export default function Page() { return <KanbanTarefas todas /> }
+import { redirect } from 'next/navigation'
+// O quadro de atividades agora vive fora do ERP, em /quadro.
+export default function Page() { redirect('/quadro') }

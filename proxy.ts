@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  // Prévia do quadro com dados fictícios: só em desenvolvimento, sem login.
+  if (process.env.NODE_ENV !== 'production' && pathname === '/quadro/demo') return NextResponse.next()
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
