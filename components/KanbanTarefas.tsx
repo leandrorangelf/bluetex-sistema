@@ -40,11 +40,14 @@ function Avatar({ nome, size = 28 }: { nome: string | null; size?: number }) {
 }
 
 // Pílula colorida; vira <select> nativo invisível por cima quando editável.
-function Pilula({ cor, label, opcoes, valor, onChange, disabled }: {
-  cor: string; label: string; opcoes: { id: string; label: string }[]; valor: string; onChange: (v: string) => void; disabled?: boolean
+function Pilula({ cor, label, opcoes, valor, onChange, disabled, compacta }: {
+  cor: string; label: string; opcoes: { id: string; label: string }[]; valor: string; onChange: (v: string) => void; disabled?: boolean; compacta?: boolean
 }) {
   return (
-    <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: cor, color: '#fff', fontWeight: 600, fontSize: 12, height: '100%', minHeight: 38, padding: '0 6px', textAlign: 'center' }}>
+    <span style={{
+      position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: cor, color: '#fff', fontWeight: 600, fontSize: 12,
+      height: compacta ? 26 : '100%', minHeight: compacta ? 26 : 38, borderRadius: compacta ? 4 : 0, padding: '0 8px', textAlign: 'center', whiteSpace: 'nowrap',
+    }}>
       {label}
       {!disabled && (
         <select aria-label={label} value={valor} onChange={e => onChange(e.target.value)}
@@ -88,7 +91,7 @@ function Prazo({ t }: { t: Tarefa }) {
   const cor = fim ? 'var(--text-muted)' : dias < 0 ? 'var(--red)' : dias <= 2 ? 'var(--amber)' : 'var(--text-mid)'
   return (
     <span style={{ fontSize: 12, color: cor, fontWeight: !fim && dias <= 2 ? 600 : 400, whiteSpace: 'nowrap' }}>
-      {fmtData(t.prazo).slice(0, 5)}{!fim && (dias < 0 ? ` · ${-dias}d atraso` : dias === 0 ? ' · hoje' : '')}
+      {fmtData(t.prazo).slice(0, 5)}{!fim && (dias < 0 ? `, ${-dias}d de atraso` : dias === 0 ? ', hoje' : '')}
     </span>
   )
 }
@@ -118,6 +121,16 @@ function SelosTarefa({ t }: { t: Tarefa }) {
   )
 }
 
+// Linha "rótulo: valor" dos cards do quadro, como no Monday.
+function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '78px 1fr', alignItems: 'center', gap: 8, minHeight: 28 }}>
+      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{rotulo}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>{children}</div>
+    </div>
+  )
+}
+
 const VISAO_KEY = 'btx_tarefas_visao'
 
 // todas=true (rota /time): admin vê e edita as atividades de todas as unidades.
@@ -125,8 +138,9 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
   const { profile, unidadeAtiva } = useAuth()
   const verTodas = todas && profile?.role === 'admin'
   const isAdmin = profile?.role === 'admin'
-  const [visao, setVisao] = useState<'tabela' | 'quadro'>('tabela')
+  const [visao, setVisao] = useState<'tabela' | 'quadro'>('quadro')
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set())
+  const [checklistAberto, setChecklistAberto] = useState<Set<string>>(new Set())
   const [fUnidade, setFUnidade] = useState('')
   const [rows, setRows] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(true)
@@ -297,9 +311,10 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
     setNovoItem('')
   }
 
-  function alternarGrupo(id: string) {
-    setRecolhidos(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  }
+  const alternarEm = (set: typeof setRecolhidos) => (id: string) =>
+    set(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const alternarGrupo = alternarEm(setRecolhidos)
+  const alternarChecklist = alternarEm(setChecklistAberto)
 
   const filtrosAtivos = !!(busca || fPrioridade || fCategoria || fResp || fUnidade || fSo)
   const statusInfo = (t: Tarefa) => {
@@ -326,7 +341,7 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
   const kpis = [
     { label: 'Total', valor: contagem.total, cor: 'var(--navy)', filtro: '' as const },
     { label: 'Em andamento', valor: contagem.andamento, cor: '#E08A00', filtro: null },
-    { label: 'Concluídas', valor: `${contagem.concluidas} · ${pctConcluido}%`, cor: '#00A35C', filtro: null },
+    { label: 'Concluídas', valor: `${contagem.concluidas} (${pctConcluido}%)`, cor: '#00A35C', filtro: null },
     { label: 'Atrasadas', valor: contagem.atrasadas, cor: contagem.atrasadas ? 'var(--red)' : 'var(--text-muted)', filtro: 'atrasadas' as const },
     { label: 'Bloqueadas', valor: contagem.bloqueadas, cor: contagem.bloqueadas ? COR_BLOQUEADA : 'var(--text-muted)', filtro: 'bloqueadas' as const },
     ...(isAdmin ? [{ label: '🔒 Sigilosas', valor: contagem.sigilosas, cor: '#2E2E4A', filtro: 'sigilosas' as const }] : []),
@@ -337,7 +352,7 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">{verTodas ? 'Atividades do time' : 'Atividades'}</h1>
-          <div className="page-subtitle">{verTodas ? 'Todas as unidades · acompanhe o andamento do que foi delegado' : `Painel de tarefas da unidade${unidadeAtiva ? ` · ${unidadeAtiva}` : ''}`}</div>
+          <div className="page-subtitle">{verTodas ? 'Todas as unidades: acompanhe o andamento do que foi delegado' : `Painel de tarefas da unidade${unidadeAtiva ? ` · ${unidadeAtiva}` : ''}`}</div>
         </div>
         {!somenteLeitura && (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -355,7 +370,7 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
           <button key={k.label} type="button" className="card" disabled={k.filtro === null}
             onClick={() => k.filtro !== null && setFSo(fSo === k.filtro ? '' : k.filtro)}
             style={{ padding: '10px 14px', textAlign: 'left', cursor: k.filtro === null ? 'default' : 'pointer', outline: k.filtro && fSo === k.filtro ? `2px solid ${k.cor}` : 'none', color: 'inherit', font: 'inherit' }}>
-            <div className="text-muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em' }}>{k.label}</div>
+            <div className="text-muted" style={{ fontSize: 11, }}>{k.label}</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: k.cor }}>{k.valor}</div>
           </button>
         ))}
@@ -500,60 +515,109 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
           </div>
         </div>
       ) : (
-        /* ---------- Visão quadro (kanban) ---------- */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(270px, 1fr))', gap: 16, alignItems: 'start', overflowX: 'auto' }}>
+        /* ---------- Visão quadro (kanban estilo Monday) ---------- */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(280px, 1fr))', gap: 14, alignItems: 'start', overflowX: 'auto', paddingBottom: 4 }}>
           {COLUNAS.map(col => {
             const cards = filtradas.filter(t => t.status === col.id).sort((a, b) => a.ordem - b.ordem)
             return (
               <section key={col.id} {...dropProps(col.id)}
-                style={{ background: sobre === col.id ? 'var(--brand-light)' : 'var(--surface2)', borderRadius: 10, minHeight: 200, overflow: 'hidden' }}>
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: col.cor, color: '#fff', padding: '10px 12px' }}>
-                  <strong style={{ fontSize: 14 }}>{col.titulo} <span style={{ opacity: 0.85, fontWeight: 400 }}>· {cards.length}</span></strong>
-                  {!somenteLeitura && <button onClick={() => openNew(col.id)} title="Nova atividade nesta coluna" aria-label="Nova atividade nesta coluna"
-                    style={{ border: 0, background: 'rgba(255,255,255,.25)', color: '#fff', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', fontSize: 16 }}>+</button>}
+                style={{
+                  background: sobre === col.id ? 'var(--brand-light)' : `${col.cor}14`, borderRadius: 10, minHeight: 240,
+                  outline: sobre === col.id ? `2px dashed ${col.cor}` : 'none', outlineOffset: -2, transition: 'background .15s',
+                }}>
+                <header style={{ display: 'flex', alignItems: 'center', gap: 8, background: col.cor, color: '#fff', padding: '10px 12px', borderRadius: '10px 10px 0 0' }}>
+                  <strong style={{ fontSize: 14, flex: 1 }}>{col.titulo}</strong>
+                  <span style={{ background: 'rgba(255,255,255,.25)', borderRadius: 999, padding: '1px 9px', fontSize: 12, fontWeight: 700 }}>{cards.length}</span>
+                  {!somenteLeitura && <button onClick={() => openNew(col.id)} title="Nova atividade nesta coluna" aria-label={`Nova atividade em ${col.titulo}`}
+                    style={{ border: 0, background: 'rgba(255,255,255,.25)', color: '#fff', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', fontSize: 17, lineHeight: 1 }}>+</button>}
                 </header>
-                <div style={{ padding: 10 }}>
-                  {cards.length === 0 ? <div className="empty-state" style={{ padding: 24 }}>Nenhuma atividade.</div>
-                  : cards.map(t => {
+                <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {cards.length === 0 && (
+                    <div style={{ padding: '28px 12px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', border: '1.5px dashed var(--border)', borderRadius: 8 }}>
+                      {somenteLeitura ? 'Nenhuma atividade aqui.' : 'Arraste uma atividade para cá ou clique em +'}
+                    </div>
+                  )}
+                  {cards.map(t => {
                     const prio = PRIORIDADES.find(p => p.id === t.prioridade)!
+                    const st = statusInfo(t)
+                    const feitos = t.checklist.filter(c => c.feito).length
+                    const aberto = checklistAberto.has(t.id)
                     return (
-                      <article key={t.id} className="card" {...dragProps(t)}
+                      <article key={t.id} {...dragProps(t)}
                         onDragOver={e => { if (arrastando && arrastando !== t.id) e.preventDefault() }}
                         onDrop={e => { e.preventDefault(); e.stopPropagation(); if (arrastando && arrastando !== t.id) mover(arrastando, col.id, t.id); setArrastando(null); setSobre(null) }}
-                        style={{ padding: 12, marginBottom: 10, cursor: somenteLeitura ? 'default' : 'grab', opacity: arrastando === t.id ? 0.4 : 1 }}>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                          {verTodas && <span className="badge badge-gray">{curtaUnidade(t.unidade)}</span>}
-                          <span className="badge" style={{ background: prio.cor, color: '#fff' }}>{prio.label}</span>
-                          <span className="badge badge-gray">{catLabel(t.categoria)}</span>
-                          {t.bloqueada && t.status !== 'concluido' && <span className="badge" style={{ background: COR_BLOQUEADA, color: '#fff' }}>Bloqueada</span>}
-                          <SelosTarefa t={t} />
+                        style={{
+                          background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)', padding: '12px 12px 10px',
+                          boxShadow: '0 1px 2px rgba(26,26,46,.06)', cursor: somenteLeitura ? 'default' : 'grab', opacity: arrastando === t.id ? 0.4 : 1,
+                        }}>
+                        {/* Título + sigilo */}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          <button type="button" onClick={() => openEdit(t)} disabled={somenteLeitura}
+                            style={{
+                              flex: 1, textAlign: 'left', border: 0, background: 'none', padding: 0, font: 'inherit', fontWeight: 600, fontSize: 14, lineHeight: 1.35,
+                              color: t.status === 'concluido' ? 'var(--text-muted)' : 'var(--text)', cursor: somenteLeitura ? 'default' : 'pointer',
+                              textDecoration: t.status === 'concluido' ? 'line-through' : 'none',
+                            }}>{t.titulo}</button>
+                          {t.sigilosa && <span title="Sigilosa: visível só para a gestão" aria-label="Sigilosa" style={{ fontSize: 13 }}>🔒</span>}
                         </div>
-                        <div style={{ fontWeight: 600, fontSize: 14, cursor: somenteLeitura ? 'default' : 'pointer', textDecoration: t.status === 'concluido' ? 'line-through' : 'none' }}
-                          onClick={() => openEdit(t)}>{t.titulo}</div>
-                        {t.descricao && <div className="text-muted" style={{ marginTop: 4, whiteSpace: 'pre-wrap', fontSize: 12 }}>{t.descricao.length > 120 ? t.descricao.slice(0, 120) + '…' : t.descricao}</div>}
-                        {t.bloqueada && t.motivo_bloqueio && <div style={{ fontSize: 12, color: COR_BLOQUEADA, marginTop: 4 }}>⚠ {t.motivo_bloqueio}</div>}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '6px 0 8px' }}>
+                          {verTodas && <span className="badge badge-gray">{curtaUnidade(t.unidade)}</span>}
+                          <span className="badge badge-gray">{catLabel(t.categoria)}</span>
+                        </div>
+                        {t.bloqueada && t.motivo_bloqueio && t.status !== 'concluido' && (
+                          <div style={{ fontSize: 12, color: COR_BLOQUEADA, background: `${COR_BLOQUEADA}12`, borderRadius: 6, padding: '5px 8px', marginBottom: 8 }}>⚠ {t.motivo_bloqueio}</div>
+                        )}
 
+                        {/* Campos estilo Monday */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                          <Campo rotulo="Responsável">
+                            <Avatar nome={t.responsavel} size={24} />
+                            <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: t.responsavel ? 'var(--text)' : 'var(--text-muted)' }}>{t.responsavel ?? 'Ninguém'}</span>
+                          </Campo>
+                          <Campo rotulo="Status">
+                            <div style={{ flex: 1 }}>
+                              <Pilula compacta cor={st.cor} label={st.label} valor={t.status} disabled={somenteLeitura}
+                                opcoes={COLUNAS.map(c => ({ id: c.id, label: c.titulo }))} onChange={v => mover(t.id, v as StatusTarefa)} />
+                            </div>
+                          </Campo>
+                          <Campo rotulo="Prioridade">
+                            <div style={{ flex: 1 }}>
+                              <Pilula compacta cor={prio.cor} label={prio.label} valor={t.prioridade} disabled={somenteLeitura}
+                                opcoes={PRIORIDADES} onChange={v => patchRapido(t, { prioridade: v as PrioridadeTarefa })} />
+                            </div>
+                          </Campo>
+                          <Campo rotulo="Prazo"><Prazo t={t} /></Campo>
+                          <Campo rotulo="Progresso"><Progresso t={t} /></Campo>
+                        </div>
+
+                        {/* Checklist recolhível */}
                         {t.checklist.length > 0 && (
-                          <div style={{ marginTop: 8 }}>
-                            {t.checklist.map((c, i) => (
-                              <label key={i} style={{ display: 'flex', gap: 6, fontSize: 12, alignItems: 'center', cursor: somenteLeitura ? 'default' : 'pointer' }}>
+                          <div style={{ marginTop: 6 }}>
+                            <button type="button" onClick={() => alternarChecklist(t.id)} aria-expanded={aberto}
+                              style={{ border: 0, background: 'none', padding: '2px 0', fontSize: 12, color: 'var(--text-mid)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ display: 'inline-block', transform: aberto ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }}>▾</span>
+                              Checklist: {feitos} de {t.checklist.length}
+                            </button>
+                            {aberto && t.checklist.map((c, i) => (
+                              <label key={i} style={{ display: 'flex', gap: 6, fontSize: 12, alignItems: 'center', padding: '2px 0 2px 16px', cursor: somenteLeitura ? 'default' : 'pointer' }}>
                                 <input type="checkbox" checked={c.feito} disabled={somenteLeitura} onChange={() => alternarItem(t, i)} />
                                 <span style={{ textDecoration: c.feito ? 'line-through' : 'none', color: c.feito ? 'var(--text-muted)' : 'inherit' }}>{c.texto}</span>
                               </label>
                             ))}
                           </div>
                         )}
-                        <div style={{ marginTop: 8 }}><Progresso t={t} /></div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, gap: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Avatar nome={t.responsavel} size={24} />
-                            <Prazo t={t} />
+                        {/* Confirmação do gestor */}
+                        {t.status === 'concluido' && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                            {t.confirmada_em
+                              ? <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>✓ Confirmada{t.confirmada_por ? ` por ${t.confirmada_por}` : ''}</span>
+                              : <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 600 }}>Aguardando confirmação</span>}
+                            {isAdmin && (
+                              <button className="btn btn-secondary btn-sm" onClick={() => confirmar(t)}>{t.confirmada_em ? 'Desfazer' : 'Confirmar'}</button>
+                            )}
                           </div>
-                          {isAdmin && t.status === 'concluido' && (
-                            <button className="btn btn-secondary btn-sm" onClick={() => confirmar(t)}>{t.confirmada_em ? 'Desfazer' : '✓ Confirmar'}</button>
-                          )}
-                        </div>
+                        )}
                       </article>
                     )
                   })}
