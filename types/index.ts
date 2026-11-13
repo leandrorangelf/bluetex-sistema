@@ -153,6 +153,6 @@ export interface Tarefa {
   id: string; unidade: Unidade; titulo: string; descricao: string | null
   status: StatusTarefa; prioridade: PrioridadeTarefa; categoria: string
   responsavel: string | null; prazo: string | null; checklist: ItemChecklist[]
-  bloqueada: boolean; motivo_bloqueio: string | null; ordem: number
+  bloqueada: boolean; motivo_bloqueio: string | null; ordem: number; sigilosa: boolean
   criado_por: string | null; concluida_em: string | null; confirmada_em: string | null; confirmada_por: string | null; created_at: string; updated_at: string
 }
