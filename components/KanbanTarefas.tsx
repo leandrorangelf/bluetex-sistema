@@ -354,7 +354,7 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
         {kpis.map(k => (
           <button key={k.label} type="button" className="card" disabled={k.filtro === null}
             onClick={() => k.filtro !== null && setFSo(fSo === k.filtro ? '' : k.filtro)}
-            style={{ padding: '10px 14px', textAlign: 'left', cursor: k.filtro === null ? 'default' : 'pointer', borderLeft: `4px solid ${k.cor}`, outline: k.filtro && fSo === k.filtro ? `2px solid ${k.cor}` : 'none', color: 'inherit', font: 'inherit' }}>
+            style={{ padding: '10px 14px', textAlign: 'left', cursor: k.filtro === null ? 'default' : 'pointer', outline: k.filtro && fSo === k.filtro ? `2px solid ${k.cor}` : 'none', color: 'inherit', font: 'inherit' }}>
             <div className="text-muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em' }}>{k.label}</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: k.cor }}>{k.valor}</div>
           </button>
@@ -520,7 +520,7 @@ export default function KanbanTarefas({ todas = false }: { todas?: boolean }) {
                       <article key={t.id} className="card" {...dragProps(t)}
                         onDragOver={e => { if (arrastando && arrastando !== t.id) e.preventDefault() }}
                         onDrop={e => { e.preventDefault(); e.stopPropagation(); if (arrastando && arrastando !== t.id) mover(arrastando, col.id, t.id); setArrastando(null); setSobre(null) }}
-                        style={{ padding: 12, marginBottom: 10, cursor: somenteLeitura ? 'default' : 'grab', opacity: arrastando === t.id ? 0.4 : 1, borderLeft: `4px solid ${t.bloqueada && t.status !== 'concluido' ? COR_BLOQUEADA : atrasada(t) ? 'var(--red)' : prio.cor}` }}>
+                        style={{ padding: 12, marginBottom: 10, cursor: somenteLeitura ? 'default' : 'grab', opacity: arrastando === t.id ? 0.4 : 1 }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
                           {verTodas && <span className="badge badge-gray">{curtaUnidade(t.unidade)}</span>}
                           <span className="badge" style={{ background: prio.cor, color: '#fff' }}>{prio.label}</span>
