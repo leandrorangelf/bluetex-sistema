@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
@@ -637,7 +637,12 @@ export default function DashboardPage() {
       {veTudo && (
         <div className="unit-tabs" role="tablist" aria-label="Unidade">
           <button role="tab" aria-selected={aba === 'consolidado'} className={`unit-tab unit-tab-main${aba === 'consolidado' ? ' active' : ''}`} onClick={() => setAba('consolidado')}>Consolidado NEW BLUETEX</button>
-          {UNIDADES.map(u => <button key={u} role="tab" aria-selected={aba === u} className={`unit-tab${aba === u ? ' active' : ''}`} onClick={() => setAba(u)}>{SHORT[u]}</button>)}
+          {[...UNIDADES.filter(u => !u.startsWith('GB')), ...UNIDADES.filter(u => u.startsWith('GB'))].map((u, i, ordem) => (
+            <Fragment key={u}>
+              {u.startsWith('GB') && !ordem[i - 1]?.startsWith('GB') && <span className="unit-tabs-sep" aria-hidden="true" />}
+              <button role="tab" aria-selected={aba === u} className={`unit-tab${aba === u ? ' active' : ''}`} onClick={() => setAba(u)}>{SHORT[u]}</button>
+            </Fragment>
+          ))}
         </div>
       )}
 

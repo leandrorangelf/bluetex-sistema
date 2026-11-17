@@ -284,6 +284,7 @@ td.cell-actions { white-space: nowrap; }
 .unit-tab:hover { border-color: var(--brand); color: var(--brand); }
 .unit-tab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
 .unit-tab-main { margin-right: 6px; }
+.unit-tabs-sep { flex-shrink: 0; width: 1px; margin: 4px 6px; background: var(--border-strong, var(--border)); }
 
 @media (max-width: 900px) {
   .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
