@@ -380,10 +380,11 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
   )
 }
 
-function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidade, onClickHeader, onClickConta }: {
+function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidade, onClickHeader, onClickConta, semCard }: {
   resumo: ResumoUnidade; nome: string; short: string
   expandidoInicial: boolean; mostrarTagUnidade: boolean
   onClickHeader?: () => void; onClickConta: (c: ContaPagar | ContaReceber) => void
+  semCard?: boolean // só a lista "Ainda a pagar", sem moldura/cabeçalho/total (usada dentro da tabela de unidades)
 }) {
   const [abertos, setAbertos] = useState<Set<string>>(
     () => new Set(expandidoInicial ? resumo.gruposPagar.map(g => g.grupo) : [])
@@ -395,7 +396,8 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
   })
 
   return (
-    <div className="card card-accent" style={{ padding: 14, fontSize: 12, '--accent-cor': 'var(--red)' } as React.CSSProperties}>
+    <div className={semCard ? undefined : 'card card-accent'} style={(semCard ? { fontSize: 12 } : { padding: 14, fontSize: 12, '--accent-cor': 'var(--red)' }) as React.CSSProperties}>
+      {!semCard && <>
       <div
         onClick={onClickHeader}
         title={nome}
@@ -412,6 +414,7 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
         <span style={{ color: 'var(--text-muted)' }}>Saldo hoje</span>
         <span className="mono">{formatMoeda(resumo.saldoHoje)}</span>
       </div>
+      </>}
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>Ainda a pagar</div>
       {resumo.gruposPagar.filter(g => g.subtotal > 0).length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '54px 46px 1fr auto', gap: 8, padding: '0 0 2px 14px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
@@ -452,10 +455,67 @@ function ColunaUnidade({ resumo, nome, short, expandidoInicial, mostrarTagUnidad
         </div>
       ))}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 12, fontWeight: 600 }}>Total despesas</span>
-        <span className="mono text-red" style={{ fontSize: 13, fontWeight: 700 }}>{formatMoeda(resumo.totalDespesas)}</span>
+      {!semCard && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Total despesas</span>
+          <span className="mono text-red" style={{ fontSize: 13, fontWeight: 700 }}>{formatMoeda(resumo.totalDespesas)}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Visão consolidada: uma linha por unidade (saldo, resultado, a pagar). Clicar na
+// linha abre ali mesmo os grupos ainda a pagar; unidades zeradas ficam apagadas.
+function TabelaUnidades({ unidades, porUnidade, onClickConta, onAbrir }: {
+  unidades: string[]; porUnidade: Partial<Record<string, ResumoUnidade>>
+  onClickConta: (c: ContaPagar | ContaReceber) => void; onAbrir: (u: string) => void
+}) {
+  const [abertas, setAbertas] = useState<Set<string>>(new Set())
+  const alternar = (u: string) => setAbertas(prev => {
+    const n = new Set(prev)
+    n.has(u) ? n.delete(u) : n.add(u)
+    return n
+  })
+
+  return (
+    <div className="un-table">
+      <div className="un-row un-head">
+        <span /><span>Unidade</span><span>Saldo hoje</span><span>Resultado</span><span>A pagar</span><span />
       </div>
+      {unidades.map(u => {
+        const r = porUnidade[u]
+        if (!r) return null
+        const aPagar = r.gruposPagar.reduce((s, g) => s + g.subtotal, 0)
+        const zerada = r.saldoHoje === 0 && r.resultado === 0 && aPagar === 0
+        const aberta = abertas.has(u)
+        return (
+          <div key={u} className={zerada ? 'un-zero' : undefined}>
+            <button className="un-row un-line" onClick={() => alternar(u)} aria-expanded={aberta} title={u}>
+              <span className="un-caret">{aberta ? '▾' : '▸'}</span>
+              <strong>{SHORT[u] ?? u}</strong>
+              <span className="mono un-num">{formatMoeda(r.saldoHoje)}</span>
+              <span className="mono un-num" style={zerada ? undefined : { color: r.resultado >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatMoeda(r.resultado)}</span>
+              <span className="mono un-num">{formatMoeda(aPagar)}</span>
+              <span>{r.parcelasVencidas > 0 && <span className="un-chip">{r.parcelasVencidas} vencida{r.parcelasVencidas === 1 ? '' : 's'}</span>}</span>
+            </button>
+            {aberta && (
+              <div className="un-sub">
+                <ColunaUnidade
+                  resumo={r}
+                  nome={u}
+                  short={SHORT[u] ?? u}
+                  expandidoInicial={false}
+                  mostrarTagUnidade={false}
+                  onClickConta={onClickConta}
+                  semCard
+                />
+                <button className="btn btn-secondary btn-sm" style={{ marginTop: 10 }} onClick={() => onAbrir(u)}>Ver painel completo de {SHORT[u] ?? u} →</button>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -680,20 +740,7 @@ export default function DashboardPage() {
             <Waterfall resumo={consolidado} />
             <CardRecebiveis resumo={consolidado} onClickConta={setContaAberta} />
             <CategoriasColapsaveis resumo={consolidado} onClickItem={setContaAberta} />
-            <div className="grid-3">
-              {unidadesComDados.map(u => (
-                <ColunaUnidade
-                  key={u}
-                  resumo={porUnidade[u]!}
-                  nome={u}
-                  short={SHORT[u]}
-                  expandidoInicial={false}
-                  mostrarTagUnidade={false}
-                  onClickHeader={() => setAba(u)}
-                  onClickConta={setContaAberta}
-                />
-              ))}
-            </div>
+            <TabelaUnidades unidades={unidadesComDados} porUnidade={porUnidade} onClickConta={setContaAberta} onAbrir={u => setAba(u as Unidade)} />
           </>
         )
       ) : !abaUnica ? <div className="empty-state">Selecione uma unidade.</div> : (
