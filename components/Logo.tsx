@@ -1,7 +1,7 @@
 // Monograma "NB" com a seta ascendente, inspirado na logo da New Bluetex.
 // currentColor deixa herdar a cor do container (branco na sidebar escura,
 // navy no login claro).
-export function LogoMark({ size = 36 }: { size?: number }) {
+function LogoMark({ size = 36 }: { size?: number }) {
   return (
     <svg width={size} height={size * 0.72} viewBox="0 0 120 86" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <text x="0" y="70" fontFamily="Arial, Helvetica, sans-serif" fontWeight={800} fontSize="80" fill="currentColor">N</text>

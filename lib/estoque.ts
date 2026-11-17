@@ -232,7 +232,7 @@ export function calcularPrecoMedioCompra(compras: CompraEstoqueDb[]): Map<string
 // Confirmado com o cliente: pacote = 10 carteiras (unidade base), fixo pra
 // todo o catálogo — não é uma unidade cadastrada no sistema, só uma
 // conversão de exibição pro jeito que a operação pensa o produto.
-export const CARTEIRAS_POR_PACOTE = 10
+const CARTEIRAS_POR_PACOTE = 10
 export function precoPorPacote(precoPorCarteira: number): number {
   return precoPorCarteira * CARTEIRAS_POR_PACOTE
 }

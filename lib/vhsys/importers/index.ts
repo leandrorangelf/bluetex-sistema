@@ -16,7 +16,7 @@ import { importVendas } from './vendas'
 // texto livre gerou duplicata quase 1:1 do histórico inteiro na primeira
 // tentativa (ver commits deste dia) — revertido. Saldo bancário também
 // continua manual.
-export const DEFAULT_IMPORTERS: [VhsysDomain, DomainImporter][] = [
+const DEFAULT_IMPORTERS: [VhsysDomain, DomainImporter][] = [
   ['vendas', importVendas],
   ['compras', importCompras],
   ['receber', importReceber],

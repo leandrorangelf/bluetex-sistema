@@ -8,7 +8,7 @@ export function formatData(d: string | null): string {
   return `${day}/${m}/${y}`
 }
 
-export const LABEL_FORMA_PAGAMENTO: Record<string, string> = { boleto: 'Boleto', especie: 'Dinheiro', pix: 'PIX', debito: 'Débito', tarifa_bancaria: 'Tarifa Bancária' }
+const LABEL_FORMA_PAGAMENTO: Record<string, string> = { boleto: 'Boleto', especie: 'Dinheiro', pix: 'PIX', debito: 'Débito', tarifa_bancaria: 'Tarifa Bancária' }
 export function labelFormaPagamento(v: string | null | undefined): string {
   return v ? (LABEL_FORMA_PAGAMENTO[v] ?? v) : '—'
 }
@@ -28,10 +28,6 @@ export function itensCaixas(itens: unknown): string {
     const n = Number.isInteger(cx) ? cx : Number(cx.toFixed(1))
     return `${it.produto?.nome ?? '—'} ×${n.toLocaleString('pt-BR')}`
   }).join('  ·  ')
-}
-
-export function getMesLabel(mes: number): string {
-  return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mes - 1] ?? ''
 }
 
 export function getMesAnoLabel(mes: number, ano: number): string {

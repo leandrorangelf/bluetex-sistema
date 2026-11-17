@@ -15,7 +15,7 @@ interface ItemRow {
 
 // Espelho fiel: conflito é resolvido sozinho — vincula ao registro local quando
 // há um, senão importa separado. Nada fica pendente de decisão humana.
-export function autoDecisions(items: ItemRow[]): SyncDecision[] {
+function autoDecisions(items: ItemRow[]): SyncDecision[] {
   return items
     .filter((i) =>
       (i.classificacao === 'possivel_duplicidade' || i.classificacao === 'divergente')

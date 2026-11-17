@@ -80,11 +80,11 @@ function proximoDiaUtil(dataISO: string): string {
 }
 
 // ponytail: boleto só compensa no próximo dia útil após o vencimento; demais formas (pix, dinheiro) entram na própria data
-export function dataCompensacao(parcela: ParcelaFinanceira): string {
+function dataCompensacao(parcela: ParcelaFinanceira): string {
   return parcela.numero_boleto ? proximoDiaUtil(parcela.vencimento) : parcela.vencimento
 }
 
-export function obterDataEfetiva(parcela: ParcelaFinanceira) {
+function obterDataEfetiva(parcela: ParcelaFinanceira) {
   const inconsistente = parcela.status === 'pago' && !parcela.data_pagamento
   const data = parcela.status === 'pago' && parcela.data_pagamento
     ? parcela.data_pagamento
