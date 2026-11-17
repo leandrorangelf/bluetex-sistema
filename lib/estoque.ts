@@ -239,6 +239,8 @@ export function precoPorPacote(precoPorCarteira: number): number {
 
 export interface LinhaHistoricoVendaVhsys { produto: string; qtd_caixas: number; valor: number }
 
+const LIMITE_MIN_CAIXAS_HISTORICO = 0.5
+
 // Preço médio de referência a partir do relatório histórico de vendas do
 // VHSYS (btx_vhsys_vendas_historico) — só leitura, não move estoque. Serve de
 // fallback pra produto sem venda "ativa" recente em btx_vendas (ex.: catálogo
@@ -253,6 +255,9 @@ export function calcularPrecoMedioVendaHistorico(
   const acumulado = new Map<string, { valor: number; qtdCarteiras: number }>()
   for (const linha of linhas) {
     if (!linha.qtd_caixas || linha.valor == null) continue
+    // ponytail: menos de meia caixa é quantidade lançada na unidade errada no VHSYS (ex.: SC, 0,02 cx por R$ 72 mil
+    // vira R$ 3,6 mi/cx e estraga o valor de estoque). Ignora a linha; produto sem outra venda fica sem preço ("—").
+    if (linha.qtd_caixas < LIMITE_MIN_CAIXAS_HISTORICO) continue
     const match = melhorMatch(linha.produto, locais)
     if (!match) continue
     const produtoLocal = produtosLocais.find(p => p.id === match.id)
