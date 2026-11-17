@@ -101,10 +101,10 @@ function CardEstoque({ linhas, unidade }: { titulo?: string; linhas: LinhaEstoqu
           </div>
         </>
       )}
-      {((zerados > 0 && visiveis.length > 0) || visiveis.some(l => l.estimadoEm.includes(unidade))) && (
+      {((zerados > 0 && visiveis.length > 0) || visiveis.some(l => l.estimadoEm.includes(unidade) && valor(l) > 0)) && (
         <div className="est-note">
           {zerados > 0 && visiveis.length > 0 && <>Produtos zerados: {zerados}. </>}
-          {visiveis.some(l => l.estimadoEm.includes(unidade)) && <>~ Valor estimado pela média das outras unidades: sem venda válida registrada.</>}
+          {visiveis.some(l => l.estimadoEm.includes(unidade) && valor(l) > 0) && <>~ Valor estimado pela média das outras unidades: sem venda válida registrada.</>}
         </div>
       )}
     </div>
@@ -161,7 +161,7 @@ function TabelaEstoque({ linhas, unidades }: { linhas: LinhaEstoque[]; unidades:
   const semEstoque = unidades.filter(u => !comEstoque.includes(u))
   const visiveis = linhas.filter(l => comEstoque.some(u => (l.saldos[u] ?? 0) !== 0))
   const zerados = linhas.length - visiveis.length
-  const estimadas = comEstoque.filter(u => visiveis.some(l => l.estimadoEm.includes(u)))
+  const estimadas = comEstoque.filter(u => visiveis.some(l => l.estimadoEm.includes(u) && (l.saldos[u] ?? 0) > 0))
   const valor = (l: LinhaEstoque, u: string) => Math.max(l.saldos[u] ?? 0, 0) * (l.precoPorUnidade[u] ?? 0)
   const valorUnidade = (u: string) => linhas.reduce((s, l) => s + valor(l, u), 0)
   const cols = `minmax(150px, 1.5fr) repeat(${comEstoque.length}, minmax(100px, 1fr)) minmax(110px, 1.1fr)`

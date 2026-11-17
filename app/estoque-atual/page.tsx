@@ -261,7 +261,10 @@ export default function EstoqueAtualPage() {
         : error && !ajusteModal ? <div className="alert alert-red stock-error"><span>{error}</span><button className="btn btn-secondary btn-sm" onClick={loadData}>Tentar novamente</button></div>
         : <>
           <ResumoEstoque resumo={painel.resumo} valorEstoque={valorEstoque} saldos={painel.saldos} />
-          {precosEstimados.size > 0 && <p className="stock-estimado">~ Valor estimado pela média das outras unidades em {precosEstimados.size} produto{precosEstimados.size === 1 ? '' : 's'}: sem venda válida registrada nesta unidade.</p>}
+          {(() => {
+            const n = painel.saldos.filter(s => precosEstimados.has(s.produtoId) && s.saldoAtual > 0).length
+            return n > 0 ? <p className="stock-estimado">~ Valor estimado pela média das outras unidades em {n} produto{n === 1 ? '' : 's'}: sem venda válida registrada nesta unidade.</p> : null
+          })()}
           <TabelaSaldosEstoque saldos={painel.saldos} precoMedioVenda={precoMedioVenda} precosEstimados={precosEstimados} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
           <details className="stock-cal" open={!!diaSelecionado}>
             <summary>Calendário de movimentações <span>· {new Set(painel.movimentos.map(m => m.data)).size} dia(s) com movimento</span></summary>
