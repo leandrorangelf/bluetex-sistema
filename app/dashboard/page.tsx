@@ -64,35 +64,85 @@ function caixas(base: number, fator: number): string {
   return (Number.isInteger(q) ? q : Number(q.toFixed(1))).toLocaleString('pt-BR')
 }
 
-function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: LinhaEstoque[]; unidade: string }) {
-  const valorEstoque = linhas.reduce((total, l) => total + Math.max(l.saldos[unidade] ?? 0, 0) * l.precoMedioVenda, 0)
-  const cols = '1fr 64px 92px'
+// Estoque de uma unidade: só produtos com saldo; zerados viram uma nota.
+function CardEstoque({ linhas, unidade }: { titulo?: string; linhas: LinhaEstoque[]; unidade: string }) {
+  const valor = (l: LinhaEstoque) => Math.max(l.saldos[unidade] ?? 0, 0) * l.precoMedioVenda
+  const visiveis = linhas.filter(l => (l.saldos[unidade] ?? 0) !== 0)
+  const zerados = linhas.length - visiveis.length
+  const total = linhas.reduce((s, l) => s + valor(l), 0)
   return (
-    <Link href="/estoque-atual" className="card card-accent card-hover" style={{ textDecoration: 'none', color: 'inherit', display: 'block', '--accent-cor': 'var(--brand)' } as React.CSSProperties}>
-      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{titulo}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
-        <span>Produto</span>
-        <span style={{ textAlign: 'right' }}>Caixas</span>
-        <span style={{ textAlign: 'right' }}>Precificação</span>
+    <div className="est-table est-compact" style={{ '--est-cols': 'minmax(0, 1fr) 64px 110px' } as React.CSSProperties}>
+      <div className="est-title">
+        <strong>Estoque</strong>
+        <Link href="/estoque-atual">Ver estoque completo →</Link>
       </div>
-      {linhas.map(l => {
-        const v = l.saldos[unidade] ?? 0
-        const valorLinha = Math.max(v, 0) * l.precoMedioVenda
-        return (
-          <div key={l.id} style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, alignItems: 'center', fontSize: 12, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-            <span>{l.nome}</span>
-            <span className={`mono${v < 0 ? ' text-red' : ''}`} style={{ textAlign: 'right' }}>{caixas(v, l.fator)}</span>
-            <span className="mono" style={{ textAlign: 'right', color: valorLinha > 0 ? 'inherit' : 'var(--text-muted)' }}>
-              {valorLinha > 0 ? formatMoeda(valorLinha) : '—'}
-            </span>
+      {visiveis.length === 0 ? (
+        <div className="est-note">Sem estoque nesta unidade.</div>
+      ) : (
+        <>
+          <div className="est-row est-head"><span>Produto</span><span className="est-c">Caixas</span><span className="est-c">Valor</span></div>
+          {visiveis.map(l => {
+            const v = l.saldos[unidade] ?? 0
+            const val = valor(l)
+            return (
+              <div key={l.id} className="est-row">
+                <strong>{l.nome}</strong>
+                <span className="est-c"><b className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</b></span>
+                <span className={`est-c mono${val > 0 ? '' : ' est-zero'}`}>{val > 0 ? formatMoeda(val) : '—'}</span>
+              </div>
+            )
+          })}
+          <div className="est-row est-total">
+            <span>Valor de estoque</span><span />
+            <span className="est-c"><b className="mono">{formatMoeda(total)}</b></span>
           </div>
-        )
-      })}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 12, fontWeight: 600 }}>Valor de estoque <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 10 }}>(preço médio de venda)</span></span>
-        <span className="mono text-green" style={{ fontSize: 13, fontWeight: 700 }}>{formatMoeda(valorEstoque)}</span>
+        </>
+      )}
+      {zerados > 0 && visiveis.length > 0 && <div className="est-note">Produtos zerados: {zerados}.</div>}
+    </div>
+  )
+}
+
+// Contas a pagar ainda em aberto de uma unidade, por grupo. Vermelho só no que já venceu.
+function CardPagarEmAberto({ resumo, onClickConta }: { resumo: ResumoUnidade; onClickConta: (c: ContaPagar | ContaReceber) => void }) {
+  const grupos = resumo.gruposPagar.filter(g => g.subtotal > 0)
+  const total = grupos.reduce((s, g) => s + g.subtotal, 0)
+  return (
+    <div className="card pg-card">
+      <div className="cat-head">
+        <strong>A pagar em aberto</strong>
+        <span className="mono" style={{ fontSize: 15, fontWeight: 700 }}>{formatMoeda(total)}</span>
       </div>
-    </Link>
+      {grupos.length === 0 && <div className="cat-vazio">Sem contas em aberto.</div>}
+      {grupos.map(g => (
+        <details key={g.grupo} open className="cat-det">
+          <summary className="cat-sum">
+            <div className="cat-top"><span>{g.label}</span><span className="mono">{formatMoeda(g.subtotal)}</span></div>
+          </summary>
+          <div className="pg-items">
+            {g.contas.filter(c => !c.paga).map(c => (
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                className="pg-item"
+                onClick={() => onClickConta(c)}
+                onKeyDown={e => { if (e.key === 'Enter') onClickConta(c) }}
+              >
+                <span className="mono cat-muted" style={c.vencida ? { color: 'var(--red)' } : undefined}>{formatData(c.vencimento)}</span>
+                <span className="cat-desc" title={`${c.descricao}${c.formaPagamento ? ` · ${labelFormaPagamento(c.formaPagamento)}` : ''}`}>
+                  {c.descricao}
+                  {c.vencida ? <span className="pg-chip pg-chip-red">vencida</span> : c.proxima ? <span className="pg-chip">em breve</span> : null}
+                  {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
+                </span>
+                <span className="mono" style={c.vencida ? { color: 'var(--red)' } : undefined}>{formatMoeda(c.valor)}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      ))}
+      <div className="pg-foot">Resultado <b className="mono" style={{ color: resumo.resultado >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatMoeda(resumo.resultado)}</b></div>
+    </div>
   )
 }
 
@@ -808,20 +858,13 @@ export default function DashboardPage() {
           )}
           <Waterfall resumo={abaUnica} onEditarSaldo={profile?.role === 'admin' ? () => setEditandoSaldo(true) : undefined} />
           <CardRecebiveis resumo={abaUnica} onClickConta={setContaAberta} />
-          <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.75fr) minmax(0, 1.25fr)', gap: 16, alignItems: 'start' }}>
-            <ColunaUnidade
-              resumo={abaUnica}
-              nome={nomeUnica}
-              short={SHORT[nomeUnica] ?? nomeUnica}
-              expandidoInicial={true}
-              mostrarTagUnidade={false}
-              onClickConta={setContaAberta}
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(0, 1.15fr)', gap: 16, alignItems: 'start', marginBottom: 20 }}>
+            <CardPagarEmAberto resumo={abaUnica} onClickConta={setContaAberta} />
             {estoque.filter(l => Object.keys(l.saldos).length > 0).length > 0 && (
-              <CardEstoque titulo={SHORT[nomeUnica] ?? nomeUnica} linhas={estoque.filter(l => Object.keys(l.saldos).length > 0)} unidade={nomeUnica} />
+              <CardEstoque linhas={estoque.filter(l => Object.keys(l.saldos).length > 0)} unidade={nomeUnica} />
             )}
           </div>
+          <CategoriasColapsaveis resumo={abaUnica} onClickItem={setContaAberta} />
         </>
       )}
 

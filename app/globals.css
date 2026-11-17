@@ -328,6 +328,20 @@ td.cell-actions { white-space: nowrap; }
 .est-total .est-c b { font-size: 13px; }
 .est-note { padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg); font-size: 12px; color: var(--text-muted); }
 
+/* Painel (uma unidade): A pagar em aberto e estoque compacto */
+.est-compact { min-width: 0; }
+.pg-card { padding: 0; overflow: hidden; }
+.pg-items { border-top: 1px solid var(--border); }
+.pg-item {
+  display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  padding: 7px 18px; font-size: 12px; cursor: pointer; border-top: 1px solid var(--border);
+}
+.pg-item:first-child { border-top: none; }
+.pg-item:hover { background: var(--bg); }
+.pg-chip { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--amber-light); color: var(--amber); font-size: 10px; font-weight: 600; }
+.pg-chip-red { background: var(--red-light); color: var(--red-dark); }
+.pg-foot { padding: 10px 18px; border-top: 1px solid var(--border); background: var(--bg); font-size: 12px; color: var(--text-muted); }
+
 /* Painel: abas de unidade em chips, rolam na horizontal se faltar espaço */
 .unit-tabs {
   display: flex; gap: 6px; margin: 20px 0; padding-bottom: 4px;
