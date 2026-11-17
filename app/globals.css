@@ -745,18 +745,24 @@ td.cell-actions { white-space: nowrap; }
 .stock-month-nav strong { text-align: center; font-size: 14px; }
 .stock-product-filter { width: min(320px, 100%); }
 .stock-unit-filter { width: 220px; margin-left: auto; }
-.stock-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.stock-summary-card { position: relative; overflow: hidden; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-.stock-summary-card::before { position: absolute; inset: 0 auto 0 0; width: 3px; content: ''; background: var(--text-muted); }
-.stock-summary-card span { display: block; color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.stock-summary-card strong { display: block; margin-top: 6px; color: var(--text); font: 700 20px var(--mono); font-variant-numeric: tabular-nums; }
-.stock-summary-card small { color: var(--text-muted); font-size: 10px; }
-.stock-summary-in::before { background: #16845b; }
-.stock-summary-out::before, .stock-summary-negative::before { background: var(--red); }
-.stock-summary-balance::before { background: #3158a6; }
-.stock-summary-valor::before { background: var(--green); }
-.stock-summary-valor strong { color: var(--green); }
-.stock-summary-negative strong { color: var(--red); }
+.stock-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stock-summary-grid { display: grid; grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.stock-summary-card { padding: 14px 18px; border-left: 1px solid var(--border); min-width: 0; }
+.stock-summary-card:first-child { border-left: none; }
+.stock-summary-card span { display: block; color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.stock-summary-card strong { display: block; margin-top: 6px; color: var(--text); font: 700 20px var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stock-summary-card small { color: var(--text-muted); font-size: 11px; }
+.stock-summary-valor { background: var(--brand-light); border-radius: 11px 0 0 11px; }
+.stock-summary-valor strong { color: var(--brand); font-size: 22px; }
+.stock-zero { color: var(--text-muted) !important; }
+.stock-row-zero td, .stock-row-zero td strong { color: var(--text-muted); font-weight: 500; }
+.stock-cal { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.stock-cal > summary { display: flex; align-items: baseline; gap: 6px; padding: 12px 16px; font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; }
+.stock-cal > summary::-webkit-details-marker { display: none; }
+.stock-cal > summary::before { content: '▸'; color: var(--text-muted); }
+.stock-cal[open] > summary::before { content: '▾'; }
+.stock-cal > summary span { font-weight: 400; font-size: 12px; color: var(--text-muted); }
+.stock-cal > .stock-panel { border: 0; border-radius: 0; border-top: 1px solid var(--border); }
 .stock-panel { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .stock-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .stock-panel-heading h2 { margin: 2px 0 0; color: var(--text); font-size: 14px; }
@@ -804,6 +810,9 @@ td.cell-actions { white-space: nowrap; }
 
 @media (max-width: 900px) {
   .stock-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stock-summary-card:nth-child(3) { border-left: none; }
+  .stock-summary-card:nth-child(n+3) { border-top: 1px solid var(--border); }
+  .stock-summary-valor { border-radius: 11px 0 0 0; }
   .stock-unit-filter { margin-left: 0; }
   .stock-panel .table-wrap { border: 0; border-radius: 0; }
 }
@@ -814,7 +823,8 @@ td.cell-actions { white-space: nowrap; }
   .stock-month-nav { grid-template-columns: 36px 1fr 36px; }
   .stock-product-filter, .stock-unit-filter { width: 100%; }
   .stock-summary-grid { grid-template-columns: 1fr; }
-  .stock-summary-card { padding: 14px 16px; }
+  .stock-summary-card, .stock-summary-card:nth-child(3) { padding: 14px 16px; border-left: none; border-top: 1px solid var(--border); }
+  .stock-summary-card:first-child { border-top: none; border-radius: 11px 11px 0 0; }
   .stock-summary-card strong { font-size: 21px; }
   .stock-panel-heading { align-items: flex-start; padding: 14px; }
   .stock-tabs { display: grid; grid-template-columns: 1fr 1fr; justify-self: stretch; }

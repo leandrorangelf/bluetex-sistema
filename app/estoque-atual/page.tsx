@@ -17,7 +17,7 @@ import CalendarioEstoque from '@/components/estoque/CalendarioEstoque'
 import HistoricoAuditoriaEstoque from '@/components/estoque/HistoricoAuditoriaEstoque'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { UNIDADES, type AjusteEstoque, type AuditoriaEstoque, type Produto, type TipoAjusteEstoque, type Unidade } from '@/types'
+import type { AjusteEstoque, AuditoriaEstoque, Produto, TipoAjusteEstoque, Unidade } from '@/types'
 
 interface ProfileNome { id: string; nome: string }
 
@@ -235,6 +235,19 @@ export default function EstoqueAtualPage() {
 
   return (
     <div className="stock-page">
+      <div className="page-header stock-page-header">
+        <div>
+          <h1 className="page-title">Estoque Atual</h1>
+          <div className="page-subtitle">{unidade || 'Selecione uma unidade'}{aba === 'saldo' && unidade && !loading ? ` · ${painel.resumo.produtos} produtos · caixas` : ''}</div>
+        </div>
+        {aba === 'saldo' && (
+          <div className="stock-head-actions">
+            <Link href="/estoque-inicial" className="btn btn-secondary">Estoque inicial</Link>
+            {!isDiretoria && <button className="btn btn-primary" onClick={abrirNovoAjuste} disabled={!unidade}>+ Novo ajuste</button>}
+          </div>
+        )}
+      </div>
+
       <div className="tabs">
         <button className={`tab ${aba === 'saldo' ? 'active' : ''}`} onClick={() => setAba('saldo')}>Saldo</button>
         <button className={`tab ${aba === 'entradas' ? 'active' : ''}`} onClick={() => setAba('entradas')}>Entradas</button>
@@ -242,31 +255,24 @@ export default function EstoqueAtualPage() {
 
       {aba === 'entradas' && <ListaEntradas />}
       {aba === 'saldo' && <>
-      <div className="page-header stock-page-header">
-        <div>
-          <h1 className="page-title">Estoque Atual</h1>
-          <div className="page-subtitle">Saldo real, entradas, saídas e ajustes{unidade ? ` · ${unidade}` : ''}</div>
-          <Link href="/estoque-inicial" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}>Estoque inicial →</Link>
-        </div>
-        {!isDiretoria && <button className="btn btn-primary" onClick={abrirNovoAjuste} disabled={!unidade}>+ Novo ajuste</button>}
-      </div>
-
       <div className="stock-toolbar">
-        <div className="stock-month-nav"><button className="btn btn-secondary btn-sm" onClick={() => navMes(-1)}>←</button><strong>{getMesAnoLabel(mes, ano)}</strong><button className="btn btn-secondary btn-sm" onClick={() => navMes(1)}>→</button></div>
+        <div className="stock-month-nav"><button className="btn btn-secondary btn-sm" onClick={() => navMes(-1)} aria-label="Mês anterior">←</button><strong>{getMesAnoLabel(mes, ano)}</strong><button className="btn btn-secondary btn-sm" onClick={() => navMes(1)} aria-label="Próximo mês">→</button></div>
         <select className="form-select stock-product-filter" value={produtoId} onChange={event => setProdutoId(event.target.value)} aria-label="Filtrar produto">
           <option value="">Todos os produtos</option>
           {produtos.map(produto => <option key={produto.id} value={produto.id}>{produto.nome}</option>)}
         </select>
-        {veTudo && <select className="form-select stock-unit-filter" value={unidade} onChange={event => setUnidade(event.target.value as Unidade)} aria-label="Unidade">{UNIDADES.map(item => <option key={item}>{item}</option>)}</select>}
       </div>
 
       {!unidade ? <div className="empty-state">Selecione uma unidade para visualizar o estoque.</div>
         : loading ? <div className="stock-loading">Carregando estoque...</div>
         : error && !ajusteModal ? <div className="alert alert-red stock-error"><span>{error}</span><button className="btn btn-secondary btn-sm" onClick={loadData}>Tentar novamente</button></div>
         : <>
-          <ResumoEstoque resumo={painel.resumo} valorEstoque={valorEstoque} />
-          <CalendarioEstoque ano={ano} mes={mes} movimentos={painel.movimentos} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />
+          <ResumoEstoque resumo={painel.resumo} valorEstoque={valorEstoque} saldos={painel.saldos} />
           <TabelaSaldosEstoque saldos={painel.saldos} precoMedioVenda={precoMedioVenda} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
+          <details className="stock-cal" open={!!diaSelecionado}>
+            <summary>Calendário de movimentações <span>· {new Set(painel.movimentos.map(m => m.data)).size} dia(s) com movimento</span></summary>
+            <CalendarioEstoque ano={ano} mes={mes} movimentos={painel.movimentos} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />
+          </details>
           {isAdmin && <MargemPorProduto saldos={painel.saldos} precoMedioCompra={precoMedioCompra} precoMedioVenda={precoMedioVenda} />}
           <div className="stock-tabs" role="tablist">
             <button className={tab === 'movimentos' ? 'active' : ''} onClick={() => setTab('movimentos')} role="tab" aria-selected={tab === 'movimentos'}>Movimentações</button>

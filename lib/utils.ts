@@ -15,7 +15,7 @@ export function labelFormaPagamento(v: string | null | undefined): string {
 
 export function converterParaUnidadeMaior(qtdBase: number, fatorConversao: number): string {
   const qtd = qtdBase / fatorConversao
-  return qtd % 1 === 0 ? qtd.toString() : qtd.toFixed(2)
+  return qtd % 1 === 0 ? qtd.toString() : qtd.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 }
 
 // "GUDANG RED ×12  ·  CRETEC MENTA ×3" — itens de NF em caixas, uma linha

@@ -32,10 +32,11 @@ export default function TabelaSaldosEstoque({ saldos, precoMedioVenda, produtoSe
               const ajustes = item.ajustesEntrada - item.ajustesSaida
               const selecionado = produtoSelecionado === item.produtoId
               const precoMedio = precoMedioVenda?.get(item.produtoId) ?? 0
+              const zerado = item.saldoAtual === 0 && item.saldoInicioMes === 0 && !item.compras && !item.vendas && !ajustes
               return (
                 <tr
                   key={item.produtoId}
-                  className={onSelectProduto ? `stock-row-clickable${selecionado ? ' stock-row-selected' : ''}` : ''}
+                  className={`${onSelectProduto ? `stock-row-clickable${selecionado ? ' stock-row-selected' : ''}` : ''}${zerado ? ' stock-row-zero' : ''}`}
                   onClick={onSelectProduto ? () => onSelectProduto(selecionado ? '' : item.produtoId) : undefined}
                 >
                   <td><strong>{item.produtoNome}</strong></td>
@@ -45,7 +46,7 @@ export default function TabelaSaldosEstoque({ saldos, precoMedioVenda, produtoSe
                   <td className={`mono num ${ajustes < 0 ? 'stock-negative' : ajustes > 0 ? 'stock-positive' : ''}`}>{ajustes ? `${ajustes > 0 ? '+' : '−'}${cx(Math.abs(ajustes), item.fatorConversao)}` : '—'}</td>
                   <td className={`mono num stock-current ${item.saldoAtual < 0 ? 'stock-negative' : ''}`}>{cx(item.saldoAtual, item.fatorConversao)}</td>
                   {precoMedioVenda && (
-                    <td className="mono num">{precoMedio > 0 ? formatMoeda(Math.max(item.saldoAtual, 0) * precoMedio) : '—'}</td>
+                    <td className="mono num">{precoMedio > 0 && item.saldoAtual > 0 ? formatMoeda(item.saldoAtual * precoMedio) : '—'}</td>
                   )}
                 </tr>
               )
