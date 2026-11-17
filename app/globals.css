@@ -347,6 +347,12 @@ td.cell-actions { white-space: nowrap; }
 .btn-ghost { background: transparent; color: var(--text-muted); border-color: transparent; }
 .btn-ghost:hover { color: var(--text); background: var(--surface2); }
 .btn-ghost-danger:hover { color: var(--red); background: var(--red-light); }
+.fin-bar .form-select, .fin-bar .form-input { width: auto; padding: 6px 10px; font-size: 13px; border-width: 1px; }
+.fin-search { width: 170px !important; }
+.fin-right { margin-left: auto; }
+.venda-mes td { padding: 0; background: var(--bg); border-top: 1px solid var(--border); }
+.venda-mes td div { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 16px; font-size: 13px; font-weight: 600; white-space: normal; }
+.venda-mes td div span:last-child { font-weight: 400; font-size: 12px; color: var(--text-muted); }
 .fin-clip { display: block; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Painel (uma unidade): A pagar em aberto e estoque compacto */

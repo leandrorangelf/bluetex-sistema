@@ -4,7 +4,6 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { formatMoeda, formatData } from '@/lib/utils'
-import { UNIDADES, type Unidade } from '@/types'
 import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
 
 interface RegistroVenda {
@@ -65,35 +64,13 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ]
 
+// A unidade vem só do seletor do topo (unidadeAtiva): admin troca lá, usuário de unidade já tem a sua.
 export default function VendasPage() {
-  const { profile, unidadeAtiva } = useAuth()
-  const isAdmin = profile?.role === 'admin'
-  const [unidade, setUnidade] = useState<Unidade | ''>((unidadeAtiva as Unidade) ?? '')
-
-  useEffect(() => { if (!isAdmin && unidadeAtiva) setUnidade(unidadeAtiva as Unidade) }, [isAdmin, unidadeAtiva])
-
-  return (
-    <div>
-      <div className="page-header">
-        <div><h1 className="page-title">Vendas</h1><div className="page-subtitle">Extrato de vendas do VHSYS, agrupado por pedido</div></div>
-      </div>
-
-      {isAdmin && (
-        <div className="form-group" style={{ maxWidth: 320 }}>
-          <label className="form-label">Unidade</label>
-          <select className="form-select" value={unidade} onChange={e => setUnidade(e.target.value as Unidade)}>
-            <option value="">Selecione…</option>
-            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
-        </div>
-      )}
-
-      <ListaVendas unidade={isAdmin ? (unidade || undefined) : undefined} isAdmin={isAdmin} />
-    </div>
-  )
+  const { profile } = useAuth()
+  return <ListaVendas isAdmin={profile?.role === 'admin'} />
 }
 
-function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean }) {
+function ListaVendas({ isAdmin }: { isAdmin: boolean }) {
   const { unidadeAtiva } = useAuth()
   const [rows, setRows] = useState<RegistroVenda[]>([])
   const [loading, setLoading] = useState(true)
@@ -105,7 +82,7 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
   const [filtroProduto, setFiltroProduto] = useState('')
   const [abertos, setAbertos] = useState<Set<string>>(new Set())
   const sb = useMemo(() => createClient(), [])
-  const filtro = unidade ?? unidadeAtiva ?? ''
+  const filtro = unidadeAtiva ?? ''
 
   async function carregar() {
     setLoading(true)
@@ -158,42 +135,49 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
   const pedidos = agruparPorPedido(rowsFiltradas)
   const valorTotal = pedidos.reduce((total, p) => total + p.valorTotal, 0)
 
-  if (!filtro) return null
+  if (!filtro) return <div className="empty-state">Selecione uma unidade no topo da página.</div>
+
+  const periodo = mes ? `${MESES[Number(mes) - 1]} ${ano}` : ano
+  // com "Todos os meses", a lista ganha um cabeçalho por mês (pedidos já vêm do mais novo pro mais antigo)
+  const porMes = new Map<string, { n: number; total: number }>()
+  for (const p of pedidos) {
+    const k = p.dataVenda.slice(0, 7)
+    const g = porMes.get(k) ?? { n: 0, total: 0 }
+    g.n += 1
+    g.total += p.valorTotal
+    porMes.set(k, g)
+  }
+  let mesAnterior = ''
 
   return (
     <div>
-      <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <div className="form-group" style={{ marginBottom: 0, maxWidth: 140 }}>
-          <label className="form-label">Ano</label>
-          <select className="form-select" value={ano} onChange={e => setAno(e.target.value)}>
-            {ANOS_DISPONIVEIS.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Vendas</h1>
+          <div className="page-subtitle">Extrato do VHSYS por pedido · {periodo} · {pedidos.length} pedido{pedidos.length === 1 ? '' : 's'} · {formatMoeda(valorTotal)}</div>
         </div>
-        <div className="form-group" style={{ marginBottom: 0, maxWidth: 160 }}>
-          <label className="form-label">Mês</label>
-          <select className="form-select" value={mes} onChange={e => setMes(e.target.value)}>
-            <option value="">Todos</option>
-            {MESES.map((nome, i) => <option key={nome} value={String(i + 1).padStart(2, '0')}>{nome}</option>)}
-          </select>
-        </div>
-        <div className="form-group" style={{ marginBottom: 0, maxWidth: 220 }}>
-          <label className="form-label">Cliente contém</label>
-          <input className="form-input" value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} placeholder="ex.: due valle" />
-        </div>
-        <div className="form-group" style={{ marginBottom: 0, maxWidth: 220 }}>
-          <label className="form-label">Produto contém</label>
-          <input className="form-input" value={filtroProduto} onChange={e => setFiltroProduto(e.target.value)} placeholder="ex.: gudang red" />
-        </div>
-        {isAdmin && (
-          <button className="btn btn-secondary" onClick={sincronizar} disabled={sincronizando}>
-            {sincronizando ? 'Sincronizando com o VHSYS…' : 'Sincronizar com o VHSYS'}
-          </button>
-        )}
       </div>
 
       {erroSync && <div className="alert alert-red" style={{ marginBottom: 16 }}>Falha ao sincronizar: {erroSync}</div>}
 
-      <div className="table-wrap">
+      <div className="fin-card">
+        <div className="fin-bar">
+          <select className="form-select" aria-label="Ano" value={ano} onChange={e => setAno(e.target.value)}>
+            {ANOS_DISPONIVEIS.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <select className="form-select" aria-label="Mês" value={mes} onChange={e => setMes(e.target.value)}>
+            <option value="">Todos os meses</option>
+            {MESES.map((nome, i) => <option key={nome} value={String(i + 1).padStart(2, '0')}>{nome}</option>)}
+          </select>
+          <input className="form-input fin-search" aria-label="Filtrar por cliente" value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} placeholder="Cliente" />
+          <input className="form-input fin-search" aria-label="Filtrar por produto" value={filtroProduto} onChange={e => setFiltroProduto(e.target.value)} placeholder="Produto" />
+          {isAdmin && (
+            <button className="btn btn-secondary btn-sm fin-right" onClick={sincronizar} disabled={sincronizando}>
+              {sincronizando ? 'Sincronizando com o VHSYS…' : 'Sincronizar com o VHSYS'}
+            </button>
+          )}
+        </div>
+        <div className="fin-scroll">
         <table className="table-vendas">
           <colgroup>
             <col style={{ width: 26 }} />
@@ -216,8 +200,22 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
             : pedidos.map(p => {
               const aberto = abertos.has(p.pedidoId)
               const temVariosItens = p.itens.length > 1
+              const chaveMes = p.dataVenda.slice(0, 7)
+              const novoMes = !mes && chaveMes !== mesAnterior
+              mesAnterior = chaveMes
+              const totalMes = porMes.get(chaveMes)
               return (
                 <Fragment key={p.pedidoId}>
+                  {novoMes && totalMes && (
+                    <tr className="venda-mes">
+                      <td colSpan={6}>
+                        <div>
+                          <span>{MESES[Number(chaveMes.slice(5)) - 1]} {chaveMes.slice(0, 4)}</span>
+                          <span>{totalMes.n} pedido{totalMes.n === 1 ? '' : 's'} · {formatMoeda(totalMes.total)}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   <tr className="venda-row-pedido" onClick={() => toggle(p.pedidoId)}>
                     <td className="venda-chevron"><Seta aberto={aberto} /></td>
                     <td className="mono">{formatData(p.dataVenda)}</td>
@@ -243,10 +241,12 @@ function ListaVendas({ unidade, isAdmin }: { unidade?: string; isAdmin: boolean 
               )
             })}
           </tbody>
-          {pedidos.length > 0 && (
-            <tfoot><tr><td colSpan={4} /><td style={{ textAlign: 'right', fontWeight: 700 }}>Total</td><td className="mono num" style={{ fontWeight: 700 }}>{formatMoeda(valorTotal)}</td></tr></tfoot>
-          )}
         </table>
+        </div>
+        <div className="fin-foot">
+          <span>Valores e quantidades vêm do VHSYS.</span>
+          <span>Total <b className="mono">{formatMoeda(valorTotal)}</b></span>
+        </div>
       </div>
     </div>
   )
