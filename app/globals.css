@@ -312,6 +312,22 @@ td.cell-actions { white-space: nowrap; }
   .un-row { min-width: 640px; }
 }
 
+/* Painel: estoque produto × unidade */
+.est-wrap { overflow-x: auto; margin-top: 24px; }
+.est-table { min-width: 640px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: 13px; }
+.est-title { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+.est-title a { font-size: 12px; font-weight: 600; color: var(--brand); text-decoration: none; }
+.est-title a:hover { text-decoration: underline; }
+.est-row { display: grid; grid-template-columns: var(--est-cols); gap: 8px; align-items: center; padding: 9px 16px; border-top: 1px solid var(--border); }
+.est-head { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.est-c { text-align: right; line-height: 1.25; }
+.est-c small { display: block; font-size: 10.5px; color: var(--text-muted); }
+.est-zero { color: var(--text-muted); }
+.est-total { background: var(--brand-light); font-weight: 600; }
+.est-total small { display: inline; font-size: 10.5px; font-weight: 400; color: var(--text-mid); }
+.est-total .est-c b { font-size: 13px; }
+.est-note { padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg); font-size: 12px; color: var(--text-muted); }
+
 /* Painel: abas de unidade em chips, rolam na horizontal se faltar espaço */
 .unit-tabs {
   display: flex; gap: 6px; margin: 20px 0; padding-bottom: 4px;

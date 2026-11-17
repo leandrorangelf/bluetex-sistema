@@ -96,6 +96,68 @@ function CardEstoque({ titulo, linhas, unidade }: { titulo: string; linhas: Linh
   )
 }
 
+// Visão consolidada do estoque: produto × unidade (caixas + valor), com total por
+// produto e valor de estoque por unidade. Unidades/produtos zerados viram uma nota.
+function TabelaEstoque({ linhas, unidades }: { linhas: LinhaEstoque[]; unidades: string[] }) {
+  const comEstoque = unidades.filter(u => linhas.some(l => (l.saldos[u] ?? 0) !== 0))
+  const semEstoque = unidades.filter(u => !comEstoque.includes(u))
+  const visiveis = linhas.filter(l => comEstoque.some(u => (l.saldos[u] ?? 0) !== 0))
+  const zerados = linhas.length - visiveis.length
+  const valor = (l: LinhaEstoque, u: string) => Math.max(l.saldos[u] ?? 0, 0) * l.precoMedioVenda
+  const valorUnidade = (u: string) => linhas.reduce((s, l) => s + valor(l, u), 0)
+  const cols = `minmax(150px, 1.5fr) repeat(${comEstoque.length}, minmax(100px, 1fr)) minmax(110px, 1.1fr)`
+
+  return (
+    <div className="est-wrap">
+      <div className="est-table" style={{ '--est-cols': cols } as React.CSSProperties}>
+        <div className="est-title">
+          <strong>Estoque por unidade</strong>
+          <Link href="/estoque-atual">Ver estoque completo →</Link>
+        </div>
+        {comEstoque.length === 0 ? (
+          <div className="est-note">Sem estoque em nenhuma unidade.</div>
+        ) : (
+          <>
+            <div className="est-row est-head">
+              <span>Produto</span>
+              {comEstoque.map(u => <span key={u} className="est-c">{SHORT[u] ?? u}</span>)}
+              <span className="est-c">Total</span>
+            </div>
+            {visiveis.map(l => {
+              const totalBase = comEstoque.reduce((s, u) => s + (l.saldos[u] ?? 0), 0)
+              const totalValor = comEstoque.reduce((s, u) => s + valor(l, u), 0)
+              return (
+                <div key={l.id} className="est-row">
+                  <strong>{l.nome}</strong>
+                  {comEstoque.map(u => {
+                    const v = l.saldos[u] ?? 0
+                    const val = valor(l, u)
+                    return v === 0
+                      ? <span key={u} className="est-c est-zero mono">0</span>
+                      : <span key={u} className="est-c"><b className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</b>{val > 0 && <small className="mono">{formatMoeda(val)}</small>}</span>
+                  })}
+                  <span className="est-c"><b className="mono">{caixas(totalBase, l.fator)}</b>{totalValor > 0 && <small className="mono">{formatMoeda(totalValor)}</small>}</span>
+                </div>
+              )
+            })}
+            <div className="est-row est-total">
+              <span>Valor de estoque <small>(preço médio de venda)</small></span>
+              {comEstoque.map(u => <span key={u} className="est-c"><b className="mono">{formatMoeda(valorUnidade(u))}</b></span>)}
+              <span className="est-c"><b className="mono">{formatMoeda(comEstoque.reduce((s, u) => s + valorUnidade(u), 0))}</b></span>
+            </div>
+          </>
+        )}
+        {(semEstoque.length > 0 || zerados > 0) && (
+          <div className="est-note">
+            {semEstoque.length > 0 && <>Sem estoque: {semEstoque.map(u => SHORT[u] ?? u).join(', ')}. </>}
+            {zerados > 0 && <>Produtos zerados em todas as unidades: {zerados}.</>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SecaoEstoque({ linhas, unidades, unidadeUnica }: { linhas: LinhaEstoque[]; unidades: string[]; unidadeUnica: string | null }) {
   const comSaldo = linhas.filter(l => Object.keys(l.saldos).length > 0)
   if (comSaldo.length === 0) return null
@@ -106,11 +168,7 @@ function SecaoEstoque({ linhas, unidades, unidadeUnica }: { linhas: LinhaEstoque
       </div>
     )
   }
-  return (
-    <div className="grid-3" style={{ marginTop: 24 }}>
-      {unidades.map(u => <CardEstoque key={u} titulo={SHORT[u] ?? u} linhas={comSaldo} unidade={u} />)}
-    </div>
-  )
+  return <TabelaEstoque linhas={comSaldo} unidades={unidades} />
 }
 
 const SHORT: Record<string, string> = Object.fromEntries(UNIDADES.map(u => [u, u.replace('NEW BLUETEX ', '')]))
