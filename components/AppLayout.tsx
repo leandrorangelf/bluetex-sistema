@@ -1,13 +1,15 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import Sidebar from './Sidebar'
+import Topbar from './Topbar'
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [menuAberto, setMenuAberto] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.push('/login')
@@ -51,8 +53,11 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
-      <Sidebar />
-      <main className="main">{children}</main>
+      <Sidebar aberta={menuAberto} onFechar={() => setMenuAberto(false)} />
+      <div className="app-body">
+        <Topbar onMenu={() => setMenuAberto(true)} />
+        <main className="main">{children}</main>
+      </div>
     </div>
   )
 }

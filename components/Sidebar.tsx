@@ -2,100 +2,80 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { UNIDADES, type Unidade } from '@/types'
 import Logo from './Logo'
 
-const NAV = [
-  { href: '/dashboard', label: 'Painel' },
-  { href: '/quadro', label: 'Quadro do time' },
-  { href: '/lancar', label: 'Lançar' },
-  { href: '/vendas', label: 'Vendas' },
-  { href: '/parcelas-pagar', label: 'Contas a Pagar' },
-  { href: '/parcelas-receber', label: 'Contas a Receber' },
-  { href: '/estoque-atual', label: 'Estoque' },
-  { section: 'Cadastros' },
-  { href: '/produtos', label: 'Produtos' },
-  { href: '/clientes', label: 'Clientes' },
-  { href: '/fornecedores', label: 'Fornecedores' },
-  { href: '/categorias', label: 'Categorias' },
-  { section: 'Integrações' },
-  { href: '/integracoes/vhsys', label: 'Integração VHSYS' },
-  { section: 'Administração' },
-  { href: '/auditoria', label: 'Log de Edições', adminOnly: true },
+type Item = { href: string; label: string; adminOnly?: boolean }
+const GRUPOS: { titulo: string; itens: Item[] }[] = [
+  { titulo: 'Visão geral', itens: [
+    { href: '/dashboard', label: 'Painel' },
+    { href: '/quadro', label: 'Quadro do time' },
+  ] },
+  { titulo: 'Financeiro', itens: [
+    { href: '/vendas', label: 'Vendas' },
+    { href: '/parcelas-pagar', label: 'Contas a Pagar' },
+    { href: '/parcelas-receber', label: 'Contas a Receber' },
+  ] },
+  { titulo: 'Estoque e cadastros', itens: [
+    { href: '/estoque-atual', label: 'Estoque' },
+    { href: '/produtos', label: 'Produtos' },
+    { href: '/clientes', label: 'Clientes' },
+    { href: '/fornecedores', label: 'Fornecedores' },
+    { href: '/categorias', label: 'Categorias' },
+  ] },
+  { titulo: 'Sistema', itens: [
+    { href: '/integracoes/vhsys', label: 'Integração VHSYS' },
+    { href: '/auditoria', label: 'Log de Edições', adminOnly: true },
+  ] },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ aberta, onFechar }: { aberta: boolean; onFechar: () => void }) {
   const path = usePathname()
-  const { profile, unidadeAtiva, setUnidadeAtiva, signOut } = useAuth()
+  const { profile, unidadeAtiva, signOut } = useAuth()
+  const role = profile?.role
+
+  // Diretoria só enxerga o Painel; o resto vale para admin e unidade.
+  const grupos = GRUPOS
+    .map(g => ({
+      ...g,
+      itens: g.itens.filter(i =>
+        role === 'diretoria' ? i.href === '/dashboard' : !i.adminOnly || role === 'admin'),
+    }))
+    .filter(g => g.itens.length > 0)
 
   return (
-    <aside className="sidebar">
-      {/* Logo */}
-      <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <Logo tamanho="sm" cor="claro" />
-        {unidadeAtiva && (
-          <div style={{ fontSize: 11, color: 'var(--brand-on-dark)', fontWeight: 600, marginTop: 8 }}>
-            {unidadeAtiva}
+    <>
+      {aberta && <div className="sidebar-backdrop" onClick={onFechar} aria-hidden="true" />}
+      <aside className={`sidebar${aberta ? ' open' : ''}`}>
+        <div className="sidebar-brand">
+          <Logo tamanho="sm" cor="escuro" />
+        </div>
+
+        <nav className="sidebar-nav" onClick={onFechar}>
+          {grupos.map(g => (
+            <div key={g.titulo}>
+              <div className="nav-section">{g.titulo}</div>
+              {g.itens.map(item => {
+                const active = path === item.href || path.startsWith(item.href + '/')
+                return (
+                  <Link key={item.href} href={item.href} className={`nav-link${active ? ' active' : ''}`}>
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-user">
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">{profile?.nome}</div>
+            <div className="sidebar-user-role">
+              {role === 'admin' ? 'Administrador' : role === 'diretoria' ? 'Diretoria' : unidadeAtiva}
+            </div>
           </div>
-        )}
-      </div>
-
-      {/* Seletor de unidade — admin (diretoria já troca de unidade pelas abas do Painel) */}
-      {profile?.role === 'admin' && (
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
-            Unidade Ativa
-          </div>
-          <select
-            style={{
-              width: '100%', padding: '7px 10px', fontSize: 12, fontWeight: 600,
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: 6, color: '#fff', outline: 'none', cursor: 'pointer'
-            }}
-            value={unidadeAtiva ?? ''}
-            onChange={e => setUnidadeAtiva(e.target.value as Unidade)}
-          >
-            {UNIDADES.map(u => (
-              <option key={u} value={u} style={{ background: '#1A1A2E', color: '#fff' }}>{u}</option>
-            ))}
-          </select>
+          <button className="btn btn-secondary btn-sm" onClick={signOut}>Sair</button>
         </div>
-      )}
-
-      {/* Nav */}
-      <nav style={{ flex: 1, paddingTop: 8 }}>
-        {NAV.map((item, i) => {
-          if (profile?.role === 'diretoria' && ('section' in item || item.href !== '/dashboard')) return null
-          if (profile?.role === 'unidade' && 'unidadeHidden' in item && item.unidadeHidden) return null
-          if ('section' in item) return (
-            <div key={i} className="nav-section">{item.section}</div>
-          )
-          if ('adminOnly' in item && item.adminOnly && profile?.role !== 'admin') return null
-          const active = path === item.href || path.startsWith(item.href + '/')
-          return (
-            <Link key={item.href} href={item.href} className={`nav-link${active ? ' active' : ''}`}>
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div style={{ padding: '14px 16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 2 }}>
-          {profile?.nome}
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
-          {profile?.role === 'admin' ? 'Administrador' : profile?.role === 'diretoria' ? 'Diretoria' : unidadeAtiva}
-        </div>
-        <button
-          className="btn btn-secondary btn-sm"
-          style={{ width: '100%', justifyContent: 'center', background: 'transparent', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.3)' }}
-          onClick={signOut}
-        >
-          Sair
-        </button>
-      </div>
-    </aside>
+      </aside>
+    </>
   )
 }
