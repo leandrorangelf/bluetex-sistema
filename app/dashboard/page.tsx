@@ -15,7 +15,8 @@ import Modal from '@/components/Modal'
 interface LinhaEstoque {
   id: string; nome: string; fator: number; unidadeBase: string; unidadeMaior: string
   saldos: Record<string, number>
-  precoMedioVenda: number
+  // preço médio de venda por unidade (mesma conta da tela Estoque) — o valor de estoque tem que bater nas duas telas
+  precoPorUnidade: Record<string, number>
 }
 
 async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number, mes: number, alvos: string[]): Promise<LinhaEstoque[]> {
@@ -26,19 +27,29 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
     sb.from('btx_compras').select('id,unidade,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_ajustes_estoque').select('*').eq('ativo', true).in('unidade', alvos),
-    codigosVhsys.length ? sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor').in('unidade_codigo', codigosVhsys) : Promise.resolve({ data: [] as LinhaHistoricoVendaVhsys[] }),
+    codigosVhsys.length ? sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor,unidade_codigo').in('unidade_codigo', codigosVhsys) : Promise.resolve({ data: [] as LinhaHistoricoVendaVhsys[] }),
   ])
   const produtosNorm = normalizarProdutosEstoque(ordenarProdutos((produtosRes.data ?? []) as Produto[]))
   const aberturas = (aberturasRes.data ?? []) as (AberturaEstoqueDb & { unidade: string })[]
   const compras = (comprasRes.data ?? []) as unknown as (CompraEstoqueDb & { unidade: string })[]
   const vendas = (vendasRes.data ?? []) as unknown as (VendaEstoqueDb & { unidade: string })[]
   const ajustes = (ajustesRes.data ?? []) as AjusteEstoque[]
-  const historicoVendas = (historicoRes.data ?? []) as LinhaHistoricoVendaVhsys[]
-  const precoMedioVendaHistorico = calcularPrecoMedioVendaHistorico(historicoVendas, produtosNorm.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fatorConversao })))
-  const precoMedioVenda = mesclarPrecoMedioVenda(calcularPrecoMedioVenda(vendas), precoMedioVendaHistorico)
+  const historicoVendas = (historicoRes.data ?? []) as (LinhaHistoricoVendaVhsys & { unidade_codigo?: string })[]
+  const produtosLocais = produtosNorm.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fatorConversao }))
 
   const saldosPorProduto = new Map<string, Record<string, number>>()
+  const precoPorProduto = new Map<string, Record<string, number>>()
   for (const u of alvos) {
+    const codigoU = VHSYS_UNIDADES.find(x => x.unidade === u)?.codigo
+    const precoU = mesclarPrecoMedioVenda(
+      calcularPrecoMedioVenda(vendas.filter(v => v.unidade === u)),
+      calcularPrecoMedioVendaHistorico(codigoU ? historicoVendas.filter(h => h.unidade_codigo === codigoU) : [], produtosLocais),
+    )
+    for (const [produtoId, preco] of precoU) {
+      const r = precoPorProduto.get(produtoId) ?? {}
+      r[u] = preco
+      precoPorProduto.set(produtoId, r)
+    }
     const painel = calcularEstoque({
       ano, mes, produtos: produtosNorm,
       aberturas: normalizarAberturasEstoque(aberturas.filter(a => a.unidade === u)),
@@ -54,7 +65,7 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
     id: p.id, nome: p.nome, fator: p.fatorConversao,
     unidadeBase: p.unidadeBase ?? '', unidadeMaior: p.unidadeMaior ?? '',
     saldos: saldosPorProduto.get(p.id) ?? {},
-    precoMedioVenda: precoMedioVenda.get(p.id) ?? 0,
+    precoPorUnidade: precoPorProduto.get(p.id) ?? {},
   }))
 }
 
@@ -66,7 +77,7 @@ function caixas(base: number, fator: number): string {
 
 // Estoque de uma unidade: só produtos com saldo; zerados viram uma nota.
 function CardEstoque({ linhas, unidade }: { titulo?: string; linhas: LinhaEstoque[]; unidade: string }) {
-  const valor = (l: LinhaEstoque) => Math.max(l.saldos[unidade] ?? 0, 0) * l.precoMedioVenda
+  const valor = (l: LinhaEstoque) => Math.max(l.saldos[unidade] ?? 0, 0) * (l.precoPorUnidade[unidade] ?? 0)
   const visiveis = linhas.filter(l => (l.saldos[unidade] ?? 0) !== 0)
   const zerados = linhas.length - visiveis.length
   const total = linhas.reduce((s, l) => s + valor(l), 0)
@@ -153,7 +164,7 @@ function TabelaEstoque({ linhas, unidades }: { linhas: LinhaEstoque[]; unidades:
   const semEstoque = unidades.filter(u => !comEstoque.includes(u))
   const visiveis = linhas.filter(l => comEstoque.some(u => (l.saldos[u] ?? 0) !== 0))
   const zerados = linhas.length - visiveis.length
-  const valor = (l: LinhaEstoque, u: string) => Math.max(l.saldos[u] ?? 0, 0) * l.precoMedioVenda
+  const valor = (l: LinhaEstoque, u: string) => Math.max(l.saldos[u] ?? 0, 0) * (l.precoPorUnidade[u] ?? 0)
   const valorUnidade = (u: string) => linhas.reduce((s, l) => s + valor(l, u), 0)
   const cols = `minmax(150px, 1.5fr) repeat(${comEstoque.length}, minmax(100px, 1fr)) minmax(110px, 1.1fr)`
 
