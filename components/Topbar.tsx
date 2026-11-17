@@ -1,11 +1,14 @@
 'use client'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { UNIDADES, type Unidade } from '@/types'
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const { profile, unidadeAtiva, setUnidadeAtiva } = useAuth()
   const role = profile?.role
+  // O Painel já tem as próprias abas por unidade: dois seletores confundem.
+  const noPainel = usePathname() === '/dashboard'
 
   return (
     <header className="topbar">
@@ -16,7 +19,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       </button>
 
       <div className="topbar-unit">
-        {role === 'admin' ? (
+        {noPainel ? null : role === 'admin' ? (
           <>
             <span className="topbar-label">Unidade</span>
             <select

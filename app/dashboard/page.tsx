@@ -227,7 +227,8 @@ function CardRecebiveis({ resumo, onClickConta }: { resumo: ResumoUnidade; onCli
         <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: cor }}>{formatMoeda(total)}</span>
       </button>
       {aberto && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}>
+        <div style={{ overflowX: 'auto', marginBottom: 6 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
               <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 6px 4px 14px' }}>Data</th>
@@ -249,8 +250,10 @@ function CardRecebiveis({ resumo, onClickConta }: { resumo: ResumoUnidade; onCli
                 style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}
               >
                 <td className="mono" style={{ padding: '5px 6px 5px 14px', color: cor, whiteSpace: 'nowrap' }}>{formatData(c.vencimento)}</td>
-                <td style={{ padding: '5px 6px', color: cor }}>
-                  {c.vencida ? '⚠ ' : c.proxima ? '⏰ ' : ''}{c.descricao}
+                <td style={{ padding: '5px 6px' }}>
+                  <span title={c.descricao} style={{ display: 'inline-block', maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>
+                    {c.proxima ? '⏰ ' : ''}{c.descricao}
+                  </span>
                   {c.gerenciadoPorVhsys && <span className="badge badge-purple" style={{ marginLeft: 6 }}>VHSYS</span>}
                 </td>
                 <td className="mono" style={{ padding: '5px 6px', whiteSpace: 'nowrap' }}>{c.numeroNf ?? '—'}</td>
@@ -263,6 +266,7 @@ function CardRecebiveis({ resumo, onClickConta }: { resumo: ResumoUnidade; onCli
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )
