@@ -245,6 +245,54 @@ td.cell-actions { white-space: nowrap; }
 .nav-link:hover { background: var(--surface2); color: var(--text); }
 .nav-link.active { background: var(--brand-light); color: var(--brand); font-weight: 600; }
 
+/* Painel: faixa de saldos (início + recebido − pago = novo) */
+.kpi-strip {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(26,26,46,0.04);
+}
+.kpi { position: relative; padding: 16px 20px; border-left: 1px solid var(--border); min-width: 0; }
+.kpi:first-child { border-left: none; }
+.kpi-op {
+  position: absolute; left: -11px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 13px; font-weight: 700; color: var(--text-muted); z-index: 1;
+}
+.kpi-label {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+}
+.kpi-edit { background: none; border: none; padding: 0; cursor: pointer; color: var(--text-muted); font-size: 12px; line-height: 1; }
+.kpi-edit:hover { color: var(--brand); }
+.kpi-value { font-size: 22px; font-weight: 700; overflow-wrap: anywhere; }
+.kpi-sub { margin-top: 4px; font-size: 11px; color: var(--text-muted); }
+.kpi-total { background: var(--brand-light); border-radius: 0 11px 11px 0; }
+
+/* Painel: abas de unidade em chips, rolam na horizontal se faltar espaço */
+.unit-tabs {
+  display: flex; gap: 6px; margin: 20px 0; padding-bottom: 4px;
+  overflow-x: auto; scrollbar-width: thin;
+}
+.unit-tab {
+  flex-shrink: 0; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  font: 600 12px var(--sans); color: var(--text-mid); cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.unit-tab:hover { border-color: var(--brand); color: var(--brand); }
+.unit-tab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+.unit-tab-main { margin-right: 6px; }
+
+@media (max-width: 900px) {
+  .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(3) { border-left: none; }
+  .kpi:nth-child(n+3) { border-top: 1px solid var(--border); }
+  .kpi:nth-child(3) .kpi-op { display: none; }
+  .kpi-total { border-radius: 0 0 11px 0; }
+}
+
 /* Tabs */
 .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 24px; gap: 4px; }
 .tab {

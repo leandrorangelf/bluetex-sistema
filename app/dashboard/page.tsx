@@ -175,29 +175,27 @@ async function carregarUnidade(sb: ReturnType<typeof createClient>, unidade: str
 // O saldo início é editável quando dá pra identificar uma unidade única —
 // os outros três decorrem dos lançamentos, então a conta sempre fecha.
 function Waterfall({ resumo, onEditarSaldo }: { resumo: ResumoUnidade; onEditarSaldo?: () => void }) {
-  const tile = (label: string, valor: number, cor: string, bg: string, onEdit?: () => void) => (
-    <div style={{ background: bg, padding: '16px 18px', position: 'relative', borderRadius: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: cor, opacity: 0.75 }}>{label}</div>
-        {onEdit && (
-          <button
-            onClick={onEdit}
-            title="Editar saldo do mês"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: cor, opacity: 0.6, fontSize: 12, padding: 0, lineHeight: 1 }}
-          >✎</button>
-        )}
+  const variacao = resumo.saldoHoje - resumo.saldoInicioMes
+  const celula = (label: string, valor: number, cor: string, op?: string, onEdit?: () => void, sub?: string) => (
+    <div className={`kpi${op === '=' ? ' kpi-total' : ''}`}>
+      {op && <span className="kpi-op" aria-hidden="true">{op}</span>}
+      <div className="kpi-label">
+        {label}
+        {onEdit && <button className="kpi-edit" onClick={onEdit} title="Editar saldo do mês" aria-label="Editar saldo do mês">✎</button>}
       </div>
-      <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: cor }}>{formatMoeda(valor)}</div>
+      <div className="kpi-value mono" style={{ color: cor }}>{formatMoeda(valor)}</div>
+      {sub && <div className="kpi-sub">{sub}</div>}
     </div>
   )
   const divergeDoBanco = resumo.saldoBancarioReferencia != null && Math.abs(resumo.saldoBancarioReferencia - resumo.saldoHoje) >= 0.01
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-        {tile('Saldo início do mês', resumo.saldoInicioMes, 'var(--brand)', 'var(--brand-light)', onEditarSaldo)}
-        {tile('+ Recebido no mês', resumo.totalEntrou, 'var(--green)', 'var(--green-light)')}
-        {tile('− Pago no mês', resumo.totalPagou, 'var(--red)', 'var(--red-light)')}
-        {tile('Saldo novo', resumo.saldoHoje, '#fff', 'var(--navy)')}
+      <div className="kpi-strip">
+        {celula('Saldo início do mês', resumo.saldoInicioMes, 'var(--text)', undefined, onEditarSaldo)}
+        {celula('Recebido no mês', resumo.totalEntrou, 'var(--green)', '+')}
+        {celula('Pago no mês', resumo.totalPagou, 'var(--red)', '−')}
+        {celula('Saldo novo', resumo.saldoHoje, 'var(--brand)', '=', undefined,
+          `${variacao >= 0 ? '+' : '−'} ${formatMoeda(Math.abs(variacao))} no mês`)}
       </div>
       {divergeDoBanco && (
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
@@ -637,9 +635,9 @@ export default function DashboardPage() {
       </div>
 
       {veTudo && (
-        <div className="tabs">
-          <button className={`tab${aba === 'consolidado' ? ' active' : ''}`} onClick={() => setAba('consolidado')}>◈ Consolidado NEW BLUETEX</button>
-          {UNIDADES.map(u => <button key={u} className={`tab${aba === u ? ' active' : ''}`} onClick={() => setAba(u)}>{SHORT[u]}</button>)}
+        <div className="unit-tabs" role="tablist" aria-label="Unidade">
+          <button role="tab" aria-selected={aba === 'consolidado'} className={`unit-tab unit-tab-main${aba === 'consolidado' ? ' active' : ''}`} onClick={() => setAba('consolidado')}>Consolidado NEW BLUETEX</button>
+          {UNIDADES.map(u => <button key={u} role="tab" aria-selected={aba === u} className={`unit-tab${aba === u ? ' active' : ''}`} onClick={() => setAba(u)}>{SHORT[u]}</button>)}
         </div>
       )}
 
