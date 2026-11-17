@@ -270,6 +270,28 @@ td.cell-actions { white-space: nowrap; }
 .kpi-sub { margin-top: 4px; font-size: 11px; color: var(--text-muted); }
 .kpi-total { background: var(--brand-light); border-radius: 0 11px 11px 0; }
 
+/* Painel: listas Recebido/Pago por categoria, com barra de participação */
+.cat-card { flex: 1; min-width: 320px; padding: 0; overflow: hidden; align-self: flex-start; }
+.cat-head { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.cat-vazio { padding: 14px 18px; font-size: 12px; color: var(--text-muted); }
+.cat-det + .cat-det { border-top: 1px solid var(--border); }
+.cat-sum { display: block; list-style: none; padding: 10px 18px; cursor: pointer; }
+.cat-sum::-webkit-details-marker { display: none; }
+.cat-sum:hover { background: var(--bg); }
+.cat-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12.5px; font-weight: 600; }
+.cat-top small { margin-left: 4px; font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.cat-bar { height: 5px; margin-top: 7px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
+.cat-bar i { display: block; height: 100%; border-radius: 3px; }
+.cat-items { max-height: 280px; overflow-y: auto; border-top: 1px solid var(--border); }
+.cat-item {
+  display: grid; grid-template-columns: 62px 64px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 7px 18px; font-size: 12px; border-top: 1px solid var(--border); cursor: pointer;
+}
+.cat-item:first-child { border-top: none; }
+.cat-item:hover { background: var(--bg); }
+.cat-muted { font-size: 10.5px; color: var(--text-muted); }
+.cat-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Painel: abas de unidade em chips, rolam na horizontal se faltar espaço */
 .unit-tabs {
   display: flex; gap: 6px; margin: 20px 0; padding-bottom: 4px;

@@ -290,15 +290,19 @@ function CardRecebiveis({ resumo, onClickConta }: { resumo: ResumoUnidade; onCli
 interface ItemLancamento { id: string; descricao: string; data: string; valor: number; categoria: string; formaPagamento: 'boleto' | 'especie' | 'pix' | 'debito' | 'tarifa_bancaria' | null }
 
 function agruparPorCategoria(itens: ItemLancamento[]): { categoria: string; total: number; itens: ItemLancamento[] }[] {
-  const mapa = new Map<string, ItemLancamento[]>()
+  // "VENDAS" e "Vendas" são a mesma categoria: agrupa ignorando caixa e espaços
+  // (só na exibição; o banco não é alterado). Prefere o nome que não está todo em maiúsculas.
+  const mapa = new Map<string, { nome: string; lista: ItemLancamento[] }>()
   for (const item of itens) {
-    const lista = mapa.get(item.categoria) ?? []
-    lista.push(item)
-    mapa.set(item.categoria, lista)
+    const chave = item.categoria.trim().toLocaleLowerCase('pt-BR')
+    const g = mapa.get(chave) ?? { nome: item.categoria.trim(), lista: [] }
+    if (g.nome === g.nome.toLocaleUpperCase('pt-BR') && item.categoria !== item.categoria.toLocaleUpperCase('pt-BR')) g.nome = item.categoria.trim()
+    g.lista.push(item)
+    mapa.set(chave, g)
   }
-  return [...mapa.entries()]
-    .map(([categoria, lista]) => ({
-      categoria,
+  return [...mapa.values()]
+    .map(({ nome, lista }) => ({
+      categoria: nome,
       total: lista.reduce((s, i) => s + i.valor, 0),
       itens: lista.sort((a, b) => a.data.localeCompare(b.data)),
     }))
@@ -318,49 +322,49 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
   )
   const porId = new Map([...resumo.contasReceber, ...resumo.contasPagar].map(c => [c.id, c]))
 
-  const painel = (titulo: string, grupos: ReturnType<typeof agruparPorCategoria>, total: number, cor: string, corBg: string) => (
-    <div className="card" style={{ flex: 1, minWidth: 320, padding: 0, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '14px 18px', background: corBg, borderBottom: '1px solid var(--border)' }}>
-        <strong style={{ fontSize: 13.5 }}>{titulo}</strong>
-        <span className="mono" style={{ fontSize: 15, fontWeight: 700, color: cor }}>{formatMoeda(total)}</span>
-      </div>
-      <div style={{ padding: 10, display: 'grid', gap: 8 }}>
-        {grupos.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: 12, padding: '4px 4px' }}>Nada no mês.</span>}
-        {grupos.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '62px 64px 1fr auto', gap: 8, padding: '0 12px', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>
-            <span>Data</span><span>Tipo</span><span>Descrição</span><span style={{ textAlign: 'right' }}>Valor</span>
-          </div>
-        )}
-        {grupos.map((g, i) => (
-          <details key={g.categoria} open={i === 0} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-            <summary style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
-              padding: '9px 12px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', background: 'var(--bg, #f6f5f2)',
-              listStyle: 'none',
-            }}>
-              <span>{g.categoria} <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>{g.itens.length} lançamento{g.itens.length === 1 ? '' : 's'}</span></span>
-              <span className="mono">{formatMoeda(g.total)}</span>
-            </summary>
-            {g.itens.map(item => (
-              <div
-                key={item.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => { const c = porId.get(item.id); if (c) onClickItem(c) }}
-                onKeyDown={e => { if (e.key === 'Enter') { const c = porId.get(item.id); if (c) onClickItem(c) } }}
-                style={{ display: 'grid', gridTemplateColumns: '62px 64px 1fr auto', alignItems: 'center', gap: 8, padding: '7px 12px', fontSize: 12, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
-              >
-                <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{formatData(item.data)}</span>
-                <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{item.formaPagamento ? labelFormaPagamento(item.formaPagamento) : '—'}</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.descricao}</span>
-                <span className="mono" style={{ color: cor }}>{formatMoeda(item.valor)}</span>
+  const painel = (titulo: string, grupos: ReturnType<typeof agruparPorCategoria>, total: number, cor: string) => {
+    const base = grupos.reduce((s, g) => s + g.total, 0)
+    return (
+      <div className="card cat-card">
+        <div className="cat-head">
+          <strong>{titulo}</strong>
+          <span className="mono" style={{ fontSize: 15, fontWeight: 700, color: cor }}>{formatMoeda(total)}</span>
+        </div>
+        {grupos.length === 0 && <div className="cat-vazio">Nada no mês.</div>}
+        {grupos.map((g, i) => {
+          const pct = base > 0 ? Math.round((g.total / base) * 100) : 0
+          return (
+            <details key={g.categoria} open={i === 0} className="cat-det">
+              <summary className="cat-sum">
+                <div className="cat-top">
+                  <span>{g.categoria} <small>{g.itens.length} lançamento{g.itens.length === 1 ? '' : 's'} · {pct}%</small></span>
+                  <span className="mono">{formatMoeda(g.total)}</span>
+                </div>
+                <div className="cat-bar"><i style={{ width: `${pct}%`, background: cor }} /></div>
+              </summary>
+              <div className="cat-items">
+                {g.itens.map(item => (
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    className="cat-item"
+                    onClick={() => { const c = porId.get(item.id); if (c) onClickItem(c) }}
+                    onKeyDown={e => { if (e.key === 'Enter') { const c = porId.get(item.id); if (c) onClickItem(c) } }}
+                  >
+                    <span className="mono cat-muted">{formatData(item.data)}</span>
+                    <span className="cat-muted">{item.formaPagamento ? labelFormaPagamento(item.formaPagamento) : '—'}</span>
+                    <span className="cat-desc" title={item.descricao}>{item.descricao}</span>
+                    <span className="mono">{formatMoeda(item.valor)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </details>
-        ))}
+            </details>
+          )
+        })}
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div ref={containerRef}>
@@ -369,8 +373,8 @@ function CategoriasColapsaveis({ resumo, onClickItem }: { resumo: ResumoUnidade;
         <button className="btn btn-secondary btn-sm" onClick={() => containerRef.current?.querySelectorAll('details').forEach(d => { d.open = false })}>▸ Recolher tudo</button>
       </div>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
-        {painel('Recebido no mês', recebido, resumo.totalEntrou, 'var(--green)', 'var(--green-bg, #e9f5ef)')}
-        {painel('Pago no mês', pago, resumo.totalPagou, 'var(--red)', 'var(--red-bg, #fbeae9)')}
+        {painel('Recebido no mês', recebido, resumo.totalEntrou, 'var(--green)')}
+        {painel('Pago no mês', pago, resumo.totalPagou, 'var(--red)')}
       </div>
     </div>
   )
