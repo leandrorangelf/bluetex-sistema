@@ -8,6 +8,6 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     clearMocks: true,
     include: ['tests/**/*.test.{ts,tsx}'],
-    exclude: ['**/node_modules/**', '.worktrees/**', 'e2e/**'],
+    exclude: ['**/node_modules/**', '.worktrees/**'],
   },
 })
