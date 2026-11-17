@@ -27,14 +27,15 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
     sb.from('btx_compras').select('id,unidade,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_ajustes_estoque').select('*').eq('ativo', true).in('unidade', alvos),
-    codigosVhsys.length ? sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor,unidade_codigo').in('unidade_codigo', codigosVhsys) : Promise.resolve({ data: [] as LinhaHistoricoVendaVhsys[] }),
+    // uma consulta por unidade: numa só (.in) o Supabase corta a resposta em 1.000 linhas e some histórico de unidades
+    Promise.all(codigosVhsys.map(c => sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor,unidade_codigo').eq('unidade_codigo', c))),
   ])
   const produtosNorm = normalizarProdutosEstoque(ordenarProdutos((produtosRes.data ?? []) as Produto[]))
   const aberturas = (aberturasRes.data ?? []) as (AberturaEstoqueDb & { unidade: string })[]
   const compras = (comprasRes.data ?? []) as unknown as (CompraEstoqueDb & { unidade: string })[]
   const vendas = (vendasRes.data ?? []) as unknown as (VendaEstoqueDb & { unidade: string })[]
   const ajustes = (ajustesRes.data ?? []) as AjusteEstoque[]
-  const historicoVendas = (historicoRes.data ?? []) as (LinhaHistoricoVendaVhsys & { unidade_codigo?: string })[]
+  const historicoVendas = historicoRes.flatMap(r => r.data ?? []) as (LinhaHistoricoVendaVhsys & { unidade_codigo?: string })[]
   const produtosLocais = produtosNorm.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fatorConversao }))
 
   const saldosPorProduto = new Map<string, Record<string, number>>()
