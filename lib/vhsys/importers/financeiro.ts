@@ -163,8 +163,3 @@ export async function importReceber(client: VhsysClient): Promise<ImportedItem[]
   const rows = await client.list<Record<string, unknown>>('/contas-receber')
   return importar(rows, CAMPOS_RECEBER)
 }
-
-export async function importPagar(client: VhsysClient): Promise<ImportedItem[]> {
-  const rows = await client.list<Record<string, unknown>>('/contas-pagar')
-  return importar(rows, CAMPOS_PAGAR)
-}

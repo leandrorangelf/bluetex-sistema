@@ -328,6 +328,26 @@ td.cell-actions { white-space: nowrap; }
 .est-total .est-c b { font-size: 13px; }
 .est-note { padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg); font-size: 12px; color: var(--text-muted); }
 
+/* Telas financeiras (Contas a Pagar/Receber): barra única de filtros, botões agrupados e ações discretas */
+.fin-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.fin-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.fin-month { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 13px; font-weight: 600; }
+.fin-month span { min-width: 120px; text-align: center; }
+.fin-scroll { overflow-x: auto; }
+.fin-scroll table { background: transparent; }
+.fin-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg); font-size: 12px; color: var(--text-muted); }
+.fin-foot b { color: var(--text); font-size: 13px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg-btn { padding: 6px 12px; border: none; border-left: 1px solid var(--border); background: transparent; font: 600 12px var(--sans); color: var(--text-mid); cursor: pointer; }
+.seg-btn:first-child { border-left: none; }
+.seg-btn:hover { background: var(--bg); }
+.seg-btn.on { background: var(--brand); color: #fff; }
+.btn-outline { background: var(--surface); color: var(--brand); border-color: var(--brand); }
+.btn-outline:hover { background: var(--brand); color: #fff; }
+.btn-ghost { background: transparent; color: var(--text-muted); border-color: transparent; }
+.btn-ghost:hover { color: var(--text); background: var(--surface2); }
+.btn-ghost-danger:hover { color: var(--red); background: var(--red-light); }
+
 /* Painel (uma unidade): A pagar em aberto e estoque compacto */
 .est-compact { min-width: 0; }
 .pg-card { padding: 0; overflow: hidden; }

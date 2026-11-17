@@ -228,6 +228,14 @@ export default function ParcelasPagarPage() {
     setMes(m); setAno(a)
   }
   const totalSaldo = visiveis.reduce((a, r) => a + saldoRestante(r.valor, pagosDe(r)), 0)
+  const totalValor = visiveis.reduce((a, r) => a + r.valor, 0)
+  const totalExibido = statusFiltro === 'pago' ? totalValor : totalSaldo
+  const rotuloTotal = statusFiltro === 'pago' ? 'Total pago' : 'Saldo em aberto'
+  const nVencidas = visiveis.filter(r => r.status === 'pendente' && r.vencimento < hojeStr).length
+  // colunas que só aparecem quando servem: "Saldo" com pagamento parcial, "Status" fora da aba Em aberto
+  const temParcial = visiveis.some(r => somaPagos(r) > 0)
+  const mostrarStatus = statusFiltro !== 'aberto'
+  const nCols = 6 + (temParcial ? 1 : 0) + (mostrarStatus ? 1 : 0)
 
   function badge(r: Parcela) {
     const vencida = r.status === 'pendente' && r.vencimento < hojeStr
@@ -241,62 +249,66 @@ export default function ParcelasPagarPage() {
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-title">Contas a Pagar</h1><div className="page-subtitle">contas a pagar — {visiveis.length} · {formatMoeda(totalSaldo)}</div></div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {STATUS.map(s => (
-            <button key={s.key} className={`btn btn-sm ${statusFiltro === s.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setStatusFiltro(s.key)}>{s.label}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        {ORIGENS.map(o => (
-          <button key={o} className={`btn btn-sm ${origemFiltro === o ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOrigemFiltro(o)}>
-            {o === 'todos' ? 'Todas' : o.charAt(0).toUpperCase() + o.slice(1)}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-        {!todosMeses && <>
-          <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(-1)}>‹</button>
-          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 140, textAlign: 'center' }}>{getMesAnoLabel(mes, ano)}</span>
-          <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(1)}>›</button>
-        </>}
-        <button className={`btn btn-sm ${todosMeses ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTodosMeses(v => !v)}>
-          {todosMeses ? 'Ver por mês' : 'Todos os meses'}
-        </button>
+        <div><h1 className="page-title">Contas a Pagar</h1><div className="page-subtitle">{visiveis.length} conta{visiveis.length === 1 ? '' : 's'} · {formatMoeda(totalExibido)} · {nVencidas} vencida{nVencidas === 1 ? '' : 's'}</div></div>
       </div>
       {erro && <div className="alert alert-red" role="alert">{erro}</div>}
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Tudo aqui é previsão até o pagamento ser confirmado.</div>
-      <div className="table-wrap">
+      <div className="fin-card">
+        <div className="fin-bar">
+          <div className="seg" role="group" aria-label="Situação">
+            {STATUS.map(s => (
+              <button key={s.key} className={`seg-btn${statusFiltro === s.key ? ' on' : ''}`} aria-pressed={statusFiltro === s.key} onClick={() => setStatusFiltro(s.key)}>{s.label}</button>
+            ))}
+          </div>
+          <div className="seg" role="group" aria-label="Origem">
+            {ORIGENS.map(o => (
+              <button key={o} className={`seg-btn${origemFiltro === o ? ' on' : ''}`} aria-pressed={origemFiltro === o} onClick={() => setOrigemFiltro(o)}>
+                {o === 'todos' ? 'Todas' : o.charAt(0).toUpperCase() + o.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="fin-month">
+            {!todosMeses && <>
+              <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(-1)} aria-label="Mês anterior">‹</button>
+              <span>{getMesAnoLabel(mes, ano)}</span>
+              <button className="btn btn-secondary btn-sm" onClick={() => mudarMes(1)} aria-label="Próximo mês">›</button>
+            </>}
+            <button className="btn btn-secondary btn-sm" onClick={() => setTodosMeses(v => !v)}>
+              {todosMeses ? 'Ver por mês' : 'Todos os meses'}
+            </button>
+          </div>
+        </div>
+        <div className="fin-scroll">
         <table>
-          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th>Tipo</th><th className="num">Valor</th><th className="num">Pago</th><th className="num">Saldo</th><th>Status</th><th className="num">Ações</th></tr></thead>
+          <thead><tr><th>Vencimento</th><th>Origem</th><th>NF</th><th>Tipo</th><th className="num">Valor</th>{temParcial && <th className="num">Saldo</th>}{mostrarStatus && <th>Status</th>}<th className="num">Ações</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={9} className="empty-state">Carregando...</td></tr>
-            : visiveis.length === 0 ? <tr><td colSpan={9} className="empty-state">Nenhuma conta.</td></tr>
+            {loading ? <tr><td colSpan={nCols} className="empty-state">Carregando...</td></tr>
+            : visiveis.length === 0 ? <tr><td colSpan={nCols} className="empty-state">Nenhuma conta.</td></tr>
             : visiveis.map(r => {
               const vencida = r.status === 'pendente' && r.vencimento < hojeStr
-              const pago = somaPagos(r)
               return (
                 <tr key={r.id} style={vencida ? { background: 'rgba(192,57,43,0.04)' } : {}}>
-                  <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>{formatData(r.vencimento)}</td>
+                  <td className="mono" style={vencida ? { color: 'var(--red)', fontWeight: 600 } : {}}>
+                    {formatData(r.vencimento)}
+                    {!mostrarStatus && vencida && <span className="pg-chip pg-chip-red">vencida</span>}
+                    {!mostrarStatus && r.status === 'parcial' && <span className="pg-chip">parcial</span>}
+                  </td>
                   <td className="cell-wrap">{origemMap.get(r.id) ?? '—'}</td>
                   <td className="mono cell-clip" title={nfMap.get(r.id) ?? undefined}>{nfMap.get(r.id) ?? '—'} {isVhsysManaged(r) && <span className="badge badge-purple">VHSYS</span>}</td>
                   <td>{labelFormaPagamento(r.forma_pagamento)}</td>
                   <td className="mono num" style={{ fontWeight: 600 }}>{formatMoeda(r.valor)}</td>
-                  <td className="mono num">{pago > 0 ? formatMoeda(pago) : '—'}</td>
-                  <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>
-                  <td>{badge(r)}</td>
+                  {temParcial && <td className="mono num">{formatMoeda(saldoRestante(r.valor, pagosDe(r)))}</td>}
+                  {mostrarStatus && <td>{badge(r)}</td>}
                   <td className="cell-actions">
                     {isVhsysManaged(r) ? (
                       <div className="row-actions">
-                        <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => abrirVer(r)}>Ver</button>
                         {r.nota_interna && <span className="badge badge-gray" title={r.nota_interna}>nota</span>}
                       </div>
                     ) : !isDiretoria && (
                       <div className="row-actions">
-                        {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-primary btn-sm" onClick={() => setPagarRow(r)}>Pagar</button>}
-                        <button className="btn btn-secondary btn-sm" onClick={() => abrirVer(r)}>Ver</button>
-                        {isAdmin && <button className="btn btn-danger btn-sm" onClick={() => setConfirm(r.id)}>×</button>}
+                        {r.status !== 'pago' && r.status !== 'cancelado' && <button className="btn btn-outline btn-sm" onClick={() => setPagarRow(r)}>Pagar</button>}
+                        <button className="btn btn-ghost btn-sm" onClick={() => abrirVer(r)}>Ver</button>
+                        {isAdmin && <button className="btn btn-ghost btn-ghost-danger btn-sm" onClick={() => setConfirm(r.id)} aria-label="Excluir conta" title="Excluir conta">×</button>}
                       </div>
                     )}
                   </td>
@@ -305,6 +317,11 @@ export default function ParcelasPagarPage() {
             })}
           </tbody>
         </table>
+        </div>
+        <div className="fin-foot">
+          <span>Tudo aqui é previsão até o pagamento ser confirmado.</span>
+          <span>{rotuloTotal} <b className="mono">{formatMoeda(totalExibido)}</b></span>
+        </div>
       </div>
 
       <PagamentoModal
