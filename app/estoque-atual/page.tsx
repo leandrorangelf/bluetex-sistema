@@ -7,8 +7,8 @@ import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase'
 import { anoAtual, getMesAnoLabel, hoje, mesAtual, ordenarProdutos, formatMoeda, formatData, itensCaixas, converterParaUnidadeMaior } from '@/lib/utils'
 import type { Compra } from '@/types'
-import { calcularEstoque, calcularPrecoMedioCompra, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, calcularValorEstoque, mesclarPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type VendaEstoqueDb } from '@/lib/estoque'
-import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
+import { calcularEstoque, calcularPrecoMedioCompra, calcularValorEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb } from '@/lib/estoque'
+import { carregarPrecoMedioVendaPorUnidade } from '@/lib/estoque-precos'
 import ResumoEstoque from '@/components/estoque/ResumoEstoque'
 import TabelaSaldosEstoque from '@/components/estoque/TabelaSaldosEstoque'
 import MargemPorProduto from '@/components/estoque/MargemPorProduto'
@@ -17,7 +17,7 @@ import CalendarioEstoque from '@/components/estoque/CalendarioEstoque'
 import HistoricoAuditoriaEstoque from '@/components/estoque/HistoricoAuditoriaEstoque'
 import Modal from '@/components/Modal'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import type { AjusteEstoque, AuditoriaEstoque, Produto, TipoAjusteEstoque, Unidade } from '@/types'
+import { UNIDADES, type AjusteEstoque, type AuditoriaEstoque, type Produto, type TipoAjusteEstoque, type Unidade } from '@/types'
 
 interface ProfileNome { id: string; nome: string }
 
@@ -38,7 +38,9 @@ export default function EstoqueAtualPage() {
   const [aberturas, setAberturas] = useState<AberturaEstoqueDb[]>([])
   const [compras, setCompras] = useState<CompraEstoqueDb[]>([])
   const [vendas, setVendas] = useState<VendaEstoqueDb[]>([])
-  const [historicoVendas, setHistoricoVendas] = useState<LinhaHistoricoVendaVhsys[]>([])
+  // preço médio de venda desta unidade por produto (mesma fonte do Painel) e quais são estimativa
+  const [precoMedioVenda, setPrecoMedioVenda] = useState<Map<string, number>>(new Map())
+  const [precosEstimados, setPrecosEstimados] = useState<Set<string>>(new Set())
   const [ajustes, setAjustes] = useState<AjusteEstoque[]>([])
   const [auditoria, setAuditoria] = useState<AuditoriaEstoque[]>([])
   const [nomesUsuarios, setNomesUsuarios] = useState<Record<string, string>>({})
@@ -88,13 +90,10 @@ export default function EstoqueAtualPage() {
     setVendas((consultas[3].data ?? []) as unknown as VendaEstoqueDb[])
     setAjustes((consultas[4].data ?? []) as AjusteEstoque[])
 
-    const codigoVhsys = VHSYS_UNIDADES.find(u => u.unidade === unidade)?.codigo
-    if (codigoVhsys) {
-      const { data: historico } = await sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor').eq('unidade_codigo', codigoVhsys)
-      setHistoricoVendas((historico ?? []) as LinhaHistoricoVendaVhsys[])
-    } else {
-      setHistoricoVendas([])
-    }
+    const catalogo = ((consultas[0].data ?? []) as Produto[]).map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fator_conversao }))
+    const { precos, estimados } = await carregarPrecoMedioVendaPorUnidade(sb, catalogo, UNIDADES)
+    setPrecoMedioVenda(new Map(catalogo.flatMap(p => (precos.get(p.id)?.[unidade] ? [[p.id, precos.get(p.id)![unidade]] as [string, number]] : []))))
+    setPrecosEstimados(new Set(catalogo.filter(p => estimados.has(`${p.id}|${unidade}`)).map(p => p.id)))
 
     if (veTudo) {
       const auditResult = await sb.from('btx_auditoria_estoque').select('*').eq('unidade', unidade).order('created_at', { ascending: false }).limit(300)
@@ -127,12 +126,6 @@ export default function EstoqueAtualPage() {
     produtoId: produtoId || undefined,
   }), [ano, mes, produtoId, produtos, aberturas, compras, vendas, ajustes])
 
-  const precoMedioVendaAtiva = useMemo(() => calcularPrecoMedioVenda(vendas), [vendas])
-  const precoMedioVendaHistorico = useMemo(
-    () => calcularPrecoMedioVendaHistorico(historicoVendas, produtos.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fator_conversao }))),
-    [historicoVendas, produtos],
-  )
-  const precoMedioVenda = useMemo(() => mesclarPrecoMedioVenda(precoMedioVendaAtiva, precoMedioVendaHistorico), [precoMedioVendaAtiva, precoMedioVendaHistorico])
   const valorEstoque = useMemo(() => calcularValorEstoque(painel.saldos, precoMedioVenda), [painel.saldos, precoMedioVenda])
   const precoMedioCompra = useMemo(() => calcularPrecoMedioCompra(compras), [compras])
 
@@ -268,7 +261,8 @@ export default function EstoqueAtualPage() {
         : error && !ajusteModal ? <div className="alert alert-red stock-error"><span>{error}</span><button className="btn btn-secondary btn-sm" onClick={loadData}>Tentar novamente</button></div>
         : <>
           <ResumoEstoque resumo={painel.resumo} valorEstoque={valorEstoque} saldos={painel.saldos} />
-          <TabelaSaldosEstoque saldos={painel.saldos} precoMedioVenda={precoMedioVenda} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
+          {precosEstimados.size > 0 && <p className="stock-estimado">~ Valor estimado pela média das outras unidades em {precosEstimados.size} produto{precosEstimados.size === 1 ? '' : 's'}: sem venda válida registrada nesta unidade.</p>}
+          <TabelaSaldosEstoque saldos={painel.saldos} precoMedioVenda={precoMedioVenda} precosEstimados={precosEstimados} produtoSelecionado={produtoId} onSelectProduto={setProdutoId} />
           <details className="stock-cal" open={!!diaSelecionado}>
             <summary>Calendário de movimentações <span>· {new Set(painel.movimentos.map(m => m.data)).size} dia(s) com movimento</span></summary>
             <CalendarioEstoque ano={ano} mes={mes} movimentos={painel.movimentos} diaSelecionado={diaSelecionado} onSelectDia={setDiaSelecionado} />

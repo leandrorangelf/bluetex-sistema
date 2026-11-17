@@ -4,11 +4,13 @@ import type { SaldoProduto } from '@/lib/estoque'
 interface Props {
   saldos: SaldoProduto[]
   precoMedioVenda?: Map<string, number>
+  // produtos cujo preço é estimativa (média das outras unidades): valor aparece com "~"
+  precosEstimados?: Set<string>
   produtoSelecionado?: string
   onSelectProduto?: (produtoId: string) => void
 }
 
-export default function TabelaSaldosEstoque({ saldos, precoMedioVenda, produtoSelecionado, onSelectProduto }: Props) {
+export default function TabelaSaldosEstoque({ saldos, precoMedioVenda, precosEstimados, produtoSelecionado, onSelectProduto }: Props) {
   const cx = (base: number, fator: number) => converterParaUnidadeMaior(base, fator)
   return (
     <section className="stock-panel">
@@ -46,7 +48,9 @@ export default function TabelaSaldosEstoque({ saldos, precoMedioVenda, produtoSe
                   <td className={`mono num ${ajustes < 0 ? 'stock-negative' : ajustes > 0 ? 'stock-positive' : ''}`}>{ajustes ? `${ajustes > 0 ? '+' : '−'}${cx(Math.abs(ajustes), item.fatorConversao)}` : '—'}</td>
                   <td className={`mono num stock-current ${item.saldoAtual < 0 ? 'stock-negative' : ''}`}>{cx(item.saldoAtual, item.fatorConversao)}</td>
                   {precoMedioVenda && (
-                    <td className="mono num">{precoMedio > 0 && item.saldoAtual > 0 ? formatMoeda(item.saldoAtual * precoMedio) : '—'}</td>
+                    <td className="mono num" title={precosEstimados?.has(item.produtoId) ? 'Estimado pela média das outras unidades (sem venda válida nesta unidade)' : undefined}>
+                      {precoMedio > 0 && item.saldoAtual > 0 ? `${precosEstimados?.has(item.produtoId) ? '~ ' : ''}${formatMoeda(item.saldoAtual * precoMedio)}` : '—'}
+                    </td>
                   )}
                 </tr>
               )

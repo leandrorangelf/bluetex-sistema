@@ -755,6 +755,7 @@ td.cell-actions { white-space: nowrap; }
 .stock-summary-valor { background: var(--brand-light); border-radius: 11px 0 0 11px; }
 .stock-summary-valor strong { color: var(--brand); font-size: 22px; }
 .stock-zero { color: var(--text-muted) !important; }
+.stock-estimado { margin: 0; font-size: 12px; color: var(--text-muted); }
 .stock-row-zero td, .stock-row-zero td strong { color: var(--text-muted); font-weight: 500; }
 .stock-cal { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
 .stock-cal > summary { display: flex; align-items: baseline; gap: 6px; padding: 12px 16px; font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; }

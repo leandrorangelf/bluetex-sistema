@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { calcularPrecoMedioVendaHistorico, type LinhaHistoricoVendaVhsys } from '@/lib/estoque'
+import { calcularPrecoMedioVendaHistorico, preencherPrecosSemVenda, type LinhaHistoricoVendaVhsys } from '@/lib/estoque'
+
+describe('preencherPrecosSemVenda', () => {
+  const unidades = ['NEW BLUETEX MG', 'NEW BLUETEX SC', 'NEW BLUETEX AM', 'GB SP']
+
+  it('unidade sem preço herda a média das outras do mesmo grupo e é marcada como estimada', () => {
+    const { precos, estimados } = preencherPrecosSemVenda(new Map([['p1', { 'NEW BLUETEX MG': 100, 'NEW BLUETEX AM': 200 }]]), ['p1'], unidades)
+
+    expect(precos.get('p1')!['NEW BLUETEX SC']).toBe(150)
+    expect(estimados.has('p1|NEW BLUETEX SC')).toBe(true)
+    expect(precos.get('p1')!['NEW BLUETEX MG']).toBe(100)
+    expect(estimados.has('p1|NEW BLUETEX MG')).toBe(false)
+  })
+
+  it('GB não herda preço de NEW BLUETEX (empresas diferentes)', () => {
+    const { precos } = preencherPrecosSemVenda(new Map([['p1', { 'NEW BLUETEX MG': 100 }]]), ['p1'], unidades)
+    expect(precos.get('p1')!['GB SP']).toBeUndefined()
+  })
+
+  it('sem nenhuma referência, continua sem preço', () => {
+    const { precos, estimados } = preencherPrecosSemVenda(new Map(), ['p1'], unidades)
+    expect(precos.get('p1')).toEqual({})
+    expect(estimados.size).toBe(0)
+  })
+})
 
 const produtosLocais = [{ id: 'p1', nome: 'GUDANG RED', fatorConversao: 480 }]
 

@@ -277,6 +277,35 @@ export function calcularPrecoMedioVendaHistorico(
 
 // Preço "ao vivo" (vendas ativas recentes) manda; histórico do VHSYS só
 // preenche o que ainda não tem venda ativa registrada.
+const grupoDaUnidade = (unidade: string) => (unidade.startsWith('GB') ? 'GB' : 'NB')
+
+// Unidade sem venda válida de um produto herda a média dos preços das outras unidades do mesmo grupo
+// (NEW BLUETEX x GB são empresas diferentes, então não se misturam). Retorna também quais pares
+// "produto|unidade" são estimativa, pra tela avisar. precos: produto -> { unidade: preço }.
+export function preencherPrecosSemVenda(
+  precos: Map<string, Record<string, number>>,
+  produtoIds: string[],
+  unidades: string[],
+): { precos: Map<string, Record<string, number>>; estimados: Set<string> } {
+  const resultado = new Map<string, Record<string, number>>()
+  const estimados = new Set<string>()
+  for (const id of produtoIds) {
+    const proprios = precos.get(id) ?? {}
+    const preenchido: Record<string, number> = { ...proprios }
+    for (const unidade of unidades) {
+      if ((proprios[unidade] ?? 0) > 0) continue
+      const referencias = unidades
+        .filter(outra => outra !== unidade && grupoDaUnidade(outra) === grupoDaUnidade(unidade) && (proprios[outra] ?? 0) > 0)
+        .map(outra => proprios[outra])
+      if (referencias.length === 0) continue
+      preenchido[unidade] = referencias.reduce((soma, valor) => soma + valor, 0) / referencias.length
+      estimados.add(`${id}|${unidade}`)
+    }
+    resultado.set(id, preenchido)
+  }
+  return { precos: resultado, estimados }
+}
+
 export function mesclarPrecoMedioVenda(preferido: Map<string, number>, fallback: Map<string, number>): Map<string, number> {
   const resultado = new Map(preferido)
   for (const [produtoId, preco] of fallback) {

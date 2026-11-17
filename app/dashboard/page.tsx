@@ -7,8 +7,8 @@ import { useAuth } from '@/lib/auth-context'
 import { formatMoeda, formatData, getMesAnoLabel, mesAtual, anoAtual, ordenarProdutos, labelFormaPagamento, hoje } from '@/lib/utils'
 import { chaveCompetencia, type ParcelaFinanceira, type PagamentoParcela } from '@/lib/financeiro'
 import { calcularResumoUnidade, consolidarResumos, type ResumoUnidade, type ContaPagar, type ContaReceber, type VendaInfo } from '@/lib/painel-resumo'
-import { calcularEstoque, calcularPrecoMedioVenda, calcularPrecoMedioVendaHistorico, mesclarPrecoMedioVenda, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type LinhaHistoricoVendaVhsys, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
-import { VHSYS_UNIDADES } from '@/lib/vhsys/unidades'
+import { calcularEstoque, normalizarAberturasEstoque, normalizarMovimentosEstoque, normalizarProdutosEstoque, nomeRelacaoEstoque, type AberturaEstoqueDb, type CompraEstoqueDb, type VendaEstoqueDb, type RelacaoNomeEstoque } from '@/lib/estoque'
+import { carregarPrecoMedioVendaPorUnidade } from '@/lib/estoque-precos'
 import { UNIDADES, type Unidade, type GrupoCategoria, type Produto, type AjusteEstoque } from '@/types'
 import Modal from '@/components/Modal'
 
@@ -17,40 +17,30 @@ interface LinhaEstoque {
   saldos: Record<string, number>
   // preço médio de venda por unidade (mesma conta da tela Estoque) — o valor de estoque tem que bater nas duas telas
   precoPorUnidade: Record<string, number>
+  // unidades em que o preço é estimativa (média das outras unidades), pra avisar na tela
+  estimadoEm: string[]
 }
 
 async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number, mes: number, alvos: string[]): Promise<LinhaEstoque[]> {
-  const codigosVhsys = VHSYS_UNIDADES.filter(u => alvos.includes(u.unidade)).map(u => u.codigo)
-  const [produtosRes, aberturasRes, comprasRes, vendasRes, ajustesRes, historicoRes] = await Promise.all([
+  const [produtosRes, aberturasRes, comprasRes, vendasRes, ajustesRes] = await Promise.all([
     sb.from('btx_produtos').select('*, unidade_base:btx_unidades_medida!unidade_base_id(nome), unidade_maior:btx_unidades_medida!unidade_maior_id(nome)').eq('ativo', true),
     sb.from('btx_estoque_inicial').select('id,unidade,produto_id,mes,ano,qtd_carteiras').in('unidade', alvos),
     sb.from('btx_compras').select('id,unidade,data_compra,numero_nf,itens:btx_compras_itens(id,produto_id,qtd_carteiras)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_vendas').select('id,unidade,data_venda,numero_nf,itens:btx_vendas_itens(id,produto_id,qtd_carteiras,valor)').eq('ativo', true).in('unidade', alvos),
     sb.from('btx_ajustes_estoque').select('*').eq('ativo', true).in('unidade', alvos),
-    // uma consulta por unidade: numa só (.in) o Supabase corta a resposta em 1.000 linhas e some histórico de unidades
-    Promise.all(codigosVhsys.map(c => sb.from('btx_vhsys_vendas_historico').select('produto,qtd_caixas,valor,unidade_codigo').eq('unidade_codigo', c))),
   ])
   const produtosNorm = normalizarProdutosEstoque(ordenarProdutos((produtosRes.data ?? []) as Produto[]))
   const aberturas = (aberturasRes.data ?? []) as (AberturaEstoqueDb & { unidade: string })[]
   const compras = (comprasRes.data ?? []) as unknown as (CompraEstoqueDb & { unidade: string })[]
   const vendas = (vendasRes.data ?? []) as unknown as (VendaEstoqueDb & { unidade: string })[]
   const ajustes = (ajustesRes.data ?? []) as AjusteEstoque[]
-  const historicoVendas = historicoRes.flatMap(r => r.data ?? []) as (LinhaHistoricoVendaVhsys & { unidade_codigo?: string })[]
-  const produtosLocais = produtosNorm.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fatorConversao }))
+  // mesma fonte de preço da tela Estoque; passa todas as unidades pra a média das outras servir de referência
+  const { precos: precoPorProduto, estimados } = await carregarPrecoMedioVendaPorUnidade(
+    sb, produtosNorm.map(p => ({ id: p.id, nome: p.nome, fatorConversao: p.fatorConversao })), UNIDADES,
+  )
 
   const saldosPorProduto = new Map<string, Record<string, number>>()
-  const precoPorProduto = new Map<string, Record<string, number>>()
   for (const u of alvos) {
-    const codigoU = VHSYS_UNIDADES.find(x => x.unidade === u)?.codigo
-    const precoU = mesclarPrecoMedioVenda(
-      calcularPrecoMedioVenda(vendas.filter(v => v.unidade === u)),
-      calcularPrecoMedioVendaHistorico(codigoU ? historicoVendas.filter(h => h.unidade_codigo === codigoU) : [], produtosLocais),
-    )
-    for (const [produtoId, preco] of precoU) {
-      const r = precoPorProduto.get(produtoId) ?? {}
-      r[u] = preco
-      precoPorProduto.set(produtoId, r)
-    }
     const painel = calcularEstoque({
       ano, mes, produtos: produtosNorm,
       aberturas: normalizarAberturasEstoque(aberturas.filter(a => a.unidade === u)),
@@ -67,6 +57,7 @@ async function carregarEstoque(sb: ReturnType<typeof createClient>, ano: number,
     unidadeBase: p.unidadeBase ?? '', unidadeMaior: p.unidadeMaior ?? '',
     saldos: saldosPorProduto.get(p.id) ?? {},
     precoPorUnidade: precoPorProduto.get(p.id) ?? {},
+    estimadoEm: alvos.filter(u => estimados.has(`${p.id}|${u}`)),
   }))
 }
 
@@ -100,7 +91,7 @@ function CardEstoque({ linhas, unidade }: { titulo?: string; linhas: LinhaEstoqu
               <div key={l.id} className="est-row">
                 <strong>{l.nome}</strong>
                 <span className="est-c"><b className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</b></span>
-                <span className={`est-c mono${val > 0 ? '' : ' est-zero'}`}>{val > 0 ? formatMoeda(val) : '—'}</span>
+                <span className={`est-c mono${val > 0 ? '' : ' est-zero'}`} title={l.estimadoEm.includes(unidade) ? 'Estimado pela média das outras unidades' : undefined}>{val > 0 ? `${l.estimadoEm.includes(unidade) ? '~ ' : ''}${formatMoeda(val)}` : '—'}</span>
               </div>
             )
           })}
@@ -110,7 +101,12 @@ function CardEstoque({ linhas, unidade }: { titulo?: string; linhas: LinhaEstoqu
           </div>
         </>
       )}
-      {zerados > 0 && visiveis.length > 0 && <div className="est-note">Produtos zerados: {zerados}.</div>}
+      {((zerados > 0 && visiveis.length > 0) || visiveis.some(l => l.estimadoEm.includes(unidade))) && (
+        <div className="est-note">
+          {zerados > 0 && visiveis.length > 0 && <>Produtos zerados: {zerados}. </>}
+          {visiveis.some(l => l.estimadoEm.includes(unidade)) && <>~ Valor estimado pela média das outras unidades: sem venda válida registrada.</>}
+        </div>
+      )}
     </div>
   )
 }
@@ -165,6 +161,7 @@ function TabelaEstoque({ linhas, unidades }: { linhas: LinhaEstoque[]; unidades:
   const semEstoque = unidades.filter(u => !comEstoque.includes(u))
   const visiveis = linhas.filter(l => comEstoque.some(u => (l.saldos[u] ?? 0) !== 0))
   const zerados = linhas.length - visiveis.length
+  const estimadas = comEstoque.filter(u => visiveis.some(l => l.estimadoEm.includes(u)))
   const valor = (l: LinhaEstoque, u: string) => Math.max(l.saldos[u] ?? 0, 0) * (l.precoPorUnidade[u] ?? 0)
   const valorUnidade = (u: string) => linhas.reduce((s, l) => s + valor(l, u), 0)
   const cols = `minmax(150px, 1.5fr) repeat(${comEstoque.length}, minmax(100px, 1fr)) minmax(110px, 1.1fr)`
@@ -196,7 +193,7 @@ function TabelaEstoque({ linhas, unidades }: { linhas: LinhaEstoque[]; unidades:
                     const val = valor(l, u)
                     return v === 0
                       ? <span key={u} className="est-c est-zero mono">0</span>
-                      : <span key={u} className="est-c"><b className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</b>{val > 0 && <small className="mono">{formatMoeda(val)}</small>}</span>
+                      : <span key={u} className="est-c"><b className={`mono${v < 0 ? ' text-red' : ''}`}>{caixas(v, l.fator)}</b>{val > 0 && <small className="mono" title={l.estimadoEm.includes(u) ? 'Estimado pela média das outras unidades' : undefined}>{l.estimadoEm.includes(u) ? '~ ' : ''}{formatMoeda(val)}</small>}</span>
                   })}
                   <span className="est-c"><b className="mono">{caixas(totalBase, l.fator)}</b>{totalValor > 0 && <small className="mono">{formatMoeda(totalValor)}</small>}</span>
                 </div>
@@ -209,10 +206,11 @@ function TabelaEstoque({ linhas, unidades }: { linhas: LinhaEstoque[]; unidades:
             </div>
           </>
         )}
-        {(semEstoque.length > 0 || zerados > 0) && (
+        {(semEstoque.length > 0 || zerados > 0 || estimadas.length > 0) && (
           <div className="est-note">
             {semEstoque.length > 0 && <>Sem estoque: {semEstoque.map(u => SHORT[u] ?? u).join(', ')}. </>}
-            {zerados > 0 && <>Produtos zerados em todas as unidades: {zerados}.</>}
+            {zerados > 0 && <>Produtos zerados em todas as unidades: {zerados}. </>}
+            {estimadas.length > 0 && <>~ Valor estimado pela média das outras unidades ({estimadas.map(u => SHORT[u] ?? u).join(', ')}): sem venda válida registrada.</>}
           </div>
         )}
       </div>
