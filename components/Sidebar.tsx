@@ -11,6 +11,7 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
     { href: '/quadro', label: 'Quadro do time' },
   ] },
   { titulo: 'Financeiro', itens: [
+    { href: '/lancar', label: 'Lançar' },
     { href: '/vendas', label: 'Vendas' },
     { href: '/parcelas-pagar', label: 'Contas a Pagar' },
     { href: '/parcelas-receber', label: 'Contas a Receber' },
